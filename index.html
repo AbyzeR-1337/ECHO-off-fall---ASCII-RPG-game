@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Echoes of the Fall</title>
+<meta name="description" content="ASCII-RPG с живым открытым миром, который никогда ничего не объясняет.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<main id="wrap">
+  <canvas id="screen" aria-label="Игровой экран"></canvas>
+  <input id="nameInput" type="text" maxlength="18" autocomplete="off" spellcheck="false" aria-label="Имя персонажа">
+</main>
+<nav id="touch" aria-label="Сенсорное управление">
+  <div class="pad">
+    <button data-k="ul">↖</button><button data-k="up">↑</button><button data-k="ur">↗</button>
+    <button data-k="left">←</button><button data-k="wait" class="mid">·</button><button data-k="right">→</button>
+    <button data-k="dl">↙</button><button data-k="down">↓</button><button data-k="dr">↘</button>
+  </div>
+  <div class="acts">
+    <button data-k="act" class="big">Действие</button>
+    <button data-k="enter">OK</button>
+    <button data-k="esc">Назад</button>
+    <button data-k="inv">Сумка</button>
+    <button data-k="skills">Умения</button>
+    <button data-k="pray">Молитвы</button>
+    <button data-k="fire">Атака</button>
+    <button data-k="rest">Отдых</button>
+    <button data-k="char">Я</button>
+    <button data-k="map">Карта</button>
+    <button data-k="mem">Память</button>
+    <button data-k="look">Осмотр</button>
+  </div>
+</nav>
+<script src="js/core/util.js"></script>
+<script src="js/core/term.js"></script>
+<script src="js/data/tiles.js"></script>
+<script src="js/data/names.js"></script>
+<script src="js/data/biomes.js"></script>
+<script src="js/data/items.js"></script>
+<script src="js/data/monsters.js"></script>
+<script src="js/data/effects.js"></script>
+<script src="js/data/abilities.js"></script>
+<script src="js/data/classes.js"></script>
+<script src="js/data/prayers.js"></script>
+<script src="js/data/bosses.js"></script>
+<script src="js/data/events.js"></script>
+<script src="js/data/text.js"></script>
+<script src="js/data/secrets.js"></script>
+<script src="js/data/stories.js"></script>
+<script src="js/data/endings.js"></script>
+<script src="js/world/worldgen.js"></script>
+<script src="js/world/mapgen.js"></script>
+<script src="js/world/sim.js"></script>
+<script src="js/game/core.js"></script>
+<script src="js/game/fov.js"></script>
+<script src="js/game/entities.js"></script>
+<script src="js/game/combat.js"></script>
+<script src="js/game/play.js"></script>
+<script src="js/game/actions.js"></script>
+<script src="js/game/dialogue.js"></script>
+<script src="js/game/endings_rt.js"></script>
+<script src="js/game/save.js"></script>
+<script src="js/ui/ui.js"></script>
+<script src="js/ui/screens.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

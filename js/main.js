@@ -1,0 +1,107 @@
+'use strict';
+// Запуск: терминал, ввод с клавиатуры, мыши и сенсорного экрана.
+(function (E) {
+  const U = E.U, UI = E.UI, G = E.G;
+  const FAMILY = '"JetBrains Mono", "DejaVu Sans Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace';
+  const CODE = {
+    ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+    KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right',
+    Numpad8: 'up', Numpad2: 'down', Numpad4: 'left', Numpad6: 'right', Numpad7: 'ul', Numpad9: 'ur', Numpad1: 'dl', Numpad3: 'dr', Numpad5: 'wait',
+    Home: 'home', End: 'end', PageUp: 'pgup', PageDown: 'pgdn',
+    KeyE: 'act', Space: 'act', KeyG: 'act', Enter: 'enter', NumpadEnter: 'enter', Escape: 'esc', Tab: 'tab',
+    KeyI: 'inv', KeyC: 'char', KeyP: 'pray', KeyK: 'skills', KeyM: 'map', KeyJ: 'mem', KeyR: 'rest', KeyF: 'fire', KeyL: 'look', KeyX: 'look', KeyH: 'log',
+    Period: 'wait', KeyZ: 'wait', NumpadDecimal: 'wait', F1: 'help', Slash: 'help',
+  };
+  let term;
+  function cmdFromEvent(ev) {
+    const c = { raw: ev.key };
+    let k = CODE[ev.code];
+    if (ev.code && ev.code.startsWith('Digit') && !ev.shiftKey) { c.n = +ev.code.slice(5); }
+    else if (ev.code && ev.code.startsWith('Numpad') && /\d$/.test(ev.code) && !k) c.n = +ev.code.slice(6);
+    if (ev.key === '?') k = 'help';
+    if (ev.key === '>' || ev.key === '<') k = 'act';
+    c.k = k || null;
+    return c;
+  }
+  function onKey(ev) {
+    const inp = document.getElementById('nameInput');
+    const top = UI.top();
+    if (top && top.name === 'create' && document.activeElement === inp) {
+      if (ev.key === 'Enter') { ev.preventDefault(); inp.blur(); UI.key({ k: 'down' }); }
+      else if (ev.key === 'Escape') { inp.blur(); }
+      return;
+    }
+    const c = cmdFromEvent(ev);
+    if (!c.k && !c.n && !(top && top.name === 'create')) return;
+    if (['Tab', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Slash', 'F1', 'Backspace'].includes(ev.code) || c.k) ev.preventDefault();
+    UI.key(c);
+  }
+  function layout() {
+    const touch = document.getElementById('touch');
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const showTouch = coarse || window.innerWidth < 720 || document.body.classList.contains('force-touch');
+    touch.style.display = showTouch ? 'grid' : 'none';
+    const th = showTouch ? touch.getBoundingClientRect().height + 4 : 0;
+    const W = window.innerWidth - 4, H = window.innerHeight - th - 4;
+    let fs;
+    if (showTouch && W < 900) fs = U.clamp(Math.floor(W / 44 / 0.6), 9, 17);
+    else fs = U.clamp(Math.floor(H / 40), 12, 22);
+    // хотя бы 96 колонок на широком экране
+    if (!showTouch || W >= 900) while (fs > 11 && W / (fs * 0.6) < 98) fs--;
+    term.resize(W, H, fs, FAMILY);
+    UI.render();
+  }
+  function boot() {
+    const cv = document.getElementById('screen');
+    term = new E.Term(cv);
+    UI.t = term;
+    layout();
+    window.addEventListener('resize', layout);
+    window.addEventListener('keydown', onKey);
+    // мышь и касания
+    const pos = (ev) => { const r = cv.getBoundingClientRect(); return term.cellAt(ev.clientX - r.left, ev.clientY - r.top); };
+    cv.addEventListener('contextmenu', (ev) => ev.preventDefault());
+    cv.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault();
+      const [cx, cy] = pos(ev);
+      const h = term.hit(cx, cy);
+      if (h) { h.fn(h, cx, cy, ev.button); UI.render(); }
+      else if (UI.top() && UI.top().name === 'popup') { UI.pop(); }
+    });
+    cv.addEventListener('wheel', (ev) => { UI.key({ k: ev.deltaY > 0 ? 'down' : 'up' }); ev.preventDefault(); }, { passive: false });
+    // сенсорные кнопки
+    let rep = null;
+    const stop = () => { if (rep) { clearInterval(rep); rep = null; } };
+    for (const b of document.querySelectorAll('#touch [data-k]')) {
+      b.addEventListener('pointerdown', (ev) => {
+        ev.preventDefault();
+        const k = b.dataset.k;
+        const c = /^\d$/.test(k) ? { n: +k } : { k };
+        UI.key(c);
+        if (['up', 'down', 'left', 'right', 'ul', 'ur', 'dl', 'dr', 'wait'].includes(k)) { stop(); let n = 0; rep = setInterval(() => { if (++n > 2) UI.key(c); }, 140); }
+      });
+      b.addEventListener('pointerup', stop);
+      b.addEventListener('pointerleave', stop);
+      b.addEventListener('pointercancel', stop);
+    }
+    // анимация: пепел на заставке, огонь, дождь
+    setInterval(() => {
+      const top = UI.top();
+      if (!top) return;
+      if (top.anim) { UI.render(); return; }
+      const now = performance.now();
+      if (G.map && G.P && UI.stack.some((s) => s.name === 'game')) {
+        const w = E.Gm.weather();
+        if (['rain', 'storm', 'snow', 'blizzard', 'blacksnow', 'ashrain', 'sandstorm'].includes(w) || (G.fxFlash && now - G.fxFlash.t < 400) || (G.hitFlash && now - G.hitFlash < 250) || G.map.dimName || G.map.kind === 'dun') UI.render();
+        else if (now - (UI.lastIdle || 0) > 600) { UI.lastIdle = now; UI.render(); }
+      }
+    }, 140);
+    UI.push(UI.titleScreen());
+  }
+  E.boot = boot;
+  window.addEventListener('load', () => {
+    const go = () => { try { boot(); } catch (e) { document.body.innerHTML = '<pre style="color:#e88;padding:1em">' + (e.stack || e) + '</pre>'; } };
+    if (document.fonts && document.fonts.ready) Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1500))]).then(go);
+    else go();
+  });
+})(window.EOF);

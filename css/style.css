@@ -1,0 +1,92 @@
+:root {
+  --bg: #0b0a0f;
+  --panel: #121019;
+  --border: #4a4458;
+  --text: #c8c8c8;
+  --accent: #f0c060;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  font-family: "JetBrains Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+}
+#wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: calc(100vh - var(--touch-h, 0px));
+}
+#screen {
+  display: block;
+  image-rendering: auto;
+  cursor: default;
+}
+#nameInput {
+  display: none;
+  position: fixed;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  width: min(320px, 80vw);
+  padding: 8px 10px;
+  background: var(--panel);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  font: inherit;
+  font-size: 18px;
+  outline: none;
+  opacity: 0.9;
+}
+#touch {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  background: #0e0c14;
+  border-top: 1px solid var(--border);
+}
+#touch button {
+  background: #1a1622;
+  color: var(--text);
+  border: 1px solid #332c40;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+  padding: 0;
+  min-height: 34px;
+  touch-action: none;
+}
+#touch button:active { background: #3a3050; color: #fff; }
+#touch .pad {
+  display: grid;
+  grid-template-columns: repeat(3, 42px);
+  grid-auto-rows: 38px;
+  gap: 4px;
+}
+#touch .pad button { font-size: 18px; }
+#touch .pad .mid { color: var(--accent); }
+#touch .acts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 38px;
+  gap: 4px;
+  align-content: start;
+}
+#touch .acts .big { color: var(--accent); }
+@media (max-width: 380px) {
+  #touch .pad { grid-template-columns: repeat(3, 36px); grid-auto-rows: 34px; }
+  #touch .acts { grid-auto-rows: 34px; }
+  #touch button { font-size: 11px; }
+}
