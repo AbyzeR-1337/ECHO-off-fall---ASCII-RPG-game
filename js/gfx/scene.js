@@ -17,7 +17,7 @@
     sc.g.fill(null); sc.b.fill(null); sc.o.fill(null); sc.oc.fill(null); sc.it.fill(null); sc.bank.fill(null);
     sc.m.fill(0); sc.of.fill(0); sc.mem.fill(255); sc.rf.fill(-1); sc.sh.fill(0);
     sc.ents = []; sc.roofs = []; sc.lights = []; sc.fx = []; sc.cursor = null; sc.weather = null; sc.storm = false;
-    sc.ambient = null; sc.shadowA = 0.45; sc.base = null;
+    sc.ambient = null; sc.shadowA = 0.45; sc.base = null; sc.shade = null; sc.hlights = null;
     return sc;
   };
 
@@ -150,6 +150,8 @@
       const ch = chimByRow.get(j);
       if (ch) for (const c of ch) { const k = j * W + c.x; if (c.x >= 0 && c.x < W && sc.mem[k] !== 255) Gfx.drawSprite(ctx, 'chimney', X(c.x), y - S.ch, { f: of, mode: sc.mem[k] }); }
     }
+    // уровень 2 — тени от солнца, облака и мягкое затенение поверх рисунков
+    if (sc.shade && Gfx.HF) Gfx.HF.shadeOverlay(ctx, sc);
     // 3. темнота и свет
     const amb = sc.ambient;
     if (amb && amb.a > 0.01) {

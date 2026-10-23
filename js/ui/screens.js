@@ -575,13 +575,14 @@
       ['Мир не объясняет себя. Эта страница объясняет только руки.', COL.dim], '',
       ['Движение: стрелки, WASD или цифровой блок (1–9, по диагонали тоже). 5 или «.» — подождать.', COL.text],
       ['Мышь/палец: нажми на клетку — пойти туда. Правая кнопка — осмотреть.', COL.text],
-      ['Наткнуться на человека — заговорить. Наткнуться на зверя или врага — ударить.', COL.text],
+      ['Шаг ни с чем не взаимодействует сам: заговорить, открыть, войти — только действием (E). Наткнуться на врага — ударить.', COL.text],
       '',
       ['E / Пробел — действие (взять, открыть, войти, помолиться, порыбачить, сорвать траву...)', COL.text],
       ['I — сумка   C — персонаж   K — умения   P — молитвы   1–9 — быстрые умения', COL.text],
       ['F — атаковать в направлении (или выстрелить, если в руке лук)', COL.text],
       ['R — отдых   M — карта   J — память   L — осмотреться   H — журнал   Esc — меню', COL.text],
-      ['V — рисованный или плоский вид карты. + и − (или колесо мыши) — масштаб карты.', COL.text],
+      ['V — графика: ползунок от классического ASCII до «почти реальности». [ и ] — быстро сменить уровень.', COL.text],
+      ['+ и − (или колесо мыши) — масштаб карты.', COL.text],
       ['Значок [E] над вещью — до неё можно дотянуться.', COL.text],
       '',
       ['Ты — обычный человек. Ешь, когда голоден. Грейся, когда холодно. Спи, когда темно.', COL.dim],
@@ -591,6 +592,40 @@
       ['Игра сохраняется сама.', COL.dim],
     ]);
   };
+  // ---------- ползунок графики ----------
+  UI.gfxScreen = function () {
+    const s = {
+      name: 'gfx',
+      draw(t) {
+        const L = UI.layout(t);
+        const lv = UI.gfxLevel || 0;
+        const W = Math.min(L.mw - 2, 66), H = 8;
+        const x0 = L.mx + Math.floor((L.mw - W) / 2), y0 = L.my + L.mh - H - 1;
+        t.box(x0, y0, W, H, COL.border, COL.panel, 'Графика');
+        const left = 'ASCII', right = 'почти реальность';
+        const tw = Math.max(18, W - left.length - right.length - 8), step = Math.floor(tw / 5);
+        const tx = x0 + 3 + left.length + 1;
+        t.text(x0 + 2, y0 + 2, left, COL.dim, COL.panel);
+        for (let i = 0; i <= 5 * step; i++) t.put(tx + i, y0 + 2, i % step === 0 ? (i / step === lv ? '●' : '○') : '─', i <= lv * step ? COL.accent : COL.faint, COL.panel);
+        t.text(tx + 5 * step + 2, y0 + 2, right, COL.dim, COL.panel);
+        for (let k = 0; k <= 5; k++) {
+          t.put(tx + k * step, y0 + 3, String(k), k === lv ? COL.selfg : COL.dim, COL.panel);
+          t.hot(tx + k * step - 1, y0 + 2, 3, 2, () => { UI.setGfx(k, true); });
+        }
+        t.text(x0 + 2, y0 + 4, lv + ' · ' + UI.GFX[lv][0], COL.title, COL.panel, W - 4);
+        UI.wrapText(t, x0 + 2, y0 + 5, W - 4, UI.GFX[lv][1], COL.text, 1);
+        t.text(x0 + 2, y0 + H - 2, '←/→ или 0–5 — менять · Enter — готово', COL.dim, COL.panel, W - 4);
+      },
+      key(c) {
+        const d = UI.dirOf(c);
+        if (d && d[0]) { UI.setGfx((UI.gfxLevel || 0) + d[0], true); return; }
+        if (c.n != null && c.n >= 0 && c.n <= 5) { UI.setGfx(c.n, true); return; }
+        if (c.k === 'gup' || c.k === 'gdown') { UI.setGfx((UI.gfxLevel || 0) + (c.k === 'gup' ? 1 : -1), true); return; }
+        if (c.k === 'esc' || c.k === 'enter' || c.k === 'view' || c.k === 'act') { UI.pop(); E.Gm.msg('Графика: ' + UI.GFX[UI.gfxLevel || 0][0] + '.', '#808090'); }
+      },
+    };
+    UI.push(s);
+  };
   UI.pause = function () {
     const opts = [
       { t: 'Продолжить', f: () => {} },
@@ -599,7 +634,7 @@
     const so = Gm.settleOptions();
     if (so.length) opts.push({ t: G.map.sett >= 0 ? 'Остаться здесь навсегда' : 'Остаться в этих краях навсегда', f: () => UI.settle(so) });
     opts.push({ t: 'Уйти навсегда', f: () => UI.confirm('Уйти, не оглядываясь? Эта жизнь закончится.', () => Gm.ending(G.P.flags.nameless ? 'hidden_nobody' : 'walk_away')) });
-    opts.push({ t: 'Вид карты: ' + (UI.view3d ? 'рисованный' : 'плоский') + ' (V)', f: () => UI.setView(!UI.view3d) });
+    opts.push({ t: 'Графика: ' + UI.GFX[UI.gfxLevel || 0][0] + ' (V)', f: () => UI.gfxScreen() });
     if (UI.view3d) { opts.push({ t: 'Карта крупнее (+)', f: () => UI.zoom(1) }); opts.push({ t: 'Карта мельче (−)', f: () => UI.zoom(-1) }); }
     opts.push({ t: 'Журнал сообщений', f: () => UI.logScreen() });
     opts.push({ t: 'Как играть', f: () => UI.help() });

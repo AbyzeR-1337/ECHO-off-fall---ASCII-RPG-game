@@ -10,7 +10,7 @@
     Home: 'home', End: 'end', PageUp: 'pgup', PageDown: 'pgdn',
     KeyE: 'act', Space: 'act', KeyG: 'act', Enter: 'enter', NumpadEnter: 'enter', Escape: 'esc', Tab: 'tab',
     KeyI: 'inv', KeyC: 'char', KeyP: 'pray', KeyK: 'skills', KeyM: 'map', KeyJ: 'mem', KeyR: 'rest', KeyF: 'fire', KeyL: 'look', KeyX: 'look', KeyH: 'log', KeyV: 'view',
-    Equal: 'zin', NumpadAdd: 'zin', Minus: 'zout', NumpadSubtract: 'zout',
+    Equal: 'zin', NumpadAdd: 'zin', Minus: 'zout', NumpadSubtract: 'zout', BracketLeft: 'gdown', BracketRight: 'gup',
     Period: 'wait', KeyZ: 'wait', NumpadDecimal: 'wait', F1: 'help', Slash: 'help',
   };
   let term;
@@ -103,7 +103,7 @@
       if (G.map && G.P && UI.stack.some((s) => s.name === 'game')) {
         const w = E.Gm.weather();
         if (['rain', 'storm', 'snow', 'blizzard', 'blacksnow', 'ashrain', 'sandstorm'].includes(w) || (G.fxFlash && now - G.fxFlash.t < 400) || (G.hitFlash && now - G.hitFlash < 250) || G.map.dimName || G.map.kind === 'dun') UI.render();
-        else if (now - (UI.lastIdle || 0) > (UI.view3d ? 280 : 600)) { UI.lastIdle = now; UI.render(); }
+        else if (now - (UI.lastIdle || 0) > (UI.gfxLevel >= 3 ? 200 : UI.view3d ? 280 : 600)) { UI.lastIdle = now; UI.render(); }
       }
     }, 140);
     UI.push(UI.titleScreen());

@@ -20,8 +20,9 @@
     const e = Gm.entAt(nx, ny);
     if (e) {
       if (e.kind === 'ally') { Ent.move(e, P.x, P.y); P.x = nx; P.y = ny; Gm.endTurn(1); return; }
-      if (e.kind === 'npc' && !e.hostile && !e.duel) { E.UI.talk(e); return; }
-      if (e.kind === 'mon' && e.ai === 'passive' && !e.hostileToP && Gm.hasFx('calm')) { Gm.msg(U.cap(e.n) + ' смотрит на тебя без страха.'); Gm.endTurn(1); return; }
+      // шаг ни с кем не заговаривает и мирных не бьёт: разговор — действием, удар по мирному — атакой (F)
+      if (e.kind === 'npc' && !e.hostile && !e.duel) { Gm.msg('Дорогу загораживает: ' + E.Dlg.label(e).toLowerCase() + '.', '#9a9aa8'); return; }
+      if (e.kind === 'mon' && e.ai === 'passive' && !e.hostileToP) { Gm.msg('На пути — ' + e.n.toLowerCase() + '.', '#9a9aa8'); return; }
       E.Combat.playerAttack(e);
       P.stillTurns = 0;
       Gm.endTurn(1);
@@ -30,16 +31,13 @@
     const ti = ny * m.w + nx;
     const t = TL[m.tiles[ti]];
     const f = m.feat[ti];
-    if (f && f.k === 'locked') {
-      if (Gm.has(f.key)) { Gm.msg('Ржавый ключ со скрипом поворачивается.', '#e0c080'); Gm.setFeature(nx, ny, null); Gm.cnt('secrets'); D.secretFound('vault'); }
-      else { Gm.msg('Заперто.'); return; }
-    }
+    if (f && f.k === 'locked') { Gm.msg('Заперто.'); return; }
     if (!t.walk) {
       if (t.water === 2) {
         if (Gm.hasBoat() || Gm.swim() || m.underwater) { /* можно */ }
         else { Gm.msg(m.tiles[ti] === T.BOG ? 'Трясина. Не пройти.' : 'Глубокая вода. Без лодки не переплыть.'); return; }
       } else {
-        if (t.use || m.chests[ti] || f) { Gm.interactAt(nx, ny); return; }
+        // в вещь можно только упереться — пользоваться ею можно лишь действием
         if (m.tiles[ti] === T.CRACKWALL && P.eq.trinket && P.eq.trinket.b === 'a_voidlantern') { Gm.msg('В стене — трещина. Сквозь неё тянет холодом.'); }
         return;
       }
@@ -207,7 +205,10 @@
         case 'archive': E.UI.archive(); return true;
         case 'forge': Gm.forge(); return true;
         case 'corpse': { const n = Gm.npc(f.npc); Gm.msg('Останки. Рядом — истлевшая сумка охотника.' + (n ? '' : '')); f.seen = 1; return true; }
-        case 'locked': Gm.msg('Заперто.'); return true;
+        case 'locked':
+          if (Gm.has(f.key)) { Gm.msg('Ржавый ключ со скрипом поворачивается.', '#e0c080'); Gm.setFeature(x, y, null); Gm.cnt('secrets'); D.secretFound('vault'); Gm.endTurn(1); }
+          else Gm.msg('Заперто.');
+          return true;
       }
     }
     if (t === T.CAMPFIRE || t === T.HEARTH) { Gm.cook(); return true; }

@@ -123,17 +123,39 @@
     return [cx, cy];
   };
   // вид карты: рисованный ASCII 2.5D (движок js/gfx) или классический плоский; выбор помнится в этом браузере
-  UI.view3d = (() => { try { return localStorage.getItem('eotf_view') !== 'flat'; } catch (e) { return true; } })();
-  UI.setView = function (d3) {
-    UI.view3d = d3;
-    try { localStorage.setItem('eotf_view', d3 ? '3d' : 'flat'); } catch (e) { /* без хранилища — только на эту сессию */ }
+  // Уровень графики — ползунок от классического ASCII до «почти реальности» (но всё равно символами):
+  // 0 — символы, 1 — рисунок, 2 — свет и тень, 3 — объём, 4 — детально, 5 — почти реальность.
+  UI.GFX = [
+    ['Символы', 'Классический ASCII: одна клетка — один знак.'],
+    ['Рисунок', 'Каждая вещь и существо нарисованы несколькими символами, стены и крыши — объёмные.'],
+    ['Свет и тень', 'Рисунки плюс тени от солнца, бегущие облака, затенение у стен и тёплый вечерний свет.'],
+    ['Объём', 'Мир считается как картинка: материалы, объёмные фигуры, солнце, тени и огни — и потом переводится в символы.'],
+    ['Детально', 'Символы мельче, деталей больше: блики и рябь на воде, ветер в траве, облака, мягкие тени.'],
+    ['Почти реальность', 'Самые мелкие символы и все эффекты. Тяжелее для слабых устройств.'],
+  ];
+  UI.gfxLevel = (() => {
+    try {
+      const v = localStorage.getItem('eotf_gfx');
+      if (v != null && /^[0-5]$/.test(v)) return +v;
+      if (localStorage.getItem('eotf_view') === 'flat') return 0;
+    } catch (e) { /* без хранилища — выберем по экрану */ }
+    return null;
+  })();
+  Object.defineProperty(UI, 'view3d', { get: () => UI.gfxLevel > 0 });
+  UI.setGfx = function (lv, quiet) {
+    UI.gfxLevel = U.clamp(lv, 0, 5);
+    try { localStorage.setItem('eotf_gfx', String(UI.gfxLevel)); } catch (e) { /* только на эту сессию */ }
+    if (!quiet && E.G.P) E.Gm.msg('Графика: ' + UI.GFX[UI.gfxLevel][0] + '.', '#808090');
     UI.render();
   };
+  UI.setView = (d3) => UI.setGfx(d3 ? Math.max(1, UI._lastGfx || 4) : 0);
   UI.drawMap = function (t, L) {
     const m = G.map, P = G.P;
     if (!m) return;
     const clip = { x: L.mx * t.cw, y: L.my * t.ch, w: L.mw * t.cw, h: L.mh * t.ch };
     let rect;
+    if (UI.gfxLevel == null) UI.gfxLevel = L.wide ? 4 : 3;
+    if (UI.gfxLevel > 0) UI._lastGfx = UI.gfxLevel;
     if (UI.view3d) { UI.drawMapGfx(t, L); rect = UI.mvRect; }
     else {
       UI.drawMapFlat(t, L);
@@ -434,7 +456,9 @@
         case 'help': UI.help(); break;
         case 'esc': UI.pause(); break;
         case 'log': UI.logScreen(); break;
-        case 'view': UI.setView(!UI.view3d); break;
+        case 'view': UI.gfxScreen(); break;
+        case 'gdown': UI.setGfx((UI.gfxLevel || 0) - 1); break;
+        case 'gup': UI.setGfx((UI.gfxLevel || 0) + 1); break;
         case 'zin': if (UI.view3d) UI.zoom(1); break;
         case 'zout': if (UI.view3d) UI.zoom(-1); break;
         default:

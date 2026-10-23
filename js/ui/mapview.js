@@ -160,14 +160,28 @@
   const DIM_AMB = { dream: [[26, 12, 44], 0.5], spirit: [[0, 26, 24], 0.55], void: [[6, 6, 16], 0.68], time: [[26, 20, 6], 0.42], moon: [[12, 12, 28], 0.42], flesh: [[34, 4, 12], 0.58], sea: [[0, 12, 34], 0.62], depths: [[26, 8, 0], 0.72], mirror: [[20, 24, 36], 0.3] };
   const LIGHTS = { [T.CAMPFIRE]: [4.5, 'rgba(255,150,60,0.22)'], [T.HEARTH]: [3.5, 'rgba(255,140,50,0.2)'], [T.LAVA]: [1.6, 'rgba(255,90,20,0.1)'], [T.PORTAL]: [3, 'rgba(190,110,255,0.2)'], [T.CRYSTAL]: [2, 'rgba(150,110,255,0.16)'], [T.WHIRLPOOL]: [2, 'rgba(100,160,255,0.12)'], [T.LIGHTHOUSE]: [6, 'rgba(255,240,180,0.18)'], [T.NIGHTFLOWER]: [1.2, 'rgba(160,176,255,0.1)'], [T.ALTAR]: [1.6, 'rgba(255,200,120,0.12)'], [T.SHRINE]: [1.8, 'rgba(255,230,140,0.12)'] };
 
+  // огни для «почти реальности»: цвет, сила, радиус, мерцание
+  const HLIGHT = {
+    [T.CAMPFIRE]: [[1, 0.58, 0.24], 1.7, 6.5, 1], [T.HEARTH]: [[1, 0.55, 0.22], 1.4, 5, 1], [T.LAVA]: [[1, 0.35, 0.1], 0.7, 2.6, 0],
+    [T.PORTAL]: [[0.75, 0.45, 1], 1.2, 4.5, 0], [T.CRYSTAL]: [[0.6, 0.45, 1], 0.8, 3, 0], [T.LIGHTHOUSE]: [[1, 0.95, 0.7], 2, 10, 0],
+    [T.NIGHTFLOWER]: [[0.6, 0.7, 1], 0.45, 1.8, 0], [T.ALTAR]: [[1, 0.75, 0.4], 0.8, 2.8, 1], [T.SHRINE]: [[1, 0.9, 0.5], 0.8, 3.2, 0], [T.WHIRLPOOL]: [[0.4, 0.6, 1], 0.5, 2.5, 0],
+  };
+  const OBJH = Gfx.HF ? Gfx.HF.OBJH : {};
+  UI.objHeight = (k) => OBJH[k] || 0.4;
+
+  // ---------- уровень графики: 0 — символы, 1 — рисунок, 2 — свет и тень, 3–5 — «почти реальность» ----------
+  const FAMILY = () => (UI.t && UI.t.family) || 'monospace';
   let SC = null, rafOn = false;
   UI.mvCursor = null;
   UI.drawMapGfx = function (t, L) {
     const m = G.map, P = G.P;
     const now = performance.now();
+    const lvl = UI.gfxLevel || 1;
+    const hifi = lvl >= 3 && Gfx.HF;
     if (twKey !== m.key) { tw.clear(); twKey = m.key; }
-    Gfx.setScale(scaleFor(t, L), t.dpr || 1, t.family);
-    const TW = Gfx.S.TW, TH = Gfx.S.TH;
+    let TW, TH, hsz = null;
+    if (hifi) { hsz = Gfx.HF.tileSize(lvl, UI.zoomK * (L.wide ? 1 : 0.8)); TW = hsz.TW; TH = hsz.TH; }
+    else { Gfx.setScale(scaleFor(t, L), t.dpr || 1, t.family); TW = Gfx.S.TW; TH = Gfx.S.TH; }
     const vx0 = L.mx * t.cw, vy0 = L.my * t.ch, vw = L.mw * t.cw, vh = L.mh * t.ch;
     const vwT = vw / TW, vhT = vh / TH;
     // камера следует за плавной позицией игрока
@@ -257,7 +271,7 @@
         const it = items.get(mi);
         if (it) sc.it[k] = itemArt(it);
         const lc = LIGHTS[tid];
-        if (lc && sc.lights.length < 40) sc.lights.push({ x: i, y: j, r: lc[0], a: 1, glow: lc[1] });
+        if (lc && sc.lights.length < 40) sc.lights.push({ x: i, y: j, r: lc[0], a: 1, glow: lc[1], tid });
       }
     }
     // существа
@@ -278,6 +292,8 @@
       const nf = Gfx.frames(key);
       let f = 0;
       if (nf > 1) f = ALWAYS.has(key) ? Math.floor((now + e.id * 137) / 420) : moving ? 1 : 0;
+      // кадр объёмной модели: шаг — ноги попеременно, крылья и призраки — всегда в движении
+      const hf = ALWAYS.has(key) || key.startsWith('b_') ? Math.floor((now + e.id * 137) / 180) : moving ? (s.step % 2 ? 1 : 3) : 0;
       let mode = vis ? 0 : 2, alpha = 1;
       if (e.ghost || (e.kind === 'npc' && e.ai === 'wander' && e.immortal)) { mode = 4; alpha = 0.75; }
       if (e.tpl === 'ally_shade') alpha = 0.7;
@@ -286,13 +302,13 @@
       if (e.kind === 'npc' && e.hostile) c = '#e07060';
       if (e.ally) c = e.c || '#90f090';
       if (e.asleep) c = U.shade(c, 0.7);
-      sc.ents.push({ k: key, x: fx - tx0, y: fy - ty0, f, mode, c, flip: s.flip, alpha, sleep: !!e.asleep && vis, aura: e.kind === 'boss' ? '#ff2040' : e.ally ? '#60ff80' : null, big: e.kind === 'boss' });
+      sc.ents.push({ k: key, x: fx - tx0, y: fy - ty0, f, hf, moving, id: e.id, mode, c, flip: s.flip, alpha, sleep: !!e.asleep && vis, aura: e.kind === 'boss' ? '#ff2040' : e.ally ? '#60ff80' : null, big: e.kind === 'boss' });
     }
     // игрок
     const hit = G.hitFlash && now - G.hitFlash < 160;
     const [, , pmov] = curPos(ps, now);
     const pc = CLS[P.cls] || (P.cls ? '#b090d0' : '#c8a060');
-    sc.ents.push({ k: 'player', x: ppx - tx0, y: ppy - ty0, f: pmov ? 1 : 0, mode: hit ? 3 : 0, c: pc, flip: ps.flip, ring: '#f0d080' });
+    sc.ents.push({ k: 'player', x: ppx - tx0, y: ppy - ty0, f: pmov ? 1 : 0, hf: pmov ? (ps.step % 2 ? 1 : 3) : 0, moving: pmov, id: 0, mode: hit ? 3 : 0, c: pc, flip: ps.flip, ring: '#f0d080' });
     // забыть тех, кого давно не видно
     if (tw.size > 400) for (const [id, s] of tw) if (id !== 'P' && now - s.seen > 4000) tw.delete(id);
     // свет
@@ -307,11 +323,29 @@
     if (m.outdoor && !m.dimName) { sc.weather = w; const storm = (w === 'storm' && Math.random() < 0.012) || (G.flashSky && now - G.flashSky < 120); if (storm && !G.flashSky) G.flashSky = now; if (G.flashSky && now - G.flashSky > 120) G.flashSky = 0; sc.storm = !!storm; }
     // вспышки умений
     if (G.fxFlash && now - G.fxFlash.t < 420) sc.fx.push({ x: G.fxFlash.x - tx0, y: G.fxFlash.y - ty0, r: G.fxFlash.r, el: G.fxFlash.el, life: 1 - (now - G.fxFlash.t) / 420 });
+    // для теней и «почти реальности»: высоты клеток, огни, небо
+    if (lvl >= 2) {
+      const { Hm, Hs } = Gfx.HF.heightsFor(sc);
+      const sky = { time: G.S.time, outdoor: !!m.outdoor, dim: m.dimName || null, weather: m.outdoor && !m.dimName ? w : null, season, cold, fullMoon: E.Gm.fullMoon(), nightland: m.tint === 'night', abyss: m.tint === 'abyss', heights: Hm, hshape: Hs };
+      if (lvl === 2 && m.outdoor && !m.dimName) sc.shade = sky;
+      if (hifi) {
+        const hl = [];
+        for (const l of sc.lights) { const d = HLIGHT[l.tid]; if (d && hl.length < 40) hl.push({ x: l.x + 0.5, y: l.y + 0.5, z: 0.5, r: d[2], col: d[0], i: d[1], fl: d[3] }); }
+        // свет у игрока: факел — тёплый; ночью и под землёй без факела — тусклое «зрение», чтобы видеть рядом
+        const dark = !m.outdoor || m.dimName ? 1 : 1 - Lt;
+        if (P.light > 0) hl.push({ x: ppx - tx0 + 0.5, y: ppy - ty0 + 0.5, z: 0.9, r: r + 3, col: [1, 0.7, 0.4], i: 1.5, fl: 1 });
+        else if (dark > 0.2) hl.push({ x: ppx - tx0 + 0.5, y: ppy - ty0 + 0.5, z: 1.2, r: r + 1.5, col: [0.55, 0.6, 0.8], i: 0.55 * dark });
+        sc.hlights = hl;
+        Object.assign(sky, { level: lvl, CX: hsz.CX, CY: hsz.CY, cw: hsz.cw, ch: hsz.ch, dpr: t.dpr || 1, family: t.family });
+        UI._hs = sky;
+      }
+    }
     // курсор осмотра ставит экран осмотра
     UI.mvCursor = null;
+    const hsNow = UI._hs;
     t.under = (ctx) => {
       sc.cursor = UI.mvCursor ? [UI.mvCursor[0] - tx0, UI.mvCursor[1] - ty0] : null;
-      Gfx.drawScene(ctx, sc);
+      if (hifi) Gfx.HF.render(ctx, sc, hsNow); else Gfx.drawScene(ctx, sc);
     };
     // пока кто-то идёт — рисуем чаще
     if (UI.animUntil > now && !rafOn) { rafOn = true; requestAnimationFrame(() => { rafOn = false; UI.render(); }); }
@@ -353,7 +387,7 @@
     ctx.globalAlpha = 1;
     ctx.restore();
   };
-  UI.tallAt = (x, y) => { const m = G.map, tid = m.tiles[y * m.w + x]; const k = BK[tid] || OK[tid]; if (!k) return false; if (BK[tid]) return true; const sz = Gfx.size(k); return sz && sz.h > 2; };
+  UI.tallAt = (x, y) => { const m = G.map, tid = m.tiles[y * m.w + x]; const k = BK[tid] || OK[tid]; if (!k) return false; if (BK[tid]) return true; if (UI.gfxLevel >= 3) return (OBJH[k] || 0.4) > 0.8; const sz = Gfx.size(k); return sz && sz.h > 2; };
   // кнопка «Действие» на сенсорной панели загорается, когда есть очевидное дело
   let actBtn, actOn = null;
   UI.syncAct = function (on) {

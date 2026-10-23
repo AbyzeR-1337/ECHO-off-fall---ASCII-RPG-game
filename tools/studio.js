@@ -15,10 +15,11 @@
   try { OVR = JSON.parse(localStorage.getItem(Gfx.OVR_KEY) || '{}') || {}; } catch (e) { OVR = {}; }
   Gfx.applyOverrides();
 
-  const st = { zoom: 15, mode: 0, flip: false, tint: '#9a9a9a', sel: null, tab: 'atlas', filter: '' };
+  const st = { zoom: 15, mode: 0, flip: false, tint: '#9a9a9a', sel: null, tab: 'atlas', filter: '', level: 1 };
+  const LNAME = ['Символы', 'Рисунок', 'Свет и тень', 'Объём', 'Детально', 'Почти реальность'];
   const GROUP = { player: 'Игрок', people: 'Жители', beasts: 'Существа', bosses: 'Великие', nature: 'Природа', build: 'Постройки и утварь', holy: 'Святыни', fire: 'Огонь', link: 'Переходы', items: 'Вещи на земле', fx: 'Знаки', ground: 'Земля', block: 'Стены и скалы', roof: 'Крыши' };
   const ORDER = Object.keys(GROUP);
-  const UNDER = { nature: 'grass', beasts: 'grass', people: 'cobble', player: 'grass', bosses: 'rock', build: 'floor', holy: 'stonefloor', fire: 'rock', link: 'rock', items: 'road', fx: 'rock' };
+  const UNDER = { nature: 'grass', beasts: 'grass', people: 'road', player: 'grass', bosses: 'rock', build: 'floor', holy: 'stonefloor', fire: 'rock', link: 'rock', items: 'road', fx: 'rock' };
   const LIVE = new Set(['beasts', 'people', 'player', 'bosses']);
 
   // ---------- все записи атласа ----------
@@ -97,7 +98,25 @@
     sc.H = H + 1; // запас снизу под тени
     return sc;
   }
+  // уровни 3–5: та же сцена, но через «почти реальность» (js/gfx/hifi.js)
+  function paintHiFi(cv, sc, opt) {
+    const HF = Gfx.HF;
+    const tz = HF.tileSize(st.level, (st.tab === 'edit' ? 2 : 1) * st.zoom / 15);
+    const wpx = sc.W * tz.TW, hpx = (sc.H - 1) * tz.TH + (opt.top ? tz.TH : 0);
+    cv.width = Math.ceil(wpx * dpr); cv.height = Math.ceil(hpx * dpr);
+    cv.style.width = wpx + 'px'; cv.style.height = hpx + 'px';
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sc.now = performance.now();
+    sc.vx0 = 0; sc.vy0 = 0; sc.vw = wpx; sc.vh = hpx; sc.px0 = 0; sc.py0 = opt.top ? tz.TH : 0;
+    sc.weather = opt.weather || null;
+    const { Hm, Hs } = HF.heightsFor(sc);
+    sc.hlights = (opt.lights || []).map((l) => { const c = HF.parseRGBA(l.glow) || [1, 0.7, 0.4, 0.3]; return { x: l.x + 0.5, y: l.y + 0.5, z: 0.6, r: Math.min(10, l.r * 1.4), col: [c[0], c[1], c[2]], i: l.glow ? 1.3 : 0.5, fl: 1 }; });
+    const hs = Object.assign({ level: st.level, dpr, family: FAMILY, time: (opt.hour != null ? opt.hour : 12) * 60, outdoor: true, weather: opt.weather || null, season: 1, cold: false, fullMoon: false, heights: Hm, hshape: Hs }, tz);
+    HF.render(ctx, sc, hs);
+  }
   function paintScene(cv, sc, opt) {
+    if (st.level >= 3 && Gfx.HF) { paintHiFi(cv, sc, opt); return; }
     const S = Gfx.S;
     const wpx = sc.W * S.TW, hpx = (sc.H - 1) * S.TH + S.TH * 0.2 + (opt.top || 0);
     cv.width = Math.ceil(wpx * dpr); cv.height = Math.ceil(hpx * dpr);
@@ -112,6 +131,7 @@
     if (opt.lights) sc.lights = opt.lights;
     if (opt.weather) sc.weather = opt.weather;
     sc.base = opt.base || null;
+    if (st.level === 2 && Gfx.HF) { const { Hm, Hs } = Gfx.HF.heightsFor(sc); sc.shade = { time: (opt.hour != null ? opt.hour : 12) * 60, outdoor: true, weather: opt.weather || null, heights: Hm, hshape: Hs }; }
     Gfx.drawScene(ctx, sc);
   }
 
@@ -336,7 +356,7 @@
     const L = Math.max(0, Math.min(1, (Math.cos((hour - 12) / 12 * Math.PI) + 0.35) / 1.1));
     const px = sc.ents[0].x, py = sc.ents[0].y;
     paintScene($('dio'), sc, {
-      top: Gfx.S.TH, base: '#0c1409', shadowA: 0.12 + 0.36 * L, weather: $('weather').value || null,
+      hour, top: Gfx.S.TH, base: '#0c1409', shadowA: 0.12 + 0.36 * L, weather: $('weather').value || null,
       ambient: { col: [6, 10, 30], a: (1 - L) * 0.8 },
       lights: [{ x: px, y: py, r: 5 + L * 20, a: 1, glow: L < 0.5 ? 'rgba(255,170,80,0.16)' : null }, { x: 5, y: 8, r: 4.5, a: 1, glow: 'rgba(255,150,60,0.22)' }, { x: 17, y: 8, r: 1.8, a: 1, glow: 'rgba(255,230,140,0.12)' }],
     });
@@ -356,6 +376,7 @@
   }
   for (const b of document.querySelectorAll('#tabs button')) b.onclick = () => setTab(b.dataset.tab);
   $('zoom').oninput = () => { st.zoom = +$('zoom').value; setScale(); redraw(); };
+  $('level').oninput = () => { st.level = +$('level').value; $('levelv').textContent = st.level + ' · ' + LNAME[st.level]; Gfx.HF && Gfx.HF.clearModels(); redraw(); };
   $('mode').onchange = () => { st.mode = +$('mode').value; redraw(); };
   $('flip').onchange = () => { st.flip = $('flip').checked; redraw(); };
   $('tint').oninput = () => { st.tint = $('tint').value; redraw(); };
@@ -366,6 +387,7 @@
   setInterval(() => { if (document.hidden) return; if (st.tab === 'atlas') drawCards(); else if (st.tab === 'edit') { if (st.sel) paintScene($('preview'), sceneFor(st.sel, { mode: st.mode, flip: st.flip, tint: st.tint, minW: 5, minH: 3, chim: true }), { top: Gfx.S.TH }); } else drawDio(); }, 160);
 
   function boot() {
+    $('levelv').textContent = st.level + ' · ' + LNAME[st.level];
     setScale();
     renderAtlas();
     renderList();
