@@ -733,14 +733,19 @@
   // Быстрая перемотка на годы (эпилог)
   Sim.fastForward = function (days) {
     const s = S();
-    for (let d = 0; d < days; d++) {
-      s.time = (Time.day(s.time) + 1) * DAY;
-      for (let i = s.evPlan.length - 1; i >= 0; i--) if (s.evPlan[i].t <= s.time) startEvent(s.evPlan.splice(i, 1)[0]);
-      for (let i = s.ev.length - 1; i >= 0; i--) if (s.ev[i].t1 <= s.time) endEvent(s.ev.splice(i, 1)[0]);
-      if (s.dragon && s.dragon.alive && s.time >= s.dragon.next) dragonRaid();
-      Sim.daily(true);
-    }
+    E.G.ff = true;
+    try {
+      for (let d = 0; d < days; d++) {
+        s.time = (Time.day(s.time) + 1) * DAY;
+        for (let i = s.evPlan.length - 1; i >= 0; i--) if (s.evPlan[i].t <= s.time) startEvent(s.evPlan.splice(i, 1)[0]);
+        for (let i = s.ev.length - 1; i >= 0; i--) if (s.ev[i].t1 <= s.time) endEvent(s.ev.splice(i, 1)[0]);
+        for (let i = s.temps.length - 1; i >= 0; i--) if (s.temps[i].t1 <= s.time) s.temps.splice(i, 1);
+        if (s.dragon && s.dragon.alive && s.time >= s.dragon.next) dragonRaid();
+        Sim.daily(true);
+      }
+    } finally { E.G.ff = false; }
   };
+
 
   // ---------- слухи ----------
   Sim.rumorsFor = function (npcId) {

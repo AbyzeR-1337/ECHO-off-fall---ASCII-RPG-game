@@ -111,6 +111,8 @@
     if (base.st) it.q = 1;
     if (base.light && base.t === 'tool') it.light = base.light;
     if (base.art) it.art = 1;
+    if (base.cont) it.cont = 1;
+    if (base.music) it.music = 1;
     if (b === 'book') { const r = U.rng(U.hash(Date.now(), Math.random())); it.title = r.pick(D.bookTitles); it.n = '«' + it.title + '»'; }
     if (o) Object.assign(it, o);
     return it;

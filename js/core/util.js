@@ -271,6 +271,70 @@ window.EOF = window.EOF || {};
     return arr;
   };
 
+  // ---------- сжатие (LZW, коды переменной длины упакованы по 15 бит в символ) ----------
+  U.lzc = function (s) {
+    const dict = new Map();
+    const CAP = 1 << 22;
+    let next = 65536, k = 0, acc = 0, accBits = 0;
+    const out = [];
+    const emit = (code) => {
+      k++;
+      const nb = 32 - Math.clz32(65536 + k);
+      for (let i = nb - 1; i >= 0; i--) {
+        acc = (acc << 1) | ((code >>> i) & 1);
+        if (++accBits === 15) { out.push(String.fromCharCode(acc + 32)); acc = 0; accBits = 0; }
+      }
+    };
+    if (!s.length) return '0|';
+    let w = s.charCodeAt(0);
+    for (let i = 1; i < s.length; i++) {
+      const c = s.charCodeAt(i);
+      const key = w * 65536 + c;
+      const code = dict.get(key);
+      if (code !== undefined) { w = code; continue; }
+      emit(w);
+      if (next < CAP) dict.set(key, next++);
+      w = c;
+    }
+    emit(w);
+    if (accBits) out.push(String.fromCharCode((acc << (15 - accBits)) + 32));
+    return k + '|' + out.join('');
+  };
+  U.lzd = function (z) {
+    const bar = z.indexOf('|');
+    const n = +z.slice(0, bar);
+    const data = z.slice(bar + 1);
+    if (!n) return '';
+    const CAP = (1 << 22) - 65536;
+    let pos = 0, cur = 0, curBits = 0;
+    const read = (nb) => {
+      let v = 0;
+      for (let i = 0; i < nb; i++) {
+        if (curBits === 0) { cur = data.charCodeAt(pos++) - 32; curBits = 15; }
+        curBits--;
+        v = (v * 2) + ((cur >>> curBits) & 1);
+      }
+      return v;
+    };
+    const dict = [];
+    const out = [];
+    let k = 1;
+    let code = read(32 - Math.clz32(65536 + k));
+    let w = String.fromCharCode(code);
+    out.push(w);
+    for (k = 2; k <= n; k++) {
+      code = read(32 - Math.clz32(65536 + k));
+      let entry;
+      if (code < 65536) entry = String.fromCharCode(code);
+      else if (code - 65536 < dict.length) entry = dict[code - 65536];
+      else entry = w + w[0];
+      out.push(entry);
+      if (dict.length < CAP) dict.push(w + entry[0]);
+      w = entry;
+    }
+    return out.join('');
+  };
+
   U.uid = (function () { let n = 0; return () => (Date.now() % 1e9).toString(36) + (n++).toString(36); })();
   U.roman = function (n) {
     const m = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];

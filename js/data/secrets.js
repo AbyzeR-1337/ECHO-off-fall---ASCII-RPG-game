@@ -29,7 +29,7 @@
       run: (c) => {
         const Gm = E.Gm;
         Gm.setTile(c.target.x, c.target.y, T.PORTAL);
-        Gm.setFeature(c.target.x, c.target.y, { link: 'dim:depths:0:0', name: 'трещина в камне' });
+        Gm.setFeature(c.target.x, c.target.y, { k: 'link', to: 'dim:depths:0:0', name: 'трещина в камне' });
         Gm.msg('Камень раскалывается с долгим, низким звоном. За ним — проход вниз.', '#ffd080');
         found('hammer');
       } },

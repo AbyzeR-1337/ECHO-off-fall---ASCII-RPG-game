@@ -24,8 +24,12 @@
       const l = W.settlements.filter((s) => ['village', 'hamlet'].includes(s.type) && !G.S.sett[s.id].destroyed && W.regions[s.region].exist === 'always');
       if (l.length) start = W.regions[l[Math.floor(Math.random() * l.length)].region];
       E.Sim.fastForward(30 + Math.floor(Math.random() * 300));
+      G.S.time = Time.day(G.S.time) * 1440 + 8 * 60;
     }
     Gm.newPlayer(name, sex);
+    G.log = [];
+    G.map = null;
+    G.cache.clear();
     G.P.startRegion = start.id;
     G.P.startDay = Time.day(G.S.time);
     const key = 'o:' + start.x + ':' + start.y;
@@ -189,6 +193,8 @@
     const st = G.S.boss[b.id] || {};
     if (st.dead || st.gone) return false;
     const sp = b.sp;
+    // Тот, кто ждал у дороги, приходит лишь к тем, кто не спал в первую ночь — и только ночью
+    if (b.id === 'b_roadside') return Gm.night() && !!G.P.flags.awake_first_night && !G.P.flags.slept_first_night;
     switch (sp.k) {
       case 'always': return true;
       case 'night': return Gm.night();
@@ -596,7 +602,8 @@
   Gm.isNearPlayerNpc = function (id) { return !!(G.map && G.map.ents.some((e) => e.npc === id && U.dist(e.x, e.y, G.P.x, G.P.y) < 10)); };
   Gm.onDragonRaid = function (sid) {
     const m = G.map;
+    if (G.ff || !G.P || G.P.ended || G.P.dead) return;
     if (m && m.sett === sid && m.kind === 'over') { Gm.msg('Небо темнеет. Над крышами — крылья!', '#ff8040'); const p = Ent.freeNear(G.P.x + 6, G.P.y - 3); if (p) Gm.spawnBoss('b_dragon', p.x, p.y); }
   };
-  Gm.onBattle = function (sid) { const m = G.map; if (m && m.sett === sid) { Gm.msg('В городе бой! Звенит сталь, кричат люди.', '#ff9060'); for (let i = 0; i < 3; i++) Gm.placeMon(m, 'soldier', (m.spawn ? m.spawn.danger : 3) + 2); } };
+  Gm.onBattle = function (sid) { const m = G.map; if (G.ff || !G.P || G.P.ended || G.P.dead) return; if (m && m.sett === sid) { Gm.msg('В городе бой! Звенит сталь, кричат люди.', '#ff9060'); for (let i = 0; i < 3; i++) Gm.placeMon(m, 'soldier', (m.spawn ? m.spawn.danger : 3) + 2); } };
 })(window.EOF);
