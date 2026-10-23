@@ -126,14 +126,10 @@
     if (f && f.k === 'link') { Gm.useLink(f, P.x, P.y); return; }
     const its = Gm.itemsAt(P.x, P.y);
     if (its.length) { Gm.pickupAll(); return; }
-    // рядом
-    for (const [dx, dy] of [[0, 0]].concat(U.DIR8)) {
-      const x = P.x + dx, y = P.y + dy;
-      if (x < 0 || y < 0 || x >= m.w || y >= m.h) continue;
-      const i = y * m.w + x;
-      const e = Gm.entAt(x, y);
-      if (e && e.kind === 'npc' && !e.hostile) { E.UI.talk(e); return; }
-      if (m.chests[i] || m.feat[i] || TL[m.tiles[i]].use || TL[m.tiles[i]].ore || TL[m.tiles[i]].crystal) { if (Gm.interactAt(x, y)) return; }
+    // рядом: сначала люди и очевидные вещи, потом всё прочее
+    for (const c of Gm.useCands()) {
+      if (c.e) { E.UI.talk(c.e); return; }
+      if (Gm.interactAt(c.x, c.y)) return;
     }
     // вода, деревья, травы
     for (const [dx, dy] of [[0, 0]].concat(U.DIR8)) {
@@ -146,6 +142,44 @@
     }
     Gm.msg('Здесь нечего делать.', '#808080');
   };
+  // Очевидное дело в клетке — то, что видно глазом: дверь вниз, сундук, очаг, алтарь.
+  // Тайное, разрушение и ремёсла по наитию (руда, деревья, трещины, останки) не подсказываются.
+  const PLAIN_FEAT = { shrine: 1, altar: 1, inscr: 1, grave: 1, throne: 1, lighthouse: 1, archive: 1, forge: 1 };
+  const PLAIN_TILE = new Set([T.CAMPFIRE, T.HEARTH, T.WELL, T.ANVIL, T.ALCHTABLE, T.SHELF, T.SIGN]);
+  Gm.plainUse = function (x, y) {
+    const m = G.map, i = y * m.w + x, t = m.tiles[i], f = m.feat[i];
+    if (m.chests[i]) return true;
+    if (f && f.k === 'link') return !!TL[t].link;
+    if (f && PLAIN_FEAT[f.k]) return true;
+    if (f && (f.k === 'corpse' || f.k === 'locked')) return false;
+    return PLAIN_TILE.has(t);
+  };
+  Gm.useCands = function () {
+    const P = G.P, m = G.map, first = [], rest = [];
+    for (const [dx, dy] of [[0, 0]].concat(U.DIR8)) {
+      const x = P.x + dx, y = P.y + dy;
+      if (x < 0 || y < 0 || x >= m.w || y >= m.h) continue;
+      const i = y * m.w + x;
+      const e = Gm.entAt(x, y);
+      if (e && e.kind === 'npc' && !e.hostile) { first.push({ x, y, e }); continue; }
+      if (m.chests[i] || m.feat[i] || TL[m.tiles[i]].use || TL[m.tiles[i]].ore || TL[m.tiles[i]].crystal) (Gm.plainUse(x, y) ? first : rest).push({ x, y });
+    }
+    return first.concat(rest);
+  };
+  // Подсказки «E»: всё очевидное на расстоянии руки; main — то, к чему приведёт нажатие
+  Gm.useHints = function () {
+    const P = G.P, m = G.map, out = [];
+    if (!m || !P || P.dead || P.ended) return out;
+    const here = P.y * m.w + P.x, f = m.feat[here];
+    if ((f && f.k === 'link' && TL[m.tiles[here]].link) || Gm.itemsAt(P.x, P.y).length) out.push({ x: P.x, y: P.y, main: true });
+    else if (f && f.k === 'link') return out;
+    const cands = Gm.useCands();
+    cands.forEach((c, k) => {
+      if (!G.vis[c.y * m.w + c.x] || (c.x === P.x && c.y === P.y)) return;
+      if (c.e || Gm.plainUse(c.x, c.y)) out.push({ x: c.x, y: c.y, main: !out.length && k === 0 });
+    });
+    return out;
+  };
   Gm.toolEq = (k) => (G.P.eq.hand && D.items[G.P.eq.hand.b] && D.items[G.P.eq.hand.b].tool === k) || !!G.P.inv.find((i) => D.items[i.b] && D.items[i.b].tool === k && i.b === ({ axe: 'axe', pick: 'pickaxe', dig: 'shovel' }[k]));
   Gm.interactAt = function (x, y) {
     const P = G.P, m = G.map;
@@ -154,6 +188,13 @@
     const f = m.feat[i];
     if (Gm.storyHook('useTile', { tile: t, x, y, f })) { Gm.endTurn(1); return true; }
     if (m.chests[i]) { Gm.openChest(i, x, y); return true; }
+    if (t === T.MINE && f && f.mine != null && Gm.has('powder') && (x !== P.x || y !== P.y)) {
+      E.UI.list({ title: 'Вход в шахту', items: [
+        { t: 'Спуститься', f: () => { E.UI.pop(); Gm.useLink(f, x, y); return 'keep'; } },
+        { t: 'Заложить порох', f: () => { E.UI.pop(); E.UI.confirm('Взорвать вход в шахту?', () => Gm.blowMine(x, y, f)); return 'keep'; } },
+      ] });
+      return true;
+    }
     if (f) {
       switch (f.k) {
         case 'link': Gm.useLink(f, x, y); return true;
@@ -177,7 +218,6 @@
     if (t === T.SIGN) { Gm.msg('Буквы стёрлись.'); return true; }
     if (TL[t].ore) { if (Gm.toolEq('pick')) { Gm.mine(x, y); return true; } Gm.msg('Рудная жила. Нужна кирка.'); return true; }
     if (TL[t].crystal) { if (Gm.toolEq('pick')) { Gm.setTile(x, y, T.ROCKFLOOR); Gm.give('crystal', 1); Gm.endTurn(6); return true; } Gm.msg('Кристалл. Без кирки не отколоть.'); return true; }
-    if (t === T.MINE && f && Gm.has('powder')) { E.UI.confirm('Взорвать вход в шахту?', () => Gm.blowMine(x, y, f)); return true; }
     return false;
   };
   Gm.useLink = function (f, x, y) {

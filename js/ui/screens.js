@@ -543,7 +543,7 @@
         const [cx, cy] = UI.cam || UI.camera(L);
         const sx = L.mx + s.x - cx, sy = L.my + s.y - cy;
         const i = s.y * G.map.w + s.x;
-        t.bg(sx, sy, '#806020');
+        if (t.under) UI._sc.cursor = [s.x - cx, s.y - cy]; else t.bg(sx, sy, '#806020');
         const desc = UI.lookText(s.x, s.y);
         t.text(0, L.my, ' ' + desc + ' ', '#fff0c0', '#2a2010', t.cols);
       },
@@ -581,6 +581,7 @@
       ['I — сумка   C — персонаж   K — умения   P — молитвы   1–9 — быстрые умения', COL.text],
       ['F — атаковать в направлении (или выстрелить, если в руке лук)', COL.text],
       ['R — отдых   M — карта   J — память   L — осмотреться   H — журнал   Esc — меню', COL.text],
+      ['V — объёмный или плоский вид карты. Значок [E] над вещью — до неё можно дотянуться.', COL.text],
       '',
       ['Ты — обычный человек. Ешь, когда голоден. Грейся, когда холодно. Спи, когда темно.', COL.dim],
       ['Мир живёт и без тебя: люди рождаются и умирают, города богатеют и пустеют, короли сменяют друг друга.', COL.dim],
@@ -597,6 +598,7 @@
     const so = Gm.settleOptions();
     if (so.length) opts.push({ t: G.map.sett >= 0 ? 'Остаться здесь навсегда' : 'Остаться в этих краях навсегда', f: () => UI.settle(so) });
     opts.push({ t: 'Уйти навсегда', f: () => UI.confirm('Уйти, не оглядываясь? Эта жизнь закончится.', () => Gm.ending(G.P.flags.nameless ? 'hidden_nobody' : 'walk_away')) });
+    opts.push({ t: 'Вид карты: ' + (UI.view3d ? 'объёмный' : 'плоский') + ' (V)', f: () => UI.setView(!UI.view3d) });
     opts.push({ t: 'Журнал сообщений', f: () => UI.logScreen() });
     opts.push({ t: 'Как играть', f: () => UI.help() });
     opts.push({ t: 'Летопись концовок', f: () => UI.endingsGallery() });

@@ -85,6 +85,16 @@ html, body {
   align-content: start;
 }
 #touch .acts .big { color: var(--accent); }
+#touch .acts .big .key {
+  display: inline-block;
+  min-width: 1.4em;
+  border-radius: 3px;
+  border: 1px solid #6a5a38;
+  color: var(--accent);
+  font-weight: 700;
+}
+#touch .acts .big.ready { border-color: var(--accent); background: #2a2214; }
+#touch .acts .big.ready .key { background: var(--accent); color: #1a1206; border-color: #fff0c0; }
 @media (max-width: 380px) {
   #touch .pad { grid-template-columns: repeat(3, 36px); grid-auto-rows: 34px; }
   #touch .acts { grid-auto-rows: 34px; }

@@ -31,6 +31,7 @@
     resize(W, H, fontPx, family) {
       const dpr = Math.min(3, window.devicePixelRatio || 1);
       this.dpr = dpr;
+      this.fpx = fontPx; this.family = family;
       this.font = fontPx + 'px ' + family;
       this.ctx.font = this.font;
       const m = this.ctx.measureText('M').width;
@@ -47,6 +48,7 @@
     clear(bg) {
       this.c.fill(' '); this.f.fill('#cccccc'); this.b.fill(bg || null);
       this.hots.length = 0;
+      this.under = null; this.over = null;
     }
     put(x, y, ch, fg, bg) {
       if (x < 0 || y < 0 || x >= this.cols || y >= this.rows) return;
@@ -113,6 +115,8 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = this.baseBg;
       ctx.fillRect(0, 0, cols * cw, rows * ch);
+      // слой под сеткой (объёмная карта) — сетка рисуется поверх него
+      if (this.under) { ctx.save(); this.under(ctx, this); ctx.restore(); ctx.globalAlpha = 1; }
       // фоны
       for (let y = 0; y < rows; y++) {
         let x = 0;
@@ -149,6 +153,15 @@
           ctx.fillText(c, px + cw / 2, py + ch / 2 + 1);
         }
       }
+      if (this.over) { ctx.save(); this.over(ctx, this); ctx.restore(); }
+    }
+    // Один символ в произвольной точке (fillStyle и font уже выставлены)
+    glyph(c, px, py, w, h) {
+      const bx = BOX[c];
+      if (bx) { this.drawBox(bx, px, py, w, h, Math.max(1, Math.round(w / 8)), Math.max(2, Math.round(w / 4.5))); return; }
+      const bl = BLOCK[c];
+      if (bl) { this.ctx.fillRect(Math.floor(px + bl[0] * w), Math.floor(py + bl[1] * h), Math.ceil(bl[2] * w), Math.ceil(bl[3] * h)); return; }
+      this.ctx.fillText(c, px + w / 2, py + h / 2 + 1);
     }
     drawBox(bx, px, py, cw, ch, lw, gap) {
       const ctx = this.ctx;
