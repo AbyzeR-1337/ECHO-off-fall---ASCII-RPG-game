@@ -4,7 +4,6 @@
   const U = E.U, D = E.D, T = E.T, TL = E.TL, Time = E.Time, C = E.C;
   const G = E.G;
   const UI = E.UI = { stack: [], t: null, dirty: true };
-  let K3 = null;
   const COL = UI.COL = {
     bg: '#0b0a0f', panel: '#121019', border: '#4a4458', text: '#c8c8c8', dim: '#7a7a88', faint: '#4a4a56', title: '#e8d8a8', accent: '#f0c060',
     hp: '#d04848', mp: '#4878d0', food: '#c09040', xp: '#9090e0', good: '#80d080', bad: '#e07070', sel: '#2a2438', selfg: '#fff0c0',
@@ -123,17 +122,39 @@
     if (m.h <= L.mh) cy = -Math.floor((L.mh - m.h) / 2); else cy = U.clamp(P.y - (L.mh >> 1), 0, m.h - L.mh);
     return [cx, cy];
   };
-  // вид карты: объёмный (2.5D) или плоский; выбор помнится в этом браузере
+  // вид карты: рисованный ASCII 2.5D (движок js/gfx) или классический плоский; выбор помнится в этом браузере
   UI.view3d = (() => { try { return localStorage.getItem('eotf_view') !== 'flat'; } catch (e) { return true; } })();
   UI.setView = function (d3) {
     UI.view3d = d3;
     try { localStorage.setItem('eotf_view', d3 ? '3d' : 'flat'); } catch (e) { /* без хранилища — только на эту сессию */ }
     UI.render();
   };
-  const LIGHTS = { [T.CAMPFIRE]: [255, 150, 60, 3.2], [T.HEARTH]: [255, 140, 50, 2.6], [T.PORTAL]: [190, 110, 255, 2.2], [T.CRYSTAL]: [150, 110, 255, 1.4], [T.WHIRLPOOL]: [100, 160, 255, 1.6], [T.LIGHTHOUSE]: [255, 240, 180, 2.5] };
   UI.drawMap = function (t, L) {
     const m = G.map, P = G.P;
     if (!m) return;
+    const clip = { x: L.mx * t.cw, y: L.my * t.ch, w: L.mw * t.cw, h: L.mh * t.ch };
+    let rect;
+    if (UI.view3d) { UI.drawMapGfx(t, L); rect = UI.mvRect; }
+    else {
+      UI.drawMapFlat(t, L);
+      const [cx, cy] = UI.cam;
+      rect = (x, y) => ({ x: (L.mx + x - cx) * t.cw, y: (L.my + y - cy) * t.ch, w: t.cw, h: t.ch });
+    }
+    // подсказки [E] — только когда поверх карты ничего не открыто
+    const hints = UI.top() && UI.top().name === 'game' ? E.Gm.useHints() : [];
+    UI.syncAct(hints.some((o) => o.main));
+    if (hints.length) {
+      const list = hints.map((o) => ({ x: o.x, y: o.y, main: o.main, dy: o.y - P.y, self: o.x === P.x && o.y === P.y, tall: UI.view3d && UI.tallAt(o.x, o.y) }));
+      t.over = (ctx, tt) => UI.drawBadges(ctx, tt, list, rect, clip);
+    }
+    t.hot(L.mx, L.my, L.mw, L.mh, (h, cx2, cy2, btn, px, py) => {
+      if (UI.view3d && px != null) { const p = UI.mvTileAt(px, py); if (p) UI.mapClick(p[0], p[1], btn); return; }
+      const [cx, cy] = UI.cam;
+      UI.mapClick(cx2 - L.mx + cx, cy2 - L.my + cy, btn);
+    });
+  };
+  UI.drawMapFlat = function (t, L) {
+    const m = G.map, P = G.P;
     const [cx, cy] = UI.camera(L);
     UI.cam = [cx, cy, L];
     const Lt = Time.light(G.S.time);
@@ -148,31 +169,14 @@
     const storm = (w === 'storm' && Math.random() < 0.012) || (G.flashSky && now - G.flashSky < 120);
     if (storm && !G.flashSky) G.flashSky = now;
     if (G.flashSky && now - G.flashSky > 120) G.flashSky = 0;
-    const d3 = UI.view3d;
-    K3 = UI.K3;
-    // в объёмном виде берём ряд сверху и снизу: их грани и кроны заходят в кадр
-    const sc = d3 ? UI.sceneBuf(L.mw, L.mh + 2) : null;
-    const dark = outdoorMap ? 1 - Lt : 0.6;
-    // общий цвет земли карты — чтобы под объёмом была ровная почва, а не лоскутное одеяло
-    if (d3 && !m._gnd) {
-      const cnt = new Map();
-      for (let q = 0; q < m.tiles.length; q += 3) { const tq = TL[m.tiles[q]]; if (tq.walk && !tq.bg && !tq.water && !K3[m.tiles[q]]) cnt.set(tq.fg, (cnt.get(tq.fg) || 0) + 1); }
-      let best = '#4a4a40', bn = 0;
-      for (const [c, n] of cnt) if (n > bn) { best = c; bn = n; }
-      m._gnd = best;
-    }
-    for (let vy = d3 ? -1 : 0; vy < (d3 ? L.mh + 1 : L.mh); vy++) for (let vx = 0; vx < L.mw; vx++) {
+    for (let vy = 0; vy < L.mh; vy++) for (let vx = 0; vx < L.mw; vx++) {
       const mx = cx + vx, my = cy + vy;
       if (mx < 0 || my < 0 || mx >= m.w || my >= m.h) continue;
       const i = my * m.w + mx;
-      const j = d3 ? (vy + 1) * L.mw + vx : 0;
       const vis = G.vis[i], ex = m.ex[i];
       const sx = L.mx + vx, sy = L.my + vy;
       if (!vis && !ex) {
-        if (reveal) {
-          const e = m.occ.get(i);
-          if (e && e.kind !== 'npc') { if (d3) { sc.k[j] = 254; sc.ech[j] = e.ch; sc.efg[j] = '#604060'; sc.ef[j] = 8; } else t.put(sx, sy, e.ch, '#604060'); }
-        }
+        if (reveal) { const e = m.occ.get(i); if (e && e.kind !== 'npc') t.put(sx, sy, e.ch, '#604060'); }
         continue;
       }
       const tid = m.tiles[i];
@@ -190,36 +194,13 @@
       if (!vis) {
         fg = U.mixc(U.gray(fg || '#888888', 0.85), '#202030', 0.55);
         bg = bg ? U.shade(bg, 0.4) : null;
-        if (d3) { sc.k[j] = K3[tid]; sc.v[j] = 0; sc.tid[j] = tid; sc.ch[j] = ch; sc.fg[j] = fg; sc.bg[j] = bg; sc.gb[j] = U.mixc(U.gray(m._gnd, 0.85), '#202030', 0.55); }
-        else t.put(sx, sy, ch, fg, bg);
+        t.put(sx, sy, ch, fg, bg);
         continue;
       }
       const d = Math.max(Math.abs(mx - P.x), Math.abs(my - P.y));
       const indoorTile = !!tt.indoor;
       fg = lit(fg, m, d, r, Lt, outdoorMap && !indoorTile);
       if (bg) bg = lit(bg, m, d, r, Lt, outdoorMap && !indoorTile);
-      const it = items.get(i);
-      const e = m.occ.get(i);
-      if (d3) {
-        sc.k[j] = K3[tid]; sc.v[j] = 1; sc.tid[j] = tid; sc.ch[j] = ch; sc.fg[j] = fg; sc.bg[j] = bg;
-        sc.gb[j] = bg ? null : lit(m._gnd, m, d, r, Lt, outdoorMap && !indoorTile);
-        if (outdoorMap && !indoorTile) sc.out[j] = 1;
-        const lc = LIGHTS[tid];
-        if (lc && vy >= -1 && vy <= L.mh && sc.lights.length < 14) {
-          const a = tid === T.CAMPFIRE || tid === T.HEARTH ? 0.07 + 0.2 * dark + Math.sin(now / 170 + mx) * 0.02 : 0.05 + 0.12 * dark;
-          sc.lights.push([vx, vy, 'rgba(' + lc[0] + ',' + lc[1] + ',' + lc[2] + ',' + a.toFixed(3) + ')', lc[3]]);
-        }
-        if (it) { const g = UI.itemGlyph(it); sc.ich[j] = g[0]; sc.ifg[j] = lit(g[1], m, d, r, Lt, outdoorMap); }
-        if (e && !e.dead) {
-          let efg = e.c;
-          if (e.kind === 'npc' && e.hostile) efg = '#ff7060';
-          if (e.ally) efg = '#90f090';
-          if (e.asleep) efg = U.shade(e.c, 0.6);
-          if (Lt < 0.5 && outdoorMap) efg = U.mixc(efg, '#30406a', 0.25);
-          sc.ech[j] = e.ch; sc.efg[j] = efg; sc.ef[j] = (e.kind === 'boss' ? 1 : 0) | (e.asleep ? 2 : 0);
-        }
-        continue;
-      }
       // погода
       if (outdoorMap && !indoorTile && !tt.indoor) {
         const h = (mx * 73856093 ^ my * 19349663 ^ Math.floor(now / 160)) >>> 0;
@@ -231,8 +212,10 @@
       }
       if (storm && outdoorMap) { bg = '#2a2a40'; fg = U.mixc(fg, '#ffffff', 0.4); }
       // предметы
+      const it = items.get(i);
       if (it) { const g = UI.itemGlyph(it); ch = g[0]; fg = lit(g[1], m, d, r, Lt, outdoorMap); }
       // существа
+      const e = m.occ.get(i);
       if (e && !e.dead) {
         ch = e.ch;
         fg = e.c;
@@ -246,25 +229,8 @@
       t.put(sx, sy, ch, fg, bg);
     }
     // игрок
-    const px = L.mx + P.x - cx, py = L.my + P.y - cy;
     const hit = G.hitFlash && now - G.hitFlash < 160;
-    const pch = '@';
-    if (d3) {
-      sc.x0 = L.mx; sc.y0 = L.my; sc.vw = L.mw; sc.vh = L.mh; sc.cx = cx; sc.cy = cy;
-      sc.now = now; sc.light = outdoorMap ? Lt : 0.5; sc.weather = outdoorMap ? w : null; sc.storm = !!(storm && outdoorMap);
-      sc.p = { c: P.x - cx, r: P.y - cy + 1, ch: pch, hit };
-      if (P.light > 0 && dark > 0.3) sc.lights.push([P.x - cx, P.y - cy, 'rgba(255,170,80,' + (0.08 + 0.14 * dark).toFixed(3) + ')', 3]);
-      if (flash) sc.flash = { c: flash.x - cx, rr: flash.y - cy, r: flash.r, el: flash.el };
-      t.under = (ctx, tt) => UI.drawScene(ctx, tt, sc);
-    } else t.put(px, py, pch, hit ? '#ff4040' : '#fff6d0', hit ? '#401010' : '#2a2618');
-    // подсказки «E» — только когда поверх карты ничего не открыто
-    const hints = UI.top() && UI.top().name === 'game' ? E.Gm.useHints() : [];
-    UI.syncAct(hints.some((o) => o.main));
-    if (hints.length) {
-      const list = hints.map((o) => ({ c: o.x - cx, r: o.y - cy, dy: o.y - P.y, self: o.x === P.x && o.y === P.y, main: o.main, k: o.x === P.x && o.y === P.y ? 0 : K3[m.tiles[o.y * m.w + o.x]] }));
-      t.over = (ctx, tt) => UI.drawHints(ctx, tt, { x0: L.mx, y0: L.my, vw: L.mw, vh: L.mh, d3, list });
-    }
-    t.hot(L.mx, L.my, L.mw, L.mh, (h, cx2, cy2, btn) => UI.mapClick(cx2 - L.mx + cx, cy2 - L.my + cy, btn));
+    t.put(L.mx + P.x - cx, L.my + P.y - cy, '@', hit ? '#ff4040' : '#fff6d0', hit ? '#401010' : '#2a2618');
   };
 
   // ---------- верхняя строка ----------
@@ -469,6 +435,8 @@
         case 'esc': UI.pause(); break;
         case 'log': UI.logScreen(); break;
         case 'view': UI.setView(!UI.view3d); break;
+        case 'zin': if (UI.view3d) UI.zoom(1); break;
+        case 'zout': if (UI.view3d) UI.zoom(-1); break;
         default:
           if (c.n >= 1 && c.n <= 9) { const id = P.abil[c.n - 1]; if (id) UI.useAbility(id); }
       }

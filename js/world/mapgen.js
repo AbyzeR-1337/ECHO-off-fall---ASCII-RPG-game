@@ -737,7 +737,9 @@
       for (let x = bx + 1; x < bx + bw - 1; x += 3) { set(m, x, by + 1, T.COUNTER); set(m, x, by + bh - 2, T.COUNTER); }
     }
     for (let y = (isMarket ? by : iy0); y < (isMarket ? by + bh : iy0 + ih); y++) for (let x = (isMarket ? bx : ix0); x < (isMarket ? bx + bw : ix0 + iw); x++) if (TL[get(m, x, y)].walk) inside.push({ x, y });
-    return { type, door: { x: door[0], y: door[1] }, in: inside.length ? inside : [{ x: door[0], y: door[1] }], rect: { x: bx, y: by, w: bw, h: bh } };
+    const res = { type, door: { x: door[0], y: door[1] }, in: inside.length ? inside : [{ x: door[0], y: door[1] }], rect: { x: bx, y: by, w: bw, h: bh } };
+    if (!isMarket) (m.blds = m.blds || []).push(res);
+    return res;
   }
   function drawRoadTo(m, x, y, cx, cy) {
     // короткая тропинка к ближайшей улице

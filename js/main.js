@@ -10,6 +10,7 @@
     Home: 'home', End: 'end', PageUp: 'pgup', PageDown: 'pgdn',
     KeyE: 'act', Space: 'act', KeyG: 'act', Enter: 'enter', NumpadEnter: 'enter', Escape: 'esc', Tab: 'tab',
     KeyI: 'inv', KeyC: 'char', KeyP: 'pray', KeyK: 'skills', KeyM: 'map', KeyJ: 'mem', KeyR: 'rest', KeyF: 'fire', KeyL: 'look', KeyX: 'look', KeyH: 'log', KeyV: 'view',
+    Equal: 'zin', NumpadAdd: 'zin', Minus: 'zout', NumpadSubtract: 'zout',
     Period: 'wait', KeyZ: 'wait', NumpadDecimal: 'wait', F1: 'help', Slash: 'help',
   };
   let term;
@@ -53,6 +54,8 @@
   }
   function boot() {
     const cv = document.getElementById('screen');
+    // правки рисунков из студии (tools/studio.html)
+    if (E.Gfx) E.Gfx.applyOverrides();
     term = new E.Term(cv);
     UI.t = term;
     layout();
@@ -65,10 +68,17 @@
       ev.preventDefault();
       const [cx, cy] = pos(ev);
       const h = term.hit(cx, cy);
-      if (h) { h.fn(h, cx, cy, ev.button); UI.render(); }
+      const r = cv.getBoundingClientRect();
+      if (h) { h.fn(h, cx, cy, ev.button, ev.clientX - r.left, ev.clientY - r.top); UI.render(); }
       else if (UI.top() && UI.top().name === 'popup') { UI.pop(); }
     });
-    cv.addEventListener('wheel', (ev) => { UI.key({ k: ev.deltaY > 0 ? 'down' : 'up' }); ev.preventDefault(); }, { passive: false });
+    // колесо: на карте — масштаб, в списках — прокрутка
+    cv.addEventListener('wheel', (ev) => {
+      ev.preventDefault();
+      const top = UI.top();
+      if (top && top.name === 'game') { if (UI.view3d) UI.zoom(ev.deltaY > 0 ? -1 : 1); return; }
+      UI.key({ k: ev.deltaY > 0 ? 'down' : 'up' });
+    }, { passive: false });
     // сенсорные кнопки
     let rep = null;
     const stop = () => { if (rep) { clearInterval(rep); rep = null; } };

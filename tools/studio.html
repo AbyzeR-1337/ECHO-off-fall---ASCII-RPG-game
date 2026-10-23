@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASCII Studio</title>
+<meta name="description" content="Студия графики Echoes of the Fall: все рисунки из символов, их кадры, цвета и правка.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<header>
+  <h1>ASCII Studio <span>Echoes of the Fall</span></h1>
+  <nav id="tabs">
+    <button data-tab="atlas" class="on">Атлас</button>
+    <button data-tab="edit">Редактор</button>
+    <button data-tab="scene">Диорама</button>
+  </nav>
+  <div class="tools">
+    <label>Масштаб <input id="zoom" type="range" min="8" max="26" value="15"></label>
+    <label>Свет <select id="mode">
+      <option value="0">как есть</option>
+      <option value="1">память</option>
+      <option value="2">чутьё</option>
+      <option value="4">призрак</option>
+      <option value="3">удар</option>
+    </select></label>
+    <label class="chk"><input id="flip" type="checkbox"> влево</label>
+    <label>Цвет $c <input id="tint" type="color" value="#9a9a9a"></label>
+  </div>
+</header>
+
+<main>
+  <section id="atlas" class="tab on">
+    <div class="bar">
+      <input id="search" type="search" placeholder="Поиск: волк, дом, костёр…">
+      <span id="count"></span>
+    </div>
+    <div id="sheet"></div>
+  </section>
+
+  <section id="edit" class="tab">
+    <aside id="list"></aside>
+    <div class="stage">
+      <div class="title"><b id="ename">—</b> <code id="ekey"></code></div>
+      <canvas id="preview"></canvas>
+      <div id="frames"></div>
+      <p id="warn"></p>
+    </div>
+    <div class="form" id="form">
+      <label>Рисунок <small>пробел — прозрачно, кадры через строку «--»</small>
+        <textarea id="fart" spellcheck="false" rows="9"></textarea></label>
+      <label>Цвета <small>буквы из палитры, по одной на символ</small>
+        <textarea id="fink" spellcheck="false" rows="9"></textarea></label>
+      <div class="row">
+        <label>Сдвиг x <input id="fox" type="number" step="0.5"></label>
+        <label>Сдвиг y <input id="foy" type="number" step="1"></label>
+      </div>
+      <div id="pal"></div>
+      <div class="row btns">
+        <button id="bsave" class="main">Сохранить правку</button>
+        <button id="breset">Вернуть как было</button>
+      </div>
+      <div class="row btns">
+        <button id="bcode">Скопировать как код</button>
+        <button id="bexport">Скачать все правки</button>
+        <label class="file">Загрузить правки<input id="bimport" type="file" accept=".json,application/json"></label>
+      </div>
+      <p class="note">Правки хранятся в этом браузере и подхватываются игрой при следующем запуске
+        (если игра открыта с того же адреса). Чтобы правка стала частью игры навсегда — «Скопировать как код» и вставить в <code>js/gfx/art.js</code>.</p>
+      <pre id="procsrc" hidden></pre>
+    </div>
+  </section>
+
+  <section id="scene" class="tab">
+    <div class="bar">
+      <label>Время <input id="hour" type="range" min="0" max="24" step="0.25" value="12"> <span id="hourv">12:00</span></label>
+      <label>Погода <select id="weather">
+        <option value="">ясно</option><option value="rain">дождь</option><option value="storm">гроза</option><option value="snow">снег</option>
+        <option value="blizzard">метель</option><option value="ashrain">пепел</option><option value="blacksnow">чёрный снег</option><option value="sandstorm">буря</option><option value="fog">туман</option>
+      </select></label>
+      <label>Крыша <select id="roofsel"></select></label>
+      <label class="chk"><input id="inside" type="checkbox"> зайти в дом</label>
+    </div>
+    <canvas id="dio"></canvas>
+  </section>
+</main>
+
+<script src="../js/core/util.js"></script>
+<script src="../js/gfx/gfx.js"></script>
+<script src="../js/gfx/art.js"></script>
+<script src="../js/gfx/scene.js"></script>
+<script src="studio.js"></script>
+</body>
+</html>
