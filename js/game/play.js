@@ -441,7 +441,9 @@
     // голод
     let hungerRate = 4 * (Gm.hasFx('dragon') ? 1.5 : 1) * (P.eq.hand && P.eq.hand.b === 'a_dragonbone' ? 2 : 1);
     for (const s in P.eq) { const it = P.eq[s]; if (it && it.hx) for (const x of it.hx) if (x.k === 'hunger') hungerRate *= x.v; }
+    const hBefore = P.hunger;
     P.hunger = Math.max(0, P.hunger - hungerRate);
+    if (hBefore >= 25 && P.hunger < 25) Gm.msg('Ты проголодал[ся|ась].', '#e0b060');
     if (P.hunger <= 0) { Gm.hurtPlayer(Math.max(1, Math.round(P.mhp * 0.025)), 'starve'); if (P.dead) return; if (h % 3 === 0) Gm.msg('Ты голодаешь.', '#e0a060'); Gm.gain('hunger_hour'); }
     if (P.hunger < 25) P.hungryHours = (P.hungryHours || 0) + 1;
     // холод
@@ -471,6 +473,10 @@
     P.silentHours = (P.silentHours || 0) + 1;
     if (P.silentHours >= 24 && h === 0) { Gm.cnt('silent_days'); Gm.gain('silent', 24); }
     if (h === 0) Gm.dayChange();
+    if (Gm.outdoors() && !Gm.event('nosun')) {
+      if (h === 20) Gm.msg(['Темнеет.', 'Солнце садится. Тени становятся длиннее.', 'Наступают сумерки.'][Gm.day() % 3], '#8090c0');
+      if (h === 6) Gm.msg(['Светает.', 'Над краем земли поднимается солнце.', 'Утро. Где-то кричит птица.'][Gm.day() % 3], '#e0d0a0');
+    }
     // эмоции
     if (P.hp < P.mhp * 0.2 && m.ents.some((e) => e.hostile && U.dist(e.x, e.y, P.x, P.y) < 3) && !P.rageHour) { P.rageHour = 1; Gm.cnt('rage'); Gm.emotion('rage'); }
     if (P.hp > P.mhp * 0.6) P.rageHour = 0;
@@ -511,6 +517,10 @@
   Gm.dayChange = function () {
     const P = G.P;
     Gm.cnt('days');
+    if (Time.dom(G.S.time) === 1) {
+      const mo = Time.month(G.S.time);
+      Gm.msg('Наступил ' + D.months[mo] + '.' + (mo % 3 === 0 ? ' ' + U.cap(D.seasons[Math.floor(mo / 3)]) + '.' : ''), '#c0c0d0');
+    }
     if ((P.hungryHours || 0) >= 12) { Gm.cnt('hunger_days'); if (Gm.fxFlag('hungerStr')) { P.base.str += 1; Gm.msg('Голод сделал тебя твёрже.', '#d0b080'); } }
     P.hungryHours = 0;
     if (Gm.fxFlag('intYear') && Gm.day() % 60 === 0) P.base.int += 1;
