@@ -153,7 +153,7 @@
   UI.inventory = function () {
     UI.list({
       name: 'inv', title: 'Сумка', w: 76,
-      header: () => 'Вес: ' + Math.round(Gm.weight() * 10) / 10 + ' / ' + Gm.cap() + '    Монет: ' + G.P.gold + (Gm.weight() > Gm.cap() ? '   {#e07070|(перегруз)}' : ''),
+      header: () => 'Вес: ' + Math.round(Gm.weight() * 10) / 10 + ' / ' + Gm.cap() + '    Кошелёк: ' + Gm.purseStr() + (Gm.weight() > Gm.cap() ? '   {#e07070|(перегруз)}' : ''),
       items: () => G.P.inv.map((it) => {
         const eq = Object.values(G.P.eq).includes(it);
         return { t: Items.name(it) + (eq ? '  (надето)' : ''), g: UI.itemGlyph(it), r: String(Math.round((it.w || 0) * (it.q || 1) * 10) / 10), it, c: eq ? COL.accent : COL.text };
@@ -181,6 +181,41 @@
     opts.push({ t: 'Выбросить', f: () => Gm.drop(it) });
     UI.list({ title: Items.name(it), header: Items.desc(it).slice(0, 3).join('\n'), items: opts.map((o) => ({ t: o.t, f: () => { UI.pop(); UI.pop(); o.f(); if (!['Осмотреть'].includes(o.t) && UI.top().name === 'game') UI.inventory(); return 'keep'; } })) });
   };
+  // ---------- тело: вода, нужда, умывание ----------
+  UI.body = function () {
+    const P = G.P, opts = [];
+    const nearW = Gm.nearWater(P.x, P.y, 1);
+    if (nearW) opts.push({ t: 'Напиться', f: () => Gm.drinkHere() });
+    const cont = P.inv.find((i) => i.cont && i.water);
+    if (cont) opts.push({ t: 'Выпить: ' + Items.name(cont).toLowerCase(), f: () => Gm.drinkFrom(cont) });
+    opts.push({ t: 'Справить нужду' + ((P.need || 0) < 15 ? '  (пока не хочется)' : ''), f: () => Gm.relieve() });
+    if (nearW) opts.push({ t: 'Умыться и постирать одежду', f: () => Gm.wash() });
+    opts.push({ t: 'Одежда', f: () => UI.outfit() });
+    opts.push({ t: 'Уйти', f: () => {} });
+    const th = Math.round(P.thirst || 0), nd = Math.round(P.need || 0);
+    const st = (v, a) => (v < 30 ? a[0] : v < 60 ? a[1] : v < 85 ? a[2] : a[3]);
+    UI.menu('Жажда: ' + st(th, ['нет', 'хочется пить', 'сильная', 'нестерпимая']) + '.  Нужда: ' + st(nd, ['нет', 'есть', 'пора', 'невтерпёж']) + '.\n' + U.cap(Gm.fmt(Gm.dressName())) + (nearW ? '. Рядом вода.' : '.'), opts);
+  };
+  // ---------- одежда по слоям ----------
+  UI.outfit = function () {
+    const P = G.P;
+    UI.list({
+      name: 'outfit', title: 'Одежда', w: 72, keep: true,
+      header: () => U.cap(Gm.fmt(Gm.dressName())) + '.  Тепло одежды: ' + (Math.round(Object.values(P.eq).reduce((a, it) => a + ((it && it.warm) || 0), 0) * 10) / 10) + '.  Защита: ' + P.st.def + '.',
+      items: () => D.SLOTS.map(([s, n]) => {
+        const it = P.eq[s];
+        return { t: U.pad(n, 13) + (it ? Items.name(it) : '—'), c: it ? COL.text : COL.dim, slot: s, it, r: it && it.warm ? 'тепло ' + it.warm : '' };
+      }),
+      tip: (x) => (x.it ? UI.itemTip(x.it) : null),
+      onSelect: (x) => {
+        const cand = P.inv.filter((i) => (i.s || (D.items[i.b] || {}).s) === x.slot);
+        const items = cand.map((i) => ({ t: Items.name(i) + (P.eq[x.slot] === i ? '  (надето)' : ''), g: UI.itemGlyph(i), it: i, f: () => { UI.pop(); if (P.eq[x.slot] !== i) Gm.equip(i); return 'keep'; } }));
+        if (P.eq[x.slot]) items.unshift({ t: 'Снять: ' + Items.name(P.eq[x.slot]), f: () => { UI.pop(); Gm.equip(P.eq[x.slot]); return 'keep'; } });
+        UI.list({ title: D.SLOTS.find((q) => q[0] === x.slot)[1], items, empty: 'Нечего надеть на это место.', tip: (y) => (y.it ? UI.itemTip(y.it) : null) });
+        return 'keep';
+      },
+    });
+  };
   UI.pickItem = function (title, filter, cb) {
     UI.list({ title, items: G.P.inv.filter(filter).map((it) => ({ t: Items.name(it), g: UI.itemGlyph(it), it })), empty: 'Нечего выбрать.', onSelect: (x) => { UI.pop(); cb(x.it); UI.render(); return 'keep'; } });
   };
@@ -207,6 +242,9 @@
         for (const k of keys) out.push({ t: U.pad(E.STATN[k], 10) + ' ' + U.padl(P.st[k], 3) + (P.base[k] !== P.st[k] ? '  (' + P.base[k] + ')' : ''), r: P.pts > 0 ? '[+]' : '', c: COL.text, f: () => { if (P.pts > 0) { P.base[k]++; P.pts--; Gm.calc(); } return 'keep'; } });
         if (P.paths.length) for (const cid of P.paths) { const c = D.classes[cid]; out.push({ t: (P.cls === cid ? '► ' : '  ') + c.n + ' ' + U.roman(P.rank[cid] || 1), r: P.cls === cid ? 'текущий путь' : 'принять путь', c: P.cls === cid ? COL.accent : '#c0b0e0', f: () => { if (P.cls !== cid) { Gm.setClass(cid); Gm.msg('Ты принимаешь путь: ' + c.n + '.', '#ffd0a0'); } return 'keep'; } }); }
         if (P.talentPts > 0) for (const [n, k1, k2] of [['Древо Эха', 'luck', 'dex'], ['Древо Пепла', 'str', 'con'], ['Древо Пустоты', 'int', 'fai']]) out.push({ t: n, r: '+2 ' + E.STATN[k1] + ', +2 ' + E.STATN[k2], c: '#e0c0ff', f: () => { P.talentPts--; P.base[k1] += 2; P.base[k2] += 2; Gm.calc(); return 'keep'; } });
+        out.push({ t: 'Одежда (O)', c: '#c0d0e0', f: () => { UI.outfit(); return 'keep'; } });
+        out.push({ t: 'Тело: вода и нужда (B)', c: '#c0d0e0', f: () => { UI.body(); return 'keep'; } });
+        out.push({ t: 'Статистика мира (T)', c: '#c0d0e0', f: () => { UI.worldStats(); return 'keep'; } });
         out.push({ t: 'Летопись жизни', c: COL.dim, f: () => { UI.lifeStats(); return 'keep'; } });
         return out;
       },
@@ -328,7 +366,7 @@
         const stock = Dlg.shopStock(e, kind);
         const mine = G.P.inv.filter((i) => !Object.values(G.P.eq).includes(i) && i.b !== 'gold');
         s.lists = [stock, mine];
-        t.text(x0 + 2, y0 + 1, 'Монет: ' + G.P.gold + (kind === 'fair' ? '   (мёртвые берут и годами жизни)' : ''), COL.accent, COL.panel);
+        t.text(x0 + 2, y0 + 1, 'Кошелёк: ' + Gm.purseStr() + (kind === 'fair' ? '   (мёртвые берут и годами жизни)' : ''), COL.accent, COL.panel);
         const cw = Math.floor((W - 5) / 2);
         const cols = [[x0 + 2, 'Товар', stock, (it) => Dlg.buyPrice(e, it)], [x0 + 3 + cw, 'Твои вещи', mine, (it) => Dlg.sellPrice(e, it)]];
         cols.forEach(([cx, title, list, price], ci) => {
@@ -342,7 +380,7 @@
             const bg = isSel ? COL.sel : COL.panel;
             t.fill(cx, y0 + 4 + k, cw, 1, ' ', COL.text, bg);
             const g = UI.itemGlyph(it); t.put(cx, y0 + 4 + k, g[0], g[1], bg);
-            const p = String(price(it));
+            const p = Gm.money(price(it), true);
             t.text(cx + 2, y0 + 4 + k, Items.name(it), isSel ? COL.selfg : COL.text, bg, cw - p.length - 3);
             t.text(cx + cw - p.length, y0 + 4 + k, p, '#e8c860', bg);
             t.hot(cx, y0 + 4 + k, cw, 1, () => { if (s.col === ci && s.sel[ci] === i) s.act(); else { s.col = ci; s.sel[ci] = i; } UI.render(); });
@@ -358,7 +396,7 @@
         const it = list[s.sel[s.col]];
         if (!it) return;
         if (s.col === 0) Dlg.buy(e, it, kind);
-        else { const p = Dlg.sell(e, it); Gm.msg('Продано: ' + Items.name(it) + ' (+' + p + ').', '#e8c860'); }
+        else { const p = Dlg.sell(e, it); Gm.msg('Продано: ' + Items.name(it) + ' (+' + Gm.money(p, true) + ').', '#e8c860'); }
       },
       key(c) {
         const n = s.lists ? s.lists[s.col].length : 0;
@@ -660,8 +698,8 @@
   };
   UI.fillMenu = function () {
     const c = G.P.inv.filter((i) => i.cont);
-    if (!c.length) { Gm.msg('Колодец. Набрать воды не во что.'); return; }
-    UI.list({ title: 'Набрать воды', items: c.map((it) => ({ t: Items.name(it), it })), onSelect: (x) => { UI.pop(); Gm.fill(x.it); UI.render(); return 'keep'; } });
+    const items = [{ t: 'Напиться', f: () => { UI.pop(); Gm.drinkHere(); UI.render(); return 'keep'; } }].concat(c.map((it) => ({ t: 'Набрать воды: ' + Items.name(it).toLowerCase(), it })));
+    UI.list({ title: 'Колодец', items, onSelect: (x) => { UI.pop(); Gm.fill(x.it); UI.render(); return 'keep'; } });
   };
   UI.altar = function (f) {
     const god = D.godById[f.god];

@@ -248,6 +248,9 @@
     if ((o.seed || 0) % 2) out.push(el(0.1, 0, 0.55, 0.08, 0.06, 0.05, mat('#c8c0b0', 'bone', { sp: 0.5 })));
     return { key: 'table' + ((o.seed || 0) % 2) + '|' + P.level, prims: out };
   };
+  MD.chair = (o, P) => ({ key: 'chair', prims: [box(-0.14, -0.12, 0.28, 0.14, 0.14, 0.33, WOOD), box(-0.14, -0.15, 0.33, 0.14, -0.11, 0.72, DWOOD), box(-0.13, 0.1, 0, -0.1, 0.13, 0.28, DWOOD), box(0.1, 0.1, 0, 0.13, 0.13, 0.28, DWOOD), box(-0.13, -0.14, 0, -0.1, -0.11, 0.28, DWOOD), box(0.1, -0.14, 0, 0.13, -0.11, 0.28, DWOOD)] });
+  MD.bench = (o, P) => ({ key: 'bench', prims: [box(-0.45, -0.12, 0.3, 0.45, 0.12, 0.36, WOOD), box(-0.4, -0.08, 0, -0.34, 0.08, 0.3, DWOOD), box(0.34, -0.08, 0, 0.4, 0.08, 0.3, DWOOD)] });
+  MD.outhouse = (o, P) => ({ key: 'outhouse', prims: [box(-0.3, -0.28, 0, 0.3, 0.28, 1.15, mat('#7a5634', 'wood', { tex: (x, y, z, mo) => { if (((x + 0.3) * 18) % 1 < 0.12) { mo.r *= 0.55; mo.g *= 0.55; mo.b *= 0.55; mo.t = 0.05; } } })), box(-0.34, -0.32, 1.15, 0.34, 0.32, 1.22, DWOOD), box(-0.04, 0.28, 0.85, 0.04, 0.29, 0.95, mat('#1a120a', 'dark'))] });
   MD.counter = (o, P) => ({ key: 'counter|' + P.level, prims: [box(-0.48, -0.22, 0, 0.48, 0.22, 0.5, WOOD), box(-0.5, -0.24, 0.5, 0.5, 0.24, 0.55, mat('#9a7448', 'wood'))] });
   MD.bed = (o, P) => ({ key: 'bed|' + P.level, prims: [box(-0.42, -0.3, 0, 0.42, 0.3, 0.25, DWOOD), box(-0.4, -0.28, 0.25, 0.4, 0.28, 0.32, mat('#d8d0c0', 'cloth')), box(-0.1, -0.28, 0.3, 0.4, 0.28, 0.36, mat('#8a5a8a', 'cloth', { tex: clothTex })), el(-0.28, 0, 0.36, 0.11, 0.18, 0.06, mat('#f0ece0', 'cloth'))] });
   MD.anvil = (o, P) => ({ key: 'anvil|' + P.level, prims: [box(-0.12, -0.1, 0, 0.12, 0.1, 0.25, DSTONE), box(-0.28, -0.1, 0.25, 0.22, 0.1, 0.36, METAL), el(0.3, 0, 0.32, 0.12, 0.06, 0.04, METAL)] });

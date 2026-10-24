@@ -31,9 +31,24 @@
   it('shovel', 'Лопата', 'f', 'weapon', { s: 'hand', w: 4, dmg: [1, 4], v: 12, wear: 120, stat: 'str', tool: 'dig', d: 'Копать землю. Иногда — могилы.' });
   it('rod', 'Удочка', 'f', 'tool', { w: 1, v: 10, tool: 'fish', d: 'Леска из конского волоса, костяной крючок.' });
 
-  // ---- броня ----
+  // ---- одежда по слоям: исподнее, рубаха, штаны, обувь, руки, верх (доспех), плащ, голова ----
+  it('under_linen', 'Льняное исподнее', 'n', 'armor', { s: 'under', w: 0.3, def: 0, v: 3, wear: 60, warm: 0.3, d: 'Простое бельё. Без него доспех натирает.' });
+  it('under_wool', 'Шерстяное исподнее', 'n', 'armor', { s: 'under', w: 0.5, def: 0, v: 9, wear: 80, warm: 1, d: 'Колется, зато не мёрзнешь.' });
+  it('under_silk', 'Шёлковое бельё', 'n', 'armor', { s: 'under', w: 0.2, def: 0, v: 60, wear: 50, warm: 0.2, mods: { luck: 1 }, d: 'Тонкое, как дыхание. Купцы носят его на удачу.' });
+  it('tunic', 'Льняная рубаха', 'f', 'armor', { s: 'shirt', w: 1, def: 0, v: 6, wear: 60, warm: 0.3, d: 'Простая и чистая.' });
+  it('shirt_wool', 'Шерстяная рубаха', 'f', 'armor', { s: 'shirt', w: 1.5, def: 0, v: 14, wear: 90, warm: 1, d: 'Толстая, тёплая.' });
+  it('shirt_fine', 'Вышитая рубаха', 'f', 'armor', { s: 'shirt', w: 1, def: 0, v: 40, wear: 60, warm: 0.3, d: 'Узор по вороту. В ней встречают гостей.' });
+  it('trousers', 'Холщовые штаны', 'p', 'armor', { s: 'legs', w: 1, def: 0, v: 5, wear: 70, warm: 0.3, d: 'Штаны как штаны.' });
+  it('pants_wool', 'Шерстяные штаны', 'p', 'armor', { s: 'legs', w: 1.5, def: 0, v: 12, wear: 90, warm: 1, d: 'Тёплые, мешковатые.' });
+  it('pants_leather', 'Кожаные штаны', 'p', 'armor', { s: 'legs', w: 2.5, def: 1, v: 30, wear: 140, warm: 0.5, d: 'Скрипят. Зато колючки не берут.' });
+  it('skirt', 'Длинная юбка', 'f', 'armor', { s: 'legs', w: 1.2, def: 0, v: 8, wear: 70, warm: 0.4, d: 'До пят, из крашеной шерсти.' });
+  it('shoes_bast', 'Лапти', 'p', 'armor', { s: 'feet', w: 0.5, def: 0, v: 2, wear: 50, d: 'Плетёные из лыка. Сносятся за месяц.' });
+  it('boots', 'Сапоги', 'p', 'armor', { s: 'feet', w: 1.5, def: 0, v: 25, wear: 160, warm: 0.5, d: 'Добрые сапоги — половина дороги.' });
+  it('fur_boots', 'Меховые унты', 'p', 'armor', { s: 'feet', w: 2, def: 0, v: 35, wear: 140, warm: 1.5, d: 'В них не страшен снег.' });
+  it('gloves', 'Кожаные перчатки', 'p', 'armor', { s: 'hands', w: 0.3, def: 0, v: 15, wear: 100, warm: 0.3, d: 'Руки целы — и ладно.' });
+  it('mittens', 'Варежки', 'p', 'armor', { s: 'hands', w: 0.3, def: 0, v: 6, wear: 80, warm: 1, d: 'В них неудобно, зато тепло.' });
+  it('gauntlets', 'Латные рукавицы', 'p', 'armor', { s: 'hands', w: 2, def: 1, v: 60, wear: 200, d: 'Пальцы в стальной чешуе.' });
   it('rags', 'Поношенная одежда', 'f', 'armor', { s: 'body', w: 2, def: 0, v: 1, wear: 80, d: 'Видала лучшие дни.' });
-  it('tunic', 'Льняная рубаха', 'f', 'armor', { s: 'body', w: 1, def: 0, v: 6, wear: 60, d: 'Простая и чистая.' });
   it('leather', 'Кожаная куртка', 'f', 'armor', { s: 'body', w: 4, def: 2, v: 35, wear: 120, d: 'Пахнет дубильней.' });
   it('gambeson', 'Стёганка', 'f', 'armor', { s: 'body', w: 5, def: 2, v: 30, wear: 120, warm: 1, d: 'Толстая, тёплая, неуклюжая.' });
   it('chain', 'Кольчуга', 'f', 'armor', { s: 'body', w: 9, def: 4, v: 125, wear: 200, d: 'Тысячи колец. Звенит при ходьбе.' });
@@ -41,7 +56,10 @@
   it('plate', 'Латы', 'p', 'armor', { s: 'body', w: 15, def: 7, v: 310, wear: 260, d: 'Целое состояние из стали.' });
   it('furcoat', 'Меховой тулуп', 'm', 'armor', { s: 'body', w: 5, def: 1, v: 40, wear: 120, warm: 2, d: 'Тёплый. Очень тёплый.' });
   it('robe', 'Ряса', 'f', 'armor', { s: 'body', w: 2, def: 1, v: 20, wear: 80, mods: { fai: 1 }, d: 'Грубая ткань, пропахшая ладаном.' });
-  it('cloak', 'Дорожный плащ', 'm', 'armor', { s: 'body', w: 2, def: 1, v: 18, wear: 90, warm: 1, d: 'Защищает от ветра и чужих взглядов.' });
+  it('cloak', 'Дорожный плащ', 'm', 'armor', { s: 'cloak', w: 2, def: 1, v: 18, wear: 90, warm: 1, d: 'Защищает от ветра и чужих взглядов.' });
+  it('furcloak', 'Меховой плащ', 'm', 'armor', { s: 'cloak', w: 3, def: 1, v: 45, wear: 120, warm: 2, d: 'Волчий мех на плечах.' });
+  // ---- деньги, что не ходят в лавке: их продают знатокам ----
+  it('old_coin', 'Старинная монета', 'f', 'misc', { w: 0.02, v: 25, st: 1, d: 'Чеканка забытого царства. Знатоки дают за неё хорошую цену.' });
   it('hood', 'Капюшон', 'm', 'armor', { s: 'head', w: 1, def: 0, v: 5, wear: 60, d: 'Простой суконный капюшон.' });
   it('furhat', 'Меховая шапка', 'f', 'armor', { s: 'head', w: 1, def: 1, v: 15, wear: 80, warm: 1, d: 'Уши не мёрзнут.' });
   it('helm', 'Шлем', 'm', 'armor', { s: 'head', w: 3, def: 2, v: 45, wear: 150, d: 'Видавший виды шлем.' });
@@ -67,6 +85,8 @@
   food('ale', 'Эль', 'm', 4, 3, { drink: 1, d: 'Кружка мутного эля.' });
   food('pie', 'Пирог', 'm', 40, 8, { d: 'С капустой. Ещё тёплый.' });
   food('star_jelly', 'Звёздный студень', 'm', 20, 40, { d: 'Мерцает. Холодный на вкус.' });
+  food('milk', 'Молоко', 'n', 6, 2, { drink: 1, thirst: -35, d: 'Парное, в глиняной кринке.' });
+  food('kvass', 'Квас', 'm', 3, 2, { drink: 1, thirst: -40, d: 'Хлебный, кисловатый. Лучше воды в жару.' });
 
   // ---- зелья ----
   const pot = (id, n, g, v, o) => it(id, n, g, 'potion', Object.assign({ w: 0.4, v, st: 1 }, o));
@@ -125,6 +145,7 @@
 
   // ---- странные вещи (секреты) ----
   it('old_mug', 'Старая кружка', 'f', 'misc', { w: 0.5, v: 1, cont: 1, d: 'Долго сохраняет тепло.' });
+  it('waterskin', 'Бурдюк', 'm', 'misc', { w: 0.6, v: 8, cont: 1, sips: 4, d: 'Кожаный мешок для воды. Хватает на четыре глотка.' });
   it('holy_vessel', 'Священный сосуд', 'm', 'misc', { w: 0.5, v: 500, cont: 1, d: 'Тёплая. Вода в ней не кончается.' });
   it('temple_stone', 'Камень', 'm', 'misc', { w: 0.5, v: 0, d: 'Приятно держать в руке.' });
   it('broken_clock', 'Сломанные часы', 'p', 'misc', { w: 0.3, v: 3, d: 'Стрелки замерли на трёх часах и семнадцати минутах.' });
@@ -231,7 +252,7 @@
 
   D.uniqueBases = {
     w: ['knife', 'dagger', 'shortsword', 'sword', 'longsword', 'axe', 'waraxe', 'mace', 'spear', 'staff', 'warhammer', 'flail', 'sickle', 'scythe', 'bow', 'crossbow', 'club'],
-    a: ['leather', 'gambeson', 'chain', 'scale', 'plate', 'cloak', 'furcoat', 'robe', 'helm', 'greathelm', 'hood', 'furhat'],
+    a: ['leather', 'gambeson', 'chain', 'scale', 'plate', 'cloak', 'furcoat', 'robe', 'helm', 'greathelm', 'hood', 'furhat', 'boots', 'gloves', 'pants_leather', 'gauntlets', 'furcloak'],
     t: ['ring', 'amulet', 'charm', 'comb', 'beads', 'dice', 'handmirror', 'medallion', 'brooch', 'bracelet'],
     m: ['cup', 'horn_cup', 'spoon', 'pipe', 'whistle', 'figurine', 'flute', 'lute'],
   };

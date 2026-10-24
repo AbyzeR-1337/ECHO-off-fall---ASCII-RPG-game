@@ -458,6 +458,23 @@ dkdd` });
 |  |`, ink: R`
 wWWw
 d  d` });
+  spr('chair', { group: 'build', name: 'Стул', shadow: 0.7, pal: W, art: R`
+ |
+ |=`, ink: R`
+ d
+ dW` });
+  spr('bench', { group: 'build', name: 'Скамья', shadow: 0.7, pal: W, art: R`
+____
+|  |`, ink: R`
+WWWW
+d  d` });
+  spr('outhouse', { group: 'build', name: 'Нужник', shadow: 1, pal: { w: '#8a6a40', W: '#a8824e', d: '#4a3020', k: '#2a1a10' }, art: R`
+ /\
+|<>|
+|  |`, ink: R`
+ WW
+dkkd
+dkkd` });
   spr('counter', { group: 'build', name: 'Прилавок', shadow: 1, pal: W, art: R`
 ====
 |__|`, ink: R`

@@ -154,12 +154,14 @@
       if ([T.FLOWERS, T.BUSH, T.FERN, T.MUSHROOM, T.REEDS, T.TALLGRASS].includes(t) && m.sett < 0) { Gm.gather(x, y); return; }
       if (TL[t].wood && Gm.toolEq('axe')) { Gm.chop(x, y); return; }
     }
+    // рядом вода, хочется пить или по нужде — действие открывает «Тело»
+    if (Gm.nearWater(P.x, P.y, 1) || (P.need || 0) >= 50 || ((P.thirst || 0) >= 50 && P.inv.some((i) => i.cont && i.water))) { E.UI.body(); return; }
     Gm.msg('Здесь нечего делать.', '#808080');
   };
   // Очевидное дело в клетке — то, что видно глазом: дверь вниз, сундук, очаг, алтарь.
   // Тайное, разрушение и ремёсла по наитию (руда, деревья, трещины, останки) не подсказываются.
   const PLAIN_FEAT = { shrine: 1, altar: 1, inscr: 1, grave: 1, throne: 1, lighthouse: 1, archive: 1, forge: 1 };
-  const PLAIN_TILE = new Set([T.CAMPFIRE, T.HEARTH, T.WELL, T.ANVIL, T.ALCHTABLE, T.SHELF, T.SIGN]);
+  const PLAIN_TILE = new Set([T.CAMPFIRE, T.HEARTH, T.WELL, T.ANVIL, T.ALCHTABLE, T.SHELF, T.SIGN, T.OUTHOUSE]);
   Gm.plainUse = function (x, y) {
     const m = G.map, i = y * m.w + x, t = m.tiles[i], f = m.feat[i];
     if (m.chests[i]) return true;
@@ -229,6 +231,7 @@
     }
     if (t === T.CAMPFIRE || t === T.HEARTH) { Gm.cook(); return true; }
     if (t === T.WELL) { E.UI.fillMenu('well'); return true; }
+    if (t === T.OUTHOUSE) { Gm.relieve(); return true; }
     if (t === T.ANVIL) { Gm.msg('Наковальня. Без мастера толку мало.'); return true; }
     if (t === T.ALCHTABLE) { E.UI.alchemy(); return true; }
     if (t === T.SHELF) { Gm.msg('Книги на полках. Чужие.'); return true; }

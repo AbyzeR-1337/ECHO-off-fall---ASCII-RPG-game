@@ -27,6 +27,8 @@
   o('table', 'TABLE'); o('anvil', 'ANVIL'); o('counter', 'COUNTER'); o('alchtable', 'ALCHTABLE'); o('throne', 'THRONE'); o('crystal', 'CRYSTAL');
   o('mushroom', 'MUSHROOM'); o('bigshroom', 'BIGSHROOM'); o('portal', 'PORTAL'); o('whirlpool', 'WHIRLPOOL'); o('mine', 'MINE'); o('tent', 'TENT');
   o('coral', 'CORAL'); o('sign', 'SIGN'); o('lighthouse', 'LIGHTHOUSE'); o('fern', 'FERN'); o('sapling', 'SAPLING'); o('gate', 'GATE');
+  o('chair', 'CHAIR'); o('bench', 'BENCH'); o('outhouse', 'OUTHOUSE');
+  FIX[T.CHAIR] = 'floor'; FIX[T.BENCH] = 'floor';
   FIX[T.WHIRLPOOL] = 'water'; FIX[T.GATE] = 'road'; FIX[T.CORAL] = 'seafloor'; FIX[T.REEDS] = 'swamp';
   for (const k of ['WATER', 'SHALLOW', 'STREAM', 'BOG', 'LAVA', 'MIRRORWATER', 'WHIRLPOOL']) LOW[T[k]] = 1;
   LOW[T.VOID] = 2; LOW[T.CLOUD] = 2;

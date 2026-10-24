@@ -338,9 +338,9 @@
 
   // ---------- торговля ----------
   const SHOP = {
-    general: ['bread', 'rusk', 'torch', 'rope', 'flint', 'bedroll', 'salt', 'empty_bottle', 'lamp_oil', 'mortar', 'rod', 'shovel', 'pickaxe', 'cloak', 'hood', 'tunic', 'charm', 'cheese', 'apple', 'axe', 'sickle', 'dice', 'candle', 'flute'],
+    general: ['bread', 'rusk', 'torch', 'rope', 'flint', 'bedroll', 'salt', 'empty_bottle', 'lamp_oil', 'mortar', 'rod', 'shovel', 'pickaxe', 'cloak', 'hood', 'tunic', 'charm', 'cheese', 'apple', 'axe', 'sickle', 'dice', 'candle', 'flute', 'under_linen', 'under_wool', 'trousers', 'pants_wool', 'skirt', 'shoes_bast', 'boots', 'mittens', 'shirt_wool', 'waterskin'],
     smith: ['knife', 'dagger', 'shortsword', 'sword', 'longsword', 'axe', 'waraxe', 'mace', 'spear', 'warhammer', 'flail', 'bow', 'sling', 'crossbow', 'helm', 'greathelm', 'leather', 'chain', 'scale', 'plate', 'pickaxe', 'shovel'],
-    inn: ['ale', 'stew', 'bread', 'pie', 'cheese', 'meat_cooked', 'fish_cooked', 'honey'],
+    inn: ['ale', 'stew', 'bread', 'pie', 'cheese', 'meat_cooked', 'fish_cooked', 'honey', 'milk', 'kvass'],
     bakery: ['bread', 'pie', 'rusk', 'honey'],
     fish: ['fish_raw', 'fish_cooked', 'rod', 'shell'],
     hunter: ['meat_raw', 'meat_cooked', 'hide', 'bow', 'sling', 'furcoat', 'furhat', 'knife', 'feather'],
@@ -397,6 +397,7 @@
     }
     if (e.npc != null) { const op = Gm.opinion(e.npc); if (op > 30) m *= buy ? 0.85 : 1.1; if (op < -20) m *= buy ? 1.4 : 0.7; }
     m *= Gm.fxMul('price');
+    if (Gm.socialPriceMul) m *= Gm.socialPriceMul(buy);
     return m;
   };
   Dlg.buyPrice = (e, it) => Math.max(1, Math.round((it.v || 1) * Dlg.priceMul(e, it.b, true) * (it.q || 1)));

@@ -703,14 +703,20 @@
     }
     const ix0 = bx + 1, iy0 = by + 1, iw = bw - 2, ih = bh - 2;
     const putIn = (x, y, t) => { if (x >= ix0 && y >= iy0 && x < ix0 + iw && y < iy0 + ih) set(m, x, y, t); };
+    // стулья у стола — сквозь них можно пройти
+    const chairs = (x, y, both) => { for (const dx of both ? [-1, 1] : [-1]) { const xx = x + dx; if (xx >= ix0 && xx < ix0 + iw && get(m, xx, y) === T.FLOOR) set(m, xx, y, T.CHAIR); } };
+    const tableAt = (x, y, both) => { putIn(x, y, T.TABLE); if (get(m, x, y) === T.TABLE) chairs(x, y, both); };
     if (type === 'home') {
       putIn(ix0, iy0, T.BED);
       if (iw > 2) putIn(ix0 + iw - 1, iy0, T.BED);
-      putIn(ix0 + (iw >> 1), iy0 + ih - 1 === door[1] - 1 && door[1] === by + bh - 1 ? iy0 : iy0 + ih - 1, T.TABLE);
+      tableAt(ix0 + (iw >> 1), iy0 + ih - 1 === door[1] - 1 && door[1] === by + bh - 1 ? iy0 : iy0 + ih - 1, false);
       putIn(ix0 + iw - 1, iy0 + ih - 1, T.HEARTH);
+      // нужник за домом
+      if (rng.chance(0.45)) for (const [ox, oy] of [[bx - 2, by], [bx + bw + 1, by], [bx - 2, by + bh - 1], [bx + bw + 1, by + bh - 1]]) { if (!inb(ox, oy)) continue; const tt = get(m, ox, oy); if (TL[tt].walk && !TL[tt].indoor && ![T.ROAD, T.COBBLE, T.DOOR, T.GATE, T.BRIDGE, T.DOCK].includes(tt) && !TL[tt].water) { set(m, ox, oy, T.OUTHOUSE); break; } }
       if (iw > 3) { const cxh = ix0 + 1, cyh = iy0 + ih - 1; if (get(m, cxh, cyh) === T.FLOOR) addChest(m, cxh, cyh, [], rng, { home: 1 }); }
     } else if (type === 'tavern') {
-      for (let x = ix0 + 1; x < ix0 + iw - 1; x += 3) { putIn(x, iy0 + 2, T.TABLE); }
+      for (let x = ix0 + 1; x < ix0 + iw - 1; x += 3) { tableAt(x, iy0 + 2, true); }
+      for (let x = ix0 + 1; x < ix0 + iw - 1; x += 2) if (get(m, x, iy0 + ih - 2) === T.FLOOR && iy0 + ih - 2 > iy0 + 2) set(m, x, iy0 + ih - 2, T.BENCH);
       for (let x = ix0; x < ix0 + 4; x++) putIn(x, iy0, T.COUNTER);
       putIn(ix0 + iw - 1, iy0, T.HEARTH);
       putIn(ix0 + iw - 1, iy0 + ih - 1, T.BED); putIn(ix0 + iw - 2, iy0 + ih - 1, T.BED);
@@ -720,13 +726,13 @@
       for (let x = ix0 + 1; x < ix0 + iw - 1; x += 3) { putIn(x, iy0 + 2, T.PILLAR); }
     } else if (type === 'library') {
       for (let x = ix0; x < ix0 + iw; x++) { if (x % 2 === 0) { putIn(x, iy0, T.SHELF); putIn(x, iy0 + 1, T.SHELF); } }
-      putIn(ix0 + iw - 1, iy0 + ih - 1, T.TABLE);
+      tableAt(ix0 + iw - 1, iy0 + ih - 1, false);
     } else if (type === 'smithy') {
       putIn(ix0 + 1, iy0 + 1, T.ANVIL); putIn(ix0 + iw - 1, iy0, T.HEARTH); putIn(ix0, iy0, T.COUNTER);
     } else if (type === 'alch') {
       putIn(ix0 + 1, iy0, T.ALCHTABLE); putIn(ix0 + iw - 1, iy0, T.SHELF);
     } else if (type === 'guard') {
-      putIn(ix0, iy0, T.BED); putIn(ix0 + 1, iy0, T.BED); putIn(ix0 + iw - 1, iy0 + ih - 1, T.TABLE);
+      putIn(ix0, iy0, T.BED); putIn(ix0 + 1, iy0, T.BED); tableAt(ix0 + iw - 1, iy0 + ih - 1, false);
       addChest(m, ix0 + iw - 1, iy0, [], rng, { guard: 1 });
     } else if (type === 'palace') {
       putIn(ix0 + (iw >> 1), iy0, T.THRONE);

@@ -9,7 +9,7 @@
     Numpad8: 'up', Numpad2: 'down', Numpad4: 'left', Numpad6: 'right', Numpad7: 'ul', Numpad9: 'ur', Numpad1: 'dl', Numpad3: 'dr', Numpad5: 'wait',
     Home: 'home', End: 'end', PageUp: 'pgup', PageDown: 'pgdn',
     KeyE: 'act', Space: 'act', KeyG: 'act', Enter: 'enter', NumpadEnter: 'enter', Escape: 'esc', Tab: 'tab',
-    KeyI: 'inv', KeyC: 'char', KeyP: 'pray', KeyK: 'skills', KeyM: 'map', KeyJ: 'mem', KeyR: 'rest', KeyF: 'fire', KeyL: 'look', KeyX: 'look', KeyH: 'log', KeyV: 'view',
+    KeyI: 'inv', KeyC: 'char', KeyP: 'pray', KeyK: 'skills', KeyM: 'map', KeyJ: 'mem', KeyR: 'rest', KeyF: 'fire', KeyL: 'look', KeyX: 'look', KeyH: 'log', KeyV: 'view', KeyB: 'body', KeyO: 'outfit', KeyT: 'stats',
     Equal: 'zin', NumpadAdd: 'zin', Minus: 'zout', NumpadSubtract: 'zout', BracketLeft: 'gdown', BracketRight: 'gup',
     Period: 'wait', KeyZ: 'wait', NumpadDecimal: 'wait', F1: 'help', Slash: 'help',
   };

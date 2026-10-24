@@ -298,6 +298,8 @@
     t.text(X, y, 'Здоровье', COL.dim, COL.panel); UI.bar(t, X + 9, y, bw, P.hp, P.mhp, COL.hp); t.text(X + 9 + bw + 1, y++, String(Math.ceil(P.hp)), COL.text, COL.panel);
     t.text(X, y, 'Дух', COL.dim, COL.panel); UI.bar(t, X + 9, y, bw, P.mp, P.mmp, COL.mp); t.text(X + 9 + bw + 1, y++, String(Math.floor(P.mp)), COL.text, COL.panel);
     t.text(X, y, 'Сытость', COL.dim, COL.panel); UI.bar(t, X + 9, y, bw, P.hunger, 100, COL.food); y++;
+    t.text(X, y, 'Жажда', COL.dim, COL.panel); UI.bar(t, X + 9, y, bw, P.thirst || 0, 100, (P.thirst || 0) >= 80 ? '#e07050' : '#4ab8d0'); y++;
+    t.text(X, y, 'Нужда', COL.dim, COL.panel); UI.bar(t, X + 9, y, bw, P.need || 0, 100, (P.need || 0) >= 85 ? '#e07050' : '#b08a40'); y++;
     if (P.level < 999) { t.text(X, y, 'Опыт', COL.dim, COL.panel); UI.bar(t, X + 9, y, bw, P.xp, E.Gm.need(P.level), COL.xp); y++; }
     if (P.shield > 0) t.text(X, y++, 'Щит: ' + P.shield, '#a0c0ff', COL.panel);
     y++;
@@ -305,7 +307,8 @@
     t.text(X, y++, 'Сил ' + U.pad(st.str, 3) + 'Лов ' + U.pad(st.dex, 3) + 'Стк ' + st.con, COL.text, COL.panel, IW);
     t.text(X, y++, 'Раз ' + U.pad(st.int, 3) + 'Вер ' + U.pad(st.fai, 3) + 'Уд  ' + st.luck, COL.text, COL.panel, IW);
     if (P.level >= 100) t.text(X, y++, 'Воля ' + U.pad(st.wil, 3) + 'Резонанс ' + st.res, '#d0c0ff', COL.panel, IW);
-    t.text(X, y++, 'Защита ' + st.def + '   Монет ' + P.gold, COL.dim, COL.panel, IW);
+    t.text(X, y++, 'Защита ' + st.def + '   ' + E.Gm.fmt(E.Gm.dressName()), COL.dim, COL.panel, IW);
+    t.text(X, y++, 'Кошелёк: ' + E.Gm.purseStr(true), '#e0c070', COL.panel, IW);
     if (P.pts > 0) t.text(X, y++, '(+' + P.pts + ' очк. — окно персонажа)', COL.accent, COL.panel, IW);
     y++;
     const hand = P.eq.hand;
@@ -349,12 +352,14 @@
     const y = L.sy;
     t.fill(0, y, t.cols, 3, ' ', COL.text, COL.panel);
     const bw = Math.max(6, Math.floor((t.cols - 24) / 3));
-    t.text(0, y, (P.level >= 999 ? '—' : 'Ур' + P.level) + ' ' + UI.clsLabel(), COL.title, COL.panel, t.cols);
+    t.text(0, y, (P.level >= 999 ? '—' : 'Ур' + P.level) + ' ' + UI.clsLabel() + '  ' + Math.ceil(P.hp) + '/' + P.mhp + '  ' + E.Gm.purseStr(true) + (P.pts ? '  +' + P.pts : ''), COL.title, COL.panel, t.cols);
     t.text(0, y + 1, 'HP', COL.dim, COL.panel); UI.bar(t, 3, y + 1, bw, P.hp, P.mhp, COL.hp);
     t.text(4 + bw, y + 1, 'Дух', COL.dim, COL.panel); UI.bar(t, 8 + bw, y + 1, bw, P.mp, P.mmp, COL.mp);
     t.text(9 + bw * 2, y + 1, 'Еда', COL.dim, COL.panel); UI.bar(t, 13 + bw * 2, y + 1, Math.min(bw, t.cols - 14 - bw * 2), P.hunger, 100, COL.food);
     const near = G.map.ents.filter((e) => G.vis[e.y * G.map.w + e.x] && (e.hostile || e.hostileToP)).length;
-    t.text(0, y + 2, Math.ceil(P.hp) + '/' + P.mhp + '  ' + P.gold + '$' + (near ? '  враги: ' + near : '') + (P.pts ? '  +' + P.pts + ' очк.' : ''), COL.dim, COL.panel, t.cols);
+    t.text(0, y + 2, 'Пить', COL.dim, COL.panel); UI.bar(t, 5, y + 2, bw, P.thirst || 0, 100, (P.thirst || 0) >= 80 ? '#e07050' : '#4ab8d0');
+    t.text(6 + bw, y + 2, 'Нужда', COL.dim, COL.panel); UI.bar(t, 12 + bw, y + 2, bw, P.need || 0, 100, (P.need || 0) >= 85 ? '#e07050' : '#b08a40');
+    if (near) t.text(13 + bw * 2, y + 2, 'враги: ' + near, '#e0a0a0', COL.panel, t.cols - 13 - bw * 2);
   };
   UI.drawLog = function (t, L) {
     const x = L.lx, y0 = L.ly, w = L.lw - 1, h = L.lh;
@@ -446,6 +451,9 @@
         case 'act': E.Gm.interact(); break;
         case 'inv': UI.inventory(); break;
         case 'char': UI.character(); break;
+        case 'body': UI.body(); break;
+        case 'outfit': UI.outfit(); break;
+        case 'stats': UI.worldStats(); break;
         case 'pray': UI.prayers(); break;
         case 'skills': UI.skills(); break;
         case 'map': UI.worldMap(); break;

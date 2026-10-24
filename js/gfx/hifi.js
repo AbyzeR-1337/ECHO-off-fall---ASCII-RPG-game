@@ -941,7 +941,7 @@
   HF.alias = {};
 
   // высота того, что стоит на клетке (для теней), и круглый ли у него след
-  HF.OBJH = { tree: 1.9, tree2: 1.9, tree_bare: 1.5, pine: 1.75, pine_snow: 1.75, deadtree: 1.2, bush: 0.45, fern: 0.2, reeds: 0.7, mushroom: 0.2, bigshroom: 0.95, cactus: 0.9, coral: 0.6, sapling: 0.4, boulder: 0.45, crystal: 0.6, statue: 1.4, pillar: 1.4, tent: 0.9, shrine: 1.0, altar: 0.6, inscription: 0.85, grave: 0.5, well: 1.1, campfire: 0.1, hearth: 0.75, chest: 0.35, table: 0.5, counter: 0.55, bed: 0.35, anvil: 0.4, alchtable: 0.7, throne: 1.2, sign: 0.75, lighthouse: 3, gate: 1.3, mine: 0.8 };
+  HF.OBJH = { chair: 0.5, bench: 0.36, outhouse: 1.22, tree: 1.9, tree2: 1.9, tree_bare: 1.5, pine: 1.75, pine_snow: 1.75, deadtree: 1.2, bush: 0.45, fern: 0.2, reeds: 0.7, mushroom: 0.2, bigshroom: 0.95, cactus: 0.9, coral: 0.6, sapling: 0.4, boulder: 0.45, crystal: 0.6, statue: 1.4, pillar: 1.4, tent: 0.9, shrine: 1.0, altar: 0.6, inscription: 0.85, grave: 0.5, well: 1.1, campfire: 0.1, hearth: 0.75, chest: 0.35, table: 0.5, counter: 0.55, bed: 0.35, anvil: 0.4, alchtable: 0.7, throne: 1.2, sign: 0.75, lighthouse: 3, gate: 1.3, mine: 0.8 };
   HF.heightsFor = function (sc) {
     const n = sc.W * sc.H, Hm = new Float32Array(n), Hs = new Uint8Array(n);
     for (let k = 0; k < n; k++) {
