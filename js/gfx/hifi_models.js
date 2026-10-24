@@ -462,6 +462,21 @@
     };
   }
   const S1 = (v) => v;
+  // Богиня мира: белое с золотом платье, длинные золотые волосы, венец, сияние за головой
+  MD.goddess = (o, P) => {
+    const f = (o.f || 0) % 8;
+    const robe = mat('#f4ecd8', 'cloth', { tex: clothTex, em: 0.18 }), gold = mat('#f0d070', 'gold', { sp: 1, em: 0.25 });
+    const prims = human({ cloth: robe, pants: robe, sleeve: mat('#ece0c4', 'cloth', { tex: clothTex, em: 0.12 }), skin: mat('#f4dcc8', 'skin', { em: 0.12 }), hair: mat('#e8c060', 'hair', { tex: hairTex, em: 0.2 }), belt: gold, boots: gold, robe: 1, long: 1, eyes: mat('#80c0ff', 'eye', { em: 1.2 }) }, P, 1.15);
+    // подол до земли, длинные рукава, венец
+    prims.push(el(0, 0, 0.1, 0.24, 0.2, 0.14, robe));
+    gear(prims, P, 'crown', 1.15);
+    gear(prims, P, 'cape', 1.15, { m: mat('#d8c8f0', 'cloth', { tex: clothTex, em: 0.15 }) });
+    // сияние: кольцо огоньков за головой и искры вокруг
+    const hz = HZ * 1.15;
+    for (let q = 0; q < 16; q++) { const a = q / 16 * Math.PI * 2; prims.push(sph(Math.cos(a) * 0.2, -0.16, hz + 0.02 + Math.sin(a) * 0.2, pmin(P, 0.018), mat('#fff0b0', 'glow', { em: 2, fl: F.NOSHADOW }))); }
+    for (let q = 0; q < 7; q++) { const a = q * 0.9 + f * 0.35; prims.push(sph(Math.cos(a) * (0.35 + q * 0.03), 0.05, 0.3 + q * 0.17 + Math.sin(f * 0.8 + q) * 0.03, pmin(P, 0.012), mat('#fff8d0', 'glow', { em: 2, fl: F.NOSHADOW }))); }
+    return { key: 'goddess|' + f, prims };
+  };
   MD.player = (o, P) => {
     const cc = colOf(o, '#c8a060');
     const prims = human({ cloth: mat(cc, 'cloth', { tex: clothTex }), pants: mat('#3a3028', 'cloth', { tex: clothTex }), skin: mat(SKIN, 'skin'), hair: mat('#5a3a22', 'hair', { tex: hairTex }), frame: o.f, moving: o.moving }, P, 1);
