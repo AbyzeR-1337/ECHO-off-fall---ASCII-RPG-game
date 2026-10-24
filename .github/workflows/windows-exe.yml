@@ -1,0 +1,67 @@
+# Сборка игры для Windows (.exe) и выкладка в раздел «Releases» — оттуда её можно скачать.
+# Каждый пуш в основную ветку обновляет релиз «windows-build»: ссылки на файлы не меняются.
+name: Windows .exe
+
+on:
+  push:
+    branches: [claude/vigilant-bell-o5g1lu, main, master]
+    paths-ignore: ['**.md', 'tools/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-exe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Build .exe
+        run: npx electron-builder --win --x64 --publish never
+
+      - name: Keep the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: EchoesOfTheFall-Windows
+          path: |
+            dist/EchoesOfTheFall-portable.exe
+            dist/EchoesOfTheFall-Setup.exe
+          if-no-files-found: error
+
+      - name: Publish download
+        if: github.ref_name == github.event.repository.default_branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=windows-build
+          SHA=$(git rev-parse --short HEAD)
+          git tag -f "$TAG"
+          git push -f origin "refs/tags/$TAG"
+          TITLE="Echoes of the Fall для Windows"
+          NOTES="Сборка из коммита $SHA.
+
+          - **EchoesOfTheFall-Setup.exe** — установщик: ярлык на рабочем столе и в «Пуске».
+          - **EchoesOfTheFall-portable.exe** — без установки: скачал и играй.
+
+          Windows может предупредить «неизвестный издатель» (у сборки нет платной подписи): «Подробнее» → «Выполнить в любом случае».
+          Сохранения лежат в %APPDATA%\\Echoes of the Fall. F11 — во весь экран."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES" --latest
+          else
+            gh release create "$TAG" --title "$TITLE" --notes "$NOTES" --latest
+          fi
+          gh release upload "$TAG" dist/EchoesOfTheFall-Setup.exe dist/EchoesOfTheFall-portable.exe --clobber

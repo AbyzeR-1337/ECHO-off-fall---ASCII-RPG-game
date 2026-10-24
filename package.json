@@ -1,0 +1,53 @@
+{
+  "name": "echoes-of-the-fall",
+  "productName": "Echoes of the Fall",
+  "version": "1.1.0",
+  "description": "RPG с живым открытым миром, который никогда ничего не объясняет.",
+  "author": "AbyzeR-1337",
+  "private": true,
+  "main": "desktop/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "43.7.9",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "io.github.abyzer1337.echoesofthefall",
+    "productName": "Echoes of the Fall",
+    "copyright": "AbyzeR-1337",
+    "files": [
+      "index.html",
+      "css/**",
+      "js/**",
+      "fonts/**",
+      "desktop/**",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "desktop"
+    },
+    "win": {
+      "icon": "desktop/icon.png",
+      "target": [
+        { "target": "portable", "arch": ["x64"] },
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "portable": {
+      "artifactName": "EchoesOfTheFall-portable.exe"
+    },
+    "nsis": {
+      "artifactName": "EchoesOfTheFall-Setup.exe",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Echoes of the Fall"
+    }
+  }
+}

@@ -135,7 +135,9 @@
   E.boot = boot;
   window.addEventListener('load', () => {
     const go = () => { try { boot(); } catch (e) { document.body.innerHTML = '<pre style="color:#e88;padding:1em">' + (e.stack || e) + '</pre>'; } };
-    if (document.fonts && document.fonts.ready) Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1500))]).then(go);
+    // шрифт лежит рядом с игрой; холст сам его не запросит — просим явно (латиница и кириллица)
+    const want = document.fonts && document.fonts.load ? ['400', '700'].map((w) => document.fonts.load(w + ' 16px "JetBrains Mono"', 'Aa Яя')) : [];
+    if (document.fonts && document.fonts.ready) Promise.race([Promise.all(want.concat(document.fonts.ready)).catch(() => 0), new Promise((r) => setTimeout(r, 1500))]).then(go);
     else go();
   });
 })(window.EOF);

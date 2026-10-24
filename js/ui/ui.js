@@ -143,6 +143,8 @@
     } catch (e) { /* без хранилища — выберем по экрану */ }
     return null;
   })();
+  // готовая сборка для Windows (её выкладывает .github/workflows/windows-exe.yml)
+  UI.EXE_URL = 'https://github.com/AbyzeR-1337/ECHO-off-fall---ASCII-RPG-game/releases/tag/windows-build';
   Object.defineProperty(UI, 'view3d', { get: () => UI.gfxLevel > 0 });
   // без WebGL пиксельного 3D нет — лучший из остальных уровней
   const has3D = () => !!(E.Gfx && E.Gfx.P3 && E.Gfx.P3.supported());

@@ -786,6 +786,8 @@
         it.push({ t: 'Новый мир', f: () => { if (info) UI.confirm('Начать в новом мире? Старый мир будет забыт.', () => { E.Save.clear(); UI.stack = []; UI.push(UI.createScreen(false)); }); else { UI.stack = []; UI.push(UI.createScreen(false)); } } });
         it.push({ t: 'Летопись концовок', f: () => UI.endingsGallery() });
         it.push({ t: 'Как играть', f: () => UI.help() });
+        // в браузере на компьютере — ссылка на версию для Windows (в самой .exe она не нужна)
+        if (!/Electron/.test(navigator.userAgent) && !window.matchMedia('(pointer: coarse)').matches) it.push({ t: 'Скачать для Windows (.exe)', f: () => { window.open(UI.EXE_URL, '_blank', 'noopener'); return 'keep'; } });
         return it;
       },
       cont() {
@@ -824,7 +826,7 @@
           const ii = i;
           t.hot(x, y, lbl.length, 1, () => { s.sel = ii; it[ii].f(); UI.render(); });
         });
-        t.text(1, t.rows - 1, 'v1.0', COL.faint);
+        t.text(1, t.rows - 1, 'v1.1', COL.faint);
       },
       key(c) {
         const n = s.it ? s.it.length : 1;
