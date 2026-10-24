@@ -72,6 +72,13 @@
       if (h) { h.fn(h, cx, cy, ev.button, ev.clientX - r.left, ev.clientY - r.top); UI.render(); }
       else if (UI.top() && UI.top().name === 'popup') { UI.pop(); }
     });
+    // мышь над экраном — подсказки к вещам и эффектам
+    cv.addEventListener('pointermove', (ev) => {
+      if (ev.pointerType && ev.pointerType !== 'mouse') return;
+      const c = pos(ev);
+      if (!UI.mouse || UI.mouse[0] !== c[0] || UI.mouse[1] !== c[1]) { UI.mouse = c; UI.render(); }
+    });
+    cv.addEventListener('pointerleave', () => { if (UI.mouse) { UI.mouse = null; UI.render(); } });
     // колесо: на карте — масштаб, в списках — прокрутка
     cv.addEventListener('wheel', (ev) => {
       ev.preventDefault();

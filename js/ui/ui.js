@@ -21,6 +21,7 @@
     let start = 0;
     for (let i = UI.stack.length - 1; i >= 0; i--) if (UI.stack[i].full) { start = i; break; }
     for (let i = start; i < UI.stack.length; i++) UI.stack[i].draw(t, i === UI.stack.length - 1);
+    if (UI.hoverTip) UI.hoverTip(t);
     t.render();
     const inp = document.getElementById('nameInput');
     if (inp && UI.top() && UI.top().name !== 'create' && inp.style.display !== 'none') { inp.style.display = 'none'; inp.blur(); }
@@ -317,7 +318,7 @@
     const fx = P.fx.filter((f) => D.effects[f.id]);
     if (fx.length) {
       y++;
-      for (const f of fx.slice(0, 5)) { const d = D.effects[f.id]; t.text(X, y++, '· ' + d.n, d.kind === 'curse' ? '#c080c0' : d.kind === 'bless' ? '#80c0f0' : '#c0a080', COL.panel, IW); }
+      for (const f of fx.slice(0, 5)) { const d = D.effects[f.id]; t.text(X, y, '· ' + d.n, d.kind === 'curse' ? '#c080c0' : d.kind === 'bless' ? '#80c0f0' : '#c0a080', COL.panel, IW); t.hot(X, y, IW, 1, () => UI.popup(d.n, UI.fxTip(f.id).slice(1).join('\n\n')), { tip: () => UI.fxTip(f.id) }); y++; }
       if (fx.length > 5) t.text(X, y++, '  …и ещё ' + (fx.length - 5), COL.dim, COL.panel);
     }
     // рядом

@@ -73,7 +73,7 @@
           P.goddess = { n: gn, e: ge, cls: s.cls || null, gift: s.gift ? s.gift.id : null };
           if (s.cls) {
             Gm.setClass(s.cls);
-            for (const b of CLASS_GEAR[s.cls] || []) { const it = Gm.give(b, 1, true); const sl = it && (it.s || (D.items[b] || {}).s); if (sl) P.eq[sl] = it; }
+            for (const b of CLASS_GEAR[s.cls] || []) { const it = Gm.give(b, 1, true); if (it && Gm.learnItem) Gm.learnItem(it, true); const sl = it && (it.s || (D.items[b] || {}).s); if (sl) P.eq[sl] = it; }
           }
           if (s.gift) s.gift.f(P);
           Gm.calc(); P.hp = P.mhp; P.mp = P.mmp;
