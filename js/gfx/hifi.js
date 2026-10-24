@@ -119,6 +119,7 @@
   cs('cone', '/\\^A', (t, l) => (t < 0.4 ? '/' : t > 0.6 ? '\\' : l > 0.6 ? 'A' : '^'));
   cs('hair', '~"\'', (t) => pickStr('~"\'', t));
   for (const ch of '|_-/\\()[]*\'`,.~°+') CHARS.add(ch);
+  for (let c = 33; c < 127; c++) CHARS.add(String.fromCharCode(c));
   HF.allChars = () => [...CHARS];
 
   // ============================================================
@@ -175,12 +176,86 @@
     const data = x.getImageData(0, 0, cv.width, cv.height).data;
     const alpha = new Uint8Array(cw * ch * chars.length);
     for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4];
-    const index = new Map();
-    chars.forEach((c, i) => index.set(c, i));
-    GA = { cw, ch, family, chars, alpha, index };
+    const index = new Map(), code = new Uint16Array(65536);
+    chars.forEach((c, i) => { index.set(c, i); code[c.charCodeAt(0)] = i; });
+    GA = { cw, ch, family, chars, alpha, index, code };
     return GA;
   }
   HF.glyphIndex = (c) => (GA ? GA.index.get(c) || 0 : 0);
+  HF.glyphAtlas = glyphAtlas;
+
+  // ============================================================
+  // Образцы символов для подбора по форме
+  // ============================================================
+  // Клетка делится на SX×SY долей; для каждого символа считаем, насколько закрашена каждая доля.
+  // Потом для куска картинки выбирается символ, чей рисунок ближе всего к нему: край фигуры
+  // становится «d», «/» или «(», светлая гладь — «$» или «#», полутень — «:» и «.».
+  // full — для фигур и построек: знаки, которые хорошо ложатся на контур (без «текстовых» букв вроде M, W, g, y);
+  // light — для земли: только лёгкие штрихи. ramp — шкала плотности для ровных мест.
+  const GSET = {
+    full: ' .,\'`^"-_~:;!|/\\()[]{}<>=+*?ijlrtvxoceaszJLTYIVXOC0dbpq$#%&@',
+    light: ' .,\'`:;-_~=^"|/\\()vxoc*',
+    line: ' .,\'`-_~:;=|/\\()[]<>^v+*#"!',
+  };
+  const GRAMP = { full: ' .:-=+*#%@', light: ' .,:;-=', line: ' .:-=+*#' };
+  const GP = new Map();
+  let FAM = 'monospace';
+  HF.setFamily = (f) => { if (f && f !== FAM) { FAM = f; GP.clear(); mcache.clear(); if (HF.clearGround) HF.clearGround(); } };
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(() => { GP.clear(); mcache.clear(); if (HF.clearGround) HF.clearGround(); });
+  function patterns(SX, SY, set) {
+    const key = FAM + '|' + SX + 'x' + SY + '|' + set;
+    let pt = GP.get(key);
+    if (pt) return pt;
+    const chars = GSET[set], n = chars.length, R = 6, w = SX * R, h = SY * R, D = SX * SY;
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h * n;
+    const x = cv.getContext('2d', { willReadFrequently: true });
+    x.fillStyle = '#000'; x.fillRect(0, 0, cv.width, cv.height);
+    x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = Math.round(h * 0.9) + 'px ' + FAM;
+    for (let i = 0; i < n; i++) if (chars[i] !== ' ') x.fillText(chars[i], w / 2, i * h + h / 2 + h * 0.04);
+    const data = x.getImageData(0, 0, cv.width, cv.height).data;
+    const vec = new Float32Array(n * D), mean = new Float32Array(n);
+    for (let i = 0; i < n; i++) for (let by = 0; by < SY; by++) for (let bx = 0; bx < SX; bx++) {
+      let a = 0;
+      for (let yy = 0; yy < R; yy++) for (let xx = 0; xx < R; xx++) a += data[((i * h + by * R + yy) * w + bx * R + xx) * 4];
+      const v = a / (R * R * 255);
+      vec[i * D + by * SX + bx] = v; mean[i] += v / D;
+    }
+    let mx = 0;
+    for (let i = 0; i < n; i++) mx = Math.max(mx, mean[i]);
+    // шкала плотности: номера её знаков, по возрастанию закраски
+    const ramp = Array.from(GRAMP[set], (c) => chars.indexOf(c)).filter((i) => i >= 0).sort((a, b) => mean[a] - mean[b]);
+    pt = { chars, codes: Array.from(chars, (c) => c.charCodeAt(0)), n, D, SX, SY, vec, mean, top: mx, ramp };
+    GP.set(key, pt);
+    return pt;
+  }
+  HF.patterns = patterns;
+  // ближайший по рисунку символ (сумма квадратов разниц по долям)
+  // ровное место (рисунка внутри клетки нет) — знак из шкалы плотности; иначе — по форме
+  function matchGlyph(pt, tv) {
+    const D = pt.D, v = pt.vec;
+    let mu = 0, s2 = 0;
+    for (let i = 0; i < D; i++) mu += tv[i];
+    mu /= D;
+    for (let i = 0; i < D; i++) { const e = tv[i] - mu; s2 += e * e; }
+    s2 /= D;
+    if (s2 < 0.0025 + mu * mu * 0.12) {
+      const r = pt.ramp, mn = pt.mean;
+      let bi = r[0], bdm = 1e9;
+      for (let q = 0; q < r.length; q++) { const dm = Math.abs(mn[r[q]] - mu); if (dm < bdm) { bdm = dm; bi = r[q]; } }
+      return bi;
+    }
+    let best = 0, bd = 1e9;
+    for (let c = 0; c < pt.n; c++) {
+      let d = 0;
+      const o = c * D;
+      for (let i = 0; i < D; i++) { const e = tv[i] - v[o + i]; d += e * e; if (d >= bd) break; }
+      if (d < bd) { bd = d; best = c; }
+    }
+    return best;
+  }
+  HF.matchGlyph = matchGlyph;
 
   // ============================================================
   // Буфер кадра (ячейки экрана)
@@ -196,6 +271,7 @@
         er: new Float32Array(n), eg: new Float32Array(n), eb: new Float32Array(n),
         cs: new Uint8Array(n), tx: new Uint8Array(n), sp: new Uint8Array(n), fl: new Uint16Array(n), ao: new Uint8Array(n), id: new Uint32Array(n),
         fg: new Uint32Array(n), bg: new Uint32Array(n), gl: new Uint16Array(n),
+        ur: new Float32Array(n), ug: new Float32Array(n), ub: new Float32Array(n),
       };
     }
     B.NU = NU; B.NV = NV;
@@ -203,7 +279,8 @@
     return B;
   }
   // флаги ячейки
-  const F = HF.F = { FILL: 1, GROUND: 2, WATER: 4, MEM: 8, LAVA: 16, FOAM: 32, WINDOW: 64, ALPHA: 128, NOSHADOW: 256, GHOST: 512, WIND: 1024, REVEAL: 2048 };
+  // GLYPH — символ уже подобран по форме; PART — фигура закрывает клетку не целиком (фон — от того, что под ней)
+  const F = HF.F = { FILL: 1, GROUND: 2, WATER: 4, MEM: 8, LAVA: 16, FOAM: 32, WINDOW: 64, ALPHA: 128, NOSHADOW: 256, GHOST: 512, WIND: 1024, REVEAL: 2048, GLYPH: 4096, PART: 8192, WALL: 16384 };
   HF.buf = () => B;
 
   // запись одной ячейки материала (o — результат функции материала)
@@ -216,6 +293,11 @@
     if (o.em) { b.er[k] = o.r * o.em; b.eg[k] = o.g * o.em; b.eb[k] = o.b * o.em; } else { b.er[k] = 0; b.eg[k] = 0; b.eb[k] = 0; }
     b.fl[k] = flags | (o.fl || 0) | F.FILL;
     b.id[k] = id;
+  };
+  // то же, но с готовым символом (код знака)
+  HF.putG = function (k, o, wx, wy, wz, nx, ny, nz, id, flags, code) {
+    HF.put(k, o, wx, wy, wz, nx, ny, nz, id, flags);
+    if (code >= 0) { B.gl[k] = GA ? GA.code[code] : 0; B.fl[k] |= F.GLYPH; }
   };
 
   // ============================================================
@@ -257,6 +339,14 @@
       for (const t of [r1, r2]) if (t >= p.z0 && t <= p.z0 + p.h && a0 - k * t >= 0 && t > best) best = t;
       return best;
     }
+    if (p.t === 'y') {
+      // стоячий цилиндр: (x - cx)² + (y - cy)² ≤ r², z от z0 до z1
+      const dx = lx - p.x;
+      if (dx * dx > p.r * p.r) return -1;
+      const hw = Math.sqrt(p.r * p.r - dx * dx);
+      const lo = Math.max(p.y - hw - s, p.z0), hi = Math.min(p.y + hw - s, p.z1);
+      return hi >= lo ? hi : -1;
+    }
     if (p.t === 'd') {
       const t = p.z, y = s + t;
       const dx = (lx - p.x) / p.rx, dy = (y - p.y) / p.ry;
@@ -268,6 +358,7 @@
     if (p.t === 'e') { out[0] = (lx - p.x) / (p.rx * p.rx); out[1] = (y - p.y) / (p.ry * p.ry); out[2] = (z - p.z) / (p.rz * p.rz); }
     else if (p.t === 'b') { if (Math.abs(z - p.z1) < 1e-4) { out[0] = 0; out[1] = 0; out[2] = 1; } else { out[0] = 0; out[1] = 1; out[2] = 0.15; } }
     else if (p.t === 'c') { const dx = lx - p.x, dy = y - p.y, rr = Math.hypot(dx, dy) || 1e-3; out[0] = dx / rr; out[1] = dy / rr; out[2] = p.r / p.h; }
+    else if (p.t === 'y') { if (Math.abs(z - p.z1) < 1e-4) { out[0] = 0; out[1] = 0; out[2] = 1; } else { out[0] = (lx - p.x) / p.r; out[1] = (y - p.y) / p.r; out[2] = 0; } }
     else { out[0] = 0; out[1] = 0; out[2] = 1; }
     const l = Math.hypot(out[0], out[1], out[2]) || 1;
     out[0] /= l; out[1] /= l; out[2] /= l;
@@ -276,92 +367,209 @@
     if (p.t === 'e') return [p.x - p.rx, p.x + p.rx, (p.y - p.ry) - (p.z + p.rz), (p.y + p.ry) - (p.z - p.rz)];
     if (p.t === 'b') return [p.x0, p.x1, p.y0 - p.z1, p.y1 - p.z0];
     if (p.t === 'c') return [p.x - p.r, p.x + p.r, (p.y - p.r) - (p.z0 + p.h), (p.y + p.r) - p.z0];
+    if (p.t === 'y') return [p.x - p.r, p.x + p.r, (p.y - p.r) - p.z1, (p.y + p.r) - p.z0];
     return [p.x - p.rx, p.x + p.rx, p.y - p.ry - p.z, p.y + p.ry - p.z];
   }
   const mo = { r: 0, g: 0, b: 0, t: 0, cs: 0, sp: 0, em: 0, fl: 0 };
-  // Растеризация модели: prims — список примитивов; CX, CY — ячеек на клетку
-  HF.raster = function (key, prims, CX, CY) {
-    const ck = key + '|' + CX + '|' + CY;
+  // зеркальная копия модели (смотрит на запад)
+  function mirror(p) {
+    if (p.t === 'b') return Object.assign({}, p, { x0: -p.x1, x1: -p.x0 });
+    return Object.assign({}, p, { x: -p.x });
+  }
+  // Растеризация модели в мелкие доли клетки (SX×SY на клетку), затем — символ по форме на каждую клетку.
+  // Доли освещаются «мастерским» светом (слева сверху), с затенением в складках и тёмной линией там,
+  // где одна часть тела заходит за другую, — так рисунок символов передаёт объём, как у художника.
+  // Настоящий свет сцены (солнце, огни, тени) потом красит готовые символы.
+  const RS = { sx: 4, sy: 8 };
+  HF.RS = RS;
+  let RB = null;
+  function rbuf(n) {
+    if (!RB || RB.n < n) RB = { n, dep: new Float32Array(n), tt: new Float32Array(n), pid: new Int16Array(n), lum: new Float32Array(n), r: new Float32Array(n), g: new Float32Array(n), b: new Float32Array(n), nx: new Float32Array(n), ny: new Float32Array(n), nz: new Float32Array(n), em: new Float32Array(n), sp: new Float32Array(n), al: new Float32Array(n), lk: new Float32Array(n) };
+    return RB;
+  }
+  const KL = (() => { const v = [-0.5, 0.42, 0.76], l = Math.hypot(v[0], v[1], v[2]); return v.map((x) => x / l); })();
+  const tv = new Float32Array(256);
+  const pcount = new Int32Array(1024);
+  HF.raster = function (key, prims, CX, CY, flip) {
+    const ck = key + '|' + CX + '|' + CY + (flip ? '|f' : '') + '|' + FAM;
     let s = mcache.get(ck);
     if (s) return s;
+    // новых рисунков за кадр — сколько успеем; остальные дорисуются в следующих кадрах
+    if (HF.deadline && performance.now() > HF.deadline) { HF.pending = true; return null; }
+    if (flip) prims = prims.map(mirror);
+    const SX = RS.sx, SY = RS.sy, D = SX * SY, pt = patterns(SX, SY, 'full');
     let u0 = 1e9, u1 = -1e9, v0 = 1e9, v1 = -1e9;
-    for (const p of prims) { const b = bounds(p); u0 = Math.min(u0, b[0]); u1 = Math.max(u1, b[1]); v0 = Math.min(v0, b[2]); v1 = Math.max(v1, b[3]); }
+    const bb = prims.map(bounds);
+    for (const b of bb) { u0 = Math.min(u0, b[0]); u1 = Math.max(u1, b[1]); v0 = Math.min(v0, b[2]); v1 = Math.max(v1, b[3]); }
     const iu0 = Math.floor(u0 * CX), iu1 = Math.ceil(u1 * CX), iv0 = Math.floor(v0 * CY), iv1 = Math.ceil(v1 * CY);
     const w = Math.max(1, iu1 - iu0), h = Math.max(1, iv1 - iv0), n = w * h;
-    s = { w, h, ou: -iu0, ov: -iv0, n, r: new Float32Array(n), g: new Float32Array(n), b: new Float32Array(n), nx: new Float32Array(n), ny: new Float32Array(n), nz: new Float32Array(n),
-      y: new Float32Array(n), z: new Float32Array(n), cs: new Uint8Array(n), t: new Uint8Array(n), sp: new Uint8Array(n), em: new Float32Array(n), fl: new Uint16Array(n), a: new Uint8Array(n), part: new Uint8Array(n) };
-    const nrm = [0, 0, 1];
-    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-      const lx = (iu0 + i + 0.5) / CX, sv = (iv0 + j + 0.5) / CY;
-      let best = -1e9, bp = null, bt = 0;
-      for (let q = 0; q < prims.length; q++) {
-        const p = prims[q];
-        const t = hitPrim(p, lx, sv);
-        if (t < -0.5 && p.t !== 'b' && p.t !== 'd') continue;
-        if (t === -1) continue;
-        const depth = sv + 2 * t;
-        if (depth > best) { best = depth; bp = p; bt = t; }
+    const SW = w * SX, SH = h * SY, N = SW * SH, fx = CX * SX, fy = CY * SY;
+    const R = rbuf(N);
+    R.dep.fill(-1e9, 0, N); R.pid.fill(-1, 0, N);
+    // 1. видимая поверхность (по каждому телу — только его прямоугольник)
+    for (let q = 0; q < prims.length; q++) {
+      const p = prims[q], b = bb[q];
+      const i0 = Math.max(0, Math.floor(b[0] * fx) - iu0 * SX), i1 = Math.min(SW, Math.ceil(b[1] * fx) - iu0 * SX);
+      const j0 = Math.max(0, Math.floor(b[2] * fy) - iv0 * SY), j1 = Math.min(SH, Math.ceil(b[3] * fy) - iv0 * SY);
+      for (let j = j0; j < j1; j++) {
+        const sv = (iv0 * SY + j + 0.5) / fy;
+        for (let i = i0; i < i1; i++) {
+          const lx = (iu0 * SX + i + 0.5) / fx;
+          const t = hitPrim(p, lx, sv);
+          if (t === -1 || t < -0.02) continue;
+          const d = sv + 2 * t, k = j * SW + i;
+          if (d > R.dep[k]) { R.dep[k] = d; R.tt[k] = t; R.pid[k] = q; }
+        }
       }
-      const k = j * w + i;
-      if (!bp) continue;
-      const y = sv + bt, z = bt;
-      normalOf(bp, lx, y, z, nrm);
-      const m = bp.m;
+    }
+    // 2. материал и нормаль каждой доли
+    const nrm = [0, 0, 1];
+    for (let k = 0; k < N; k++) {
+      const q = R.pid[k];
+      if (q < 0) continue;
+      const p = prims[q], i = k % SW, j = (k / SW) | 0;
+      const lx = (iu0 * SX + i + 0.5) / fx, sv = (iv0 * SY + j + 0.5) / fy, t = R.tt[k];
+      const y = sv + t, z = t;
+      normalOf(p, lx, y, z, nrm);
+      const m = p.m;
       mo.r = m.c[0]; mo.g = m.c[1]; mo.b = m.c[2]; mo.t = 0.5; mo.cs = m.cs; mo.sp = m.sp || 0; mo.em = m.em || 0; mo.fl = m.fl || 0;
       if (m.tex) { m.tex(lx, y, z, mo, nrm); const nl = Math.hypot(nrm[0], nrm[1], nrm[2]) || 1; nrm[0] /= nl; nrm[1] /= nl; nrm[2] /= nl; }
-      if (m.nt) mo.t = Math.max(0, Math.min(1, (nrm[0] + 1) / 2));
-      s.r[k] = mo.r; s.g[k] = mo.g; s.b[k] = mo.b; s.nx[k] = nrm[0]; s.ny[k] = nrm[1]; s.nz[k] = nrm[2];
-      s.y[k] = y; s.z[k] = Math.max(0, z); s.cs[k] = mo.cs; s.t[k] = Math.max(0, Math.min(255, (mo.t * 255) | 0)); s.sp[k] = Math.min(255, (mo.sp * 255) | 0);
-      s.em[k] = mo.em; s.fl[k] = mo.fl; s.a[k] = m.a != null ? Math.round(m.a * 255) : 255; s.part[k] = prims.indexOf(bp) & 255;
+      R.r[k] = mo.r; R.g[k] = mo.g; R.b[k] = mo.b; R.nx[k] = nrm[0]; R.ny[k] = nrm[1]; R.nz[k] = nrm[2]; R.em[k] = mo.em; R.sp[k] = mo.sp;
+      R.al[k] = m.a != null ? m.a : 1;
+      R.lk[k] = mo.lk || 0; mo.lk = 0;
+    }
+    // 3. «мастерский» свет, затенение складок, линия перекрытия
+    const r1 = Math.max(1, Math.round(0.035 * fx)), r2 = Math.max(2, Math.round(0.09 * fx));
+    const ring = [[r1, 0], [-r1, 0], [0, r1], [0, -r1], [r2, 0], [-r2, 0], [0, r2], [0, -r2], [r2, r2], [-r2, r2], [r2, -r2], [-r2, -r2]];
+    const edgeT = 0.05;
+    for (let k = 0; k < N; k++) {
+      if (R.pid[k] < 0) continue;
+      const i = k % SW, j = (k / SW) | 0, d = R.dep[k];
+      let occ = 0, cnt = 0;
+      for (let q = 0; q < ring.length; q++) {
+        const ii = i + ring[q][0], jj = j + ring[q][1];
+        if (ii < 0 || jj < 0 || ii >= SW || jj >= SH) continue;
+        const kn = jj * SW + ii;
+        cnt++;
+        if (R.pid[kn] < 0) continue;
+        const rr = q < 4 ? r1 : r2;
+        occ += Math.min(1, Math.max(0, R.dep[kn] - d - 0.004) * fx / (rr * 1.5));
+      }
+      const ao = 1 - 0.6 * (cnt ? occ / cnt : 0);
+      let edge = false;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ii = i + di, jj = j + dj;
+        if (ii < 0 || jj < 0 || ii >= SW || jj >= SH) continue;
+        const kn = jj * SW + ii;
+        if (R.pid[kn] >= 0 && R.dep[kn] - d > edgeT) { edge = true; break; }
+      }
+      const nx = R.nx[k], ny = R.ny[k], nz = R.nz[k];
+      const nd = nx * KL[0] + ny * KL[1] + nz * KL[2];
+      const dif = Math.max(0, nd), wr = Math.max(0, (nd + 0.4) / 1.4);
+      const nv = Math.max(0, (ny + nz) * 0.7071);
+      const rim = (1 - nv) * (1 - nv) * 0.18;
+      const a = R.r[k] * 0.3 + R.g[k] * 0.59 + R.b[k] * 0.11;
+      const af = 0.42 + 0.58 * Math.min(1, Math.sqrt(a / 0.5));
+      let lum = (0.1 + 0.9 * (0.7 * dif + 0.3 * wr)) * ao * af + rim * ao + R.em[k] * 0.6 + R.lk[k];
+      if (edge) lum *= 0.22;
+      R.lum[k] = Math.min(1, Math.max(edge ? 0 : 0.06, lum));
+    }
+    // 4. клетки: символ по форме, средний цвет, нормаль, место
+    s = { w, h, ou: -iu0, ov: -iv0, n, r: new Float32Array(n), g: new Float32Array(n), b: new Float32Array(n), nx: new Float32Array(n), ny: new Float32Array(n), nz: new Float32Array(n),
+      y: new Float32Array(n), z: new Float32Array(n), cs: new Uint8Array(n), t: new Uint8Array(n), sp: new Uint8Array(n), em: new Float32Array(n), fl: new Uint16Array(n), a: new Uint8Array(n), part: new Uint8Array(n), code: new Uint16Array(n), cov: new Uint8Array(n) };
+    const TK = pt.top * 1.15;
+    for (let cj = 0; cj < h; cj++) for (let ci = 0; ci < w; ci++) {
+      let c = 0, sr = 0, sg = 0, sb = 0, snx = 0, sny = 0, snz = 0, sy = 0, sz = 0, sem = 0, ssp = 0, sal = 0, fl = 0, bestP = -1, bestN = 0;
+      for (let dj = 0; dj < SY; dj++) for (let di = 0; di < SX; di++) {
+        const k = (cj * SY + dj) * SW + ci * SX + di, q = R.pid[k], o = dj * SX + di;
+        if (q < 0) { tv[o] = 0; continue; }
+        tv[o] = Math.pow(R.lum[k], 0.8) * TK;
+        c++; sr += R.r[k]; sg += R.g[k]; sb += R.b[k]; snx += R.nx[k]; sny += R.ny[k]; snz += R.nz[k];
+        const sv = (iv0 * SY + cj * SY + dj + 0.5) / fy;
+        sy += sv + R.tt[k]; sz += R.tt[k]; sem += R.em[k]; ssp += R.sp[k]; sal += R.al[k]; fl |= prims[q].m.fl || 0;
+        if (++pcount[q & 1023] > bestN) { bestN = pcount[q & 1023]; bestP = q; }
+      }
+      // сбросить счётчики частей
+      for (let dj = 0; dj < SY; dj++) for (let di = 0; di < SX; di++) { const q = R.pid[(cj * SY + dj) * SW + ci * SX + di]; if (q >= 0) pcount[q & 1023] = 0; }
+      const kk = cj * w + ci;
+      if (!c) continue;
+      const g = matchGlyph(pt, tv);
+      const cov = c / D;
+      if (pt.chars[g] === ' ' && cov < 0.5) continue;
+      s.code[kk] = pt.codes[g]; s.cov[kk] = Math.round(cov * 255);
+      s.r[kk] = sr / c; s.g[kk] = sg / c; s.b[kk] = sb / c;
+      const nl = Math.hypot(snx, sny, snz) || 1;
+      s.nx[kk] = snx / nl; s.ny[kk] = sny / nl; s.nz[kk] = snz / nl;
+      s.y[kk] = sy / c; s.z[kk] = Math.max(0, sz / c); s.em[kk] = sem / c; s.sp[kk] = Math.min(255, (ssp / c) * 255) | 0;
+      s.fl[kk] = fl; s.cs[kk] = prims[bestP].m.cs; s.t[kk] = 128; s.part[kk] = bestP & 255;
+      s.a[kk] = Math.round(Math.min(1, sal / c) * 255) || 1;
     }
     if (mcache.size > 2500) mcache.clear();
     mcache.set(ck, s);
     return s;
   };
-  // наложить спрайт ячеек в буфер: (u, v) — клетка буфера, куда встаёт начало модели
-  HF.blit = function (s, u, v, bx, by, id, flags, flip) {
-    const b = B, NU = b.NU, NV = b.NV;
+  // наложить спрайт в буфер: (u, v) — клетка буфера, куда встаёт начало модели
+  HF.blit = function (s, u, v, bx, by, id, flags) {
+    const b = B, NU = b.NU, NV = b.NV, code = GA.code;
     for (let j = 0; j < s.h; j++) {
       const vv = v - s.ov + j;
       if (vv < 0 || vv >= NV) continue;
       for (let i = 0; i < s.w; i++) {
-        const si = flip ? (s.w - 1 - i) : i;
-        const sk = j * s.w + si;
+        const sk = j * s.w + i;
         const a = s.a[sk];
         if (!a) continue;
-        const uu = u + (flip ? -(s.w - 1 - s.ou) + i : -s.ou + i);
+        const uu = u - s.ou + i;
         if (uu < 0 || uu >= NU) continue;
         const k = vv * NU + uu;
         if (a < 255) {
+          // полупрозрачное (призраки): смешать цвет, символ — свой
           const al = a / 255;
           b.ar[k] = b.ar[k] * (1 - al) + s.r[sk] * al; b.ag[k] = b.ag[k] * (1 - al) + s.g[sk] * al; b.ab[k] = b.ab[k] * (1 - al) + s.b[sk] * al;
           b.er[k] += s.r[sk] * s.em[sk] * al; b.eg[k] += s.g[sk] * s.em[sk] * al; b.eb[k] += s.b[sk] * s.em[sk] * al;
-          b.fl[k] |= F.GHOST | F.FILL;
-          if (b.cs[k] === 0) b.cs[k] = s.cs[sk];
+          b.gl[k] = code[s.code[sk]];
+          b.fl[k] |= F.GHOST | F.FILL | F.GLYPH;
           continue;
         }
+        const pf = b.fl[k];
+        if (s.cov[sk] < 250) {
+          // фон клетки — то, что под фигурой
+          if (pf & F.PART) { /* уже запомнено */ } else if (pf & F.FILL) { b.ur[k] = b.ar[k]; b.ug[k] = b.ag[k]; b.ub[k] = b.ab[k]; } else { b.ur[k] = 0; b.ug[k] = 0; b.ub[k] = 0; }
+        }
         b.ar[k] = s.r[sk]; b.ag[k] = s.g[sk]; b.ab[k] = s.b[sk];
-        b.nx[k] = flip ? -s.nx[sk] : s.nx[sk]; b.ny[k] = s.ny[sk]; b.nz[k] = s.nz[sk];
+        b.nx[k] = s.nx[sk]; b.ny[k] = s.ny[sk]; b.nz[k] = s.nz[sk];
         b.wx[k] = bx + (uu - u) / b.CX; b.wy[k] = by + s.y[sk]; b.wz[k] = s.z[sk];
         b.cs[k] = s.cs[sk]; b.tx[k] = s.t[sk]; b.sp[k] = s.sp[sk];
         const em = s.em[sk];
         b.er[k] = s.r[sk] * em; b.eg[k] = s.g[sk] * em; b.eb[k] = s.b[sk] * em;
-        b.fl[k] = flags | s.fl[sk] | F.FILL;
+        b.fl[k] = flags | s.fl[sk] | F.FILL | F.GLYPH | (s.cov[sk] < 250 ? F.PART : 0) | (pf & F.MEM && !(flags & F.MEM) ? 0 : 0);
+        b.gl[k] = code[s.code[sk]];
         b.id[k] = id * 64 + s.part[sk];
         b.ao[k] = 255;
       }
     }
   };
-
   // ============================================================
   // Кадр
   // ============================================================
+  // gw1/gw2 — ширина знака в точках экрана (обычный экран / плотный, как у телефона): мельче нельзя — знак перестанет читаться.
+  // Размер клетки на экране — от ширины карты: tiles клеток в ряд (на узком экране меньше, зато подробнее).
+  // Сколько знаков ляжет на клетку (CX), получается из этих двух чисел: чем плотнее экран и ближе масштаб, тем подробнее.
+  // bgK — фон земли, bgS — фон под фигурами: тёмный, чтобы рисунок держался на самих символах.
   const LV = HF.LEVELS = {
-    3: { CX: 6, CY: 3, cw: 8, ch: 16, bgK: 0.42, fgK: 1.3, edges: 0, clouds: 0, soft: 0, vign: 0, wind: 0, exp: 1.15 },
-    4: { CX: 10, CY: 5, cw: 5, ch: 10, bgK: 0.5, fgK: 1.32, edges: 0, clouds: 1, soft: 1, vign: 1, wind: 1, exp: 1.2 },
-    5: { CX: 16, CY: 8, cw: 4, ch: 8, bgK: 0.58, fgK: 1.35, edges: 0, clouds: 1, soft: 1, vign: 1, wind: 1, exp: 1.22 },
+    3: { gw1: 7, gw2: 10, tiles: 15, TW: 56, bgW: 0.3, wfK: 1.15, bgK: 0.12, bgS: 0.05, fgK: 1.12, gfK: 0.8, lift: 0.1, clouds: 0, soft: 0, vign: 0, exp: 1.15 },
+    4: { gw1: 6, gw2: 8, tiles: 12, TW: 64, bgW: 0.3, wfK: 1.15, bgK: 0.12, bgS: 0.05, fgK: 1.12, gfK: 0.8, lift: 0.1, clouds: 1, soft: 1, vign: 1, exp: 1.2 },
+    5: { gw1: 5, gw2: 7, tiles: 9, TW: 72, bgW: 0.3, wfK: 1.15, bgK: 0.12, bgS: 0.04, fgK: 1.12, gfK: 0.8, lift: 0.1, clouds: 1, soft: 1, vign: 1, exp: 1.22 },
   };
-  HF.tileSize = (level, zoom) => { const L = LV[level]; const cw = Math.max(3, Math.round(L.cw * zoom)), ch = cw * 2; return { CX: L.CX, CY: L.CY, cw, ch, TW: cw * L.CX, TH: ch * L.CY }; };
+  // масштаб (+/−) приближает камеру: знаки того же размера, но их больше на клетку — подробнее
+  HF.tileSize = (level, zoom, dpr, vw) => {
+    const L = LV[level] || LV[4];
+    dpr = dpr || 1;
+    const cw = (dpr >= 2 ? L.gw2 : L.gw1) / dpr, ch = cw * 2;
+    const tiles = vw ? L.tiles * (vw < 700 ? 0.6 : 1) : 0;
+    const tw = (tiles ? Math.max(40, vw / tiles) : L.TW) * (zoom || 1);
+    const CX = Math.max(6, Math.round(tw / cw / 2) * 2), CY = CX / 2;
+    return { CX, CY, cw, ch, TW: cw * CX, TH: ch * CY };
+  };
 
   let OUT = null;
   // sc — описание сцены (как у Gfx.drawScene) + hs: { level, time, outdoor, dim, weather, season, cold, fullMoon, nightland, abyss, heights }
@@ -369,11 +577,14 @@
     const L = LV[hs.level] || LV[4];
     const CX = hs.CX, CY = hs.CY, cw = hs.cw, ch = hs.ch, dpr = hs.dpr || 1;
     const W = sc.W, H = sc.H, NU = W * CX, NV = H * CY;
+    HF.setFamily(hs.family || 'monospace');
+    glyphAtlas(Math.round(cw * dpr), Math.round(ch * dpr), hs.family || 'monospace');
+    HF.pending = false; HF.deadline = performance.now() + (hs.budget || 40);
     const b = buf(NU, NV);
     b.CX = CX; b.CY = CY;
     const now = sc.now, T = now / 1000;
     const sky = HF.sky(hs);
-    const P = { season: hs.season, cold: hs.cold, T, level: hs.level, night: sky.day < 0.3 && !hs.dim, px: 1 / CX, wet: /rain|storm/.test(hs.weather || '') };
+    const P = { season: hs.season, cold: hs.cold, T, level: hs.level, night: sky.day < 0.3 && !hs.dim, px: 1 / (CX * RS.sx), wet: /rain|storm/.test(hs.weather || '') };
     // 1. земля
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
       const k = j * W + i, mem = sc.mem[k];
@@ -423,7 +634,7 @@
     // 5. погода и вспышки — тоже символами
     HF.weather(sc, hs, sky, L, P);
     // 6. вывод
-    const ga = glyphAtlas(cw * dpr, ch * dpr, hs.family || 'monospace');
+    const ga = glyphAtlas(Math.round(cw * dpr), Math.round(ch * dpr), hs.family || 'monospace');
     const vwD = Math.round(sc.vw * dpr), vhD = Math.round(sc.vh * dpr);
     if (!OUT || OUT.width !== vwD || OUT.height !== vhD) { OUT = { img: ctx.createImageData(vwD, vhD), width: vwD, height: vhD }; OUT.u32 = new Uint32Array(OUT.img.data.buffer); }
     const out = OUT.u32;
@@ -499,6 +710,10 @@
     const gidx = (c) => { const v = ga ? ga.index.get(c) : 0; return v == null ? 0 : v; };
     const vcx = NU / 2, vcy = NV / 2;
     const cloudK = L.clouds && hs.outdoor && !hs.dim ? 0.35 + sky.over * 0.4 : 0;
+    // глаз привыкает к темноте: в сумерки, ночью и под землёй картинка светлеет (но не до дневной)
+    const avg3 = (c) => (c ? (c[0] + c[1] + c[2]) / 3 : 0);
+    const seen = avg3(amb) + Math.max(0, S[2]) * avg3(sun) * 0.35 + avg3(moon) * 0.6;
+    const EXP = L.exp * Math.min(2.5, Math.max(1, Math.pow(0.6 / Math.max(0.05, seen), 0.75)));
     // атлас нужен, чтобы знать номера символов
     if (!GA) glyphAtlas(hs.cw * (hs.dpr || 1), hs.ch * (hs.dpr || 1), hs.family || 'monospace');
     for (let k = 0, n = NU * NV; k < n; k++) {
@@ -511,9 +726,10 @@
         // память: серый и тусклый, без света
         const gr = (r * 0.3 + g * 0.59 + bl * 0.11) * 0.42;
         const cr = gr * 0.85 + 0.03, cg = gr * 0.85 + 0.03, cb = gr + 0.06;
-        const ch = CSL_[b.cs[k]](t, 0.35);
-        b.gl[k] = gidx(ch);
-        b.fg[k] = pack(cr, cg, cb); b.bg[k] = pack(cr * 0.35, cg * 0.35, cb * 0.4);
+        if (!(fl & F.GLYPH)) b.gl[k] = gidx(CSL_[b.cs[k]](t, 0.35));
+        b.fg[k] = pack(cr, cg, cb);
+        if (fl & F.PART) { const ug = (b.ur[k] * 0.3 + b.ug[k] * 0.59 + b.ub[k] * 0.11) * 0.42; b.bg[k] = pack(ug * 0.3, ug * 0.3, ug * 0.36); }
+        else b.bg[k] = (fl & F.GLYPH) && !(fl & (F.GROUND | F.WALL)) ? pack(cr * 0.15, cg * 0.15, cb * 0.18) : pack(cr * 0.35, cg * 0.35, cb * 0.4);
         continue;
       }
       const wx = b.wx[k], wy = b.wy[k], wz = b.wz[k];
@@ -540,10 +756,12 @@
         if (d > 0) {
           let sh = 1;
           if (!(fl & F.NOSHADOW)) {
-            const base = wz + 0.05;
+            const base = wz + 0.05, own = (fl & F.GLYPH) && !(fl & F.GROUND), oi = Math.floor(wx), oj = Math.floor(wy - 0.05);
             for (let q = 1; q <= steps; q++) {
               const dd = (q / steps) * maxD;
-              const hh = heightAt(Hm, W, H, wx + dx * dd, wy + dy * dd);
+              const sx = wx + dx * dd, sy = wy + dy * dd;
+              if (own && Math.floor(sx) === oi && Math.floor(sy) === oj) continue;
+              const hh = heightAt(Hm, W, H, sx, sy);
               const ray = base + dd * slope;
               if (hh > ray) { sh = Math.min(sh, 1 - clamp01((hh - ray) * soft) * (0.35 + 0.65 * shK)); if (sh <= 0) break; }
             }
@@ -577,15 +795,39 @@
       if (fl & F.FOAM) { const f = 0.5 + 0.5 * Math.sin(T * 2 + wx * 9 + wy * 5); r += 0.25 * f * (lr + 0.2); g += 0.27 * f * (lg + 0.2); bl += 0.3 * f * (lb + 0.2); }
       if (fl & F.REVEAL) { const gr = (r + g + bl) / 3 + 0.25; r = gr * 0.8; g = gr * 0.4; bl = gr * 0.9; }
       if (L.vign) { const vx = (k % NU - vcx) / vcx, vy = (Math.floor(k / NU) - vcy) / vcy; const v = 1 - 0.22 * (vx * vx + vy * vy) * 0.5; r *= v; g *= v; bl *= v; }
-      r = tm(r * L.exp); g = tm(g * L.exp); bl = tm(bl * L.exp);
+      r = tm(r * EXP); g = tm(g * EXP); bl = tm(bl * EXP);
       const lum = r * 0.3 + g * 0.59 + bl * 0.11;
-      // символ: фактура материала + освещённость; на краях фигур — контур
-      let chr = null, edge = false;
-      if (spec > 0.5 && (fl & F.WATER)) chr = '*';
-      else if (L.edges && b.id[k] >= 64 && !(fl & F.GHOST)) { chr = HF.edgeChar(k, NU, NV); edge = !!chr; }
+      // символ: у фигур и построек он уже подобран по форме; у воды, огня и прочего живого — по фактуре и свету
+      if (fl & F.GLYPH) {
+        if (fl & F.WALL) {
+          // стена и крыша: цветная толща, по ней — швы и ряды символами
+          b.fg[k] = pack(r * L.wfK + 0.02, g * L.wfK + 0.02, bl * L.wfK + 0.02);
+          b.bg[k] = pack(r * L.bgW, g * L.bgW, bl * L.bgW);
+        } else if (fl & F.GROUND) {
+          b.fg[k] = pack(r * L.gfK + 0.02, g * L.gfK + 0.02, bl * L.gfK + 0.02);
+          // фон земли не ярче потёмок: светлое (снег, песок) передают сами символы
+          const gl2 = (r * 0.3 + g * 0.59 + bl * 0.11) * bgK, cap = gl2 > 0.075 ? 0.075 / gl2 : 1;
+          b.bg[k] = pack(r * bgK * cap, g * bgK * cap, bl * bgK * cap);
+        } else {
+          // тёмную одежду чуть приподнять, чтобы фигура не пропадала на тёмной земле
+          const fk = L.fgK, lift = L.lift * (lr + lg + lb) / 3 * EXP;
+          b.fg[k] = pack(r * fk + lift + 0.02, g * fk + lift + 0.02, bl * fk + lift + 0.02);
+          if (fl & F.PART) {
+            const ex = EXP * bgK;
+            b.bg[k] = pack(tm(b.ur[k] * lr * ex), tm(b.ug[k] * lg * ex), tm(b.ub[k] * lb * ex));
+          } else b.bg[k] = pack(r * L.bgS, g * L.bgS, bl * L.bgS);
+        }
+        continue;
+      }
+      let chr = null;
+      if (fl & F.WATER) {
+        // гладь воды: редкая рябь бежит по ней, на бликах — искры
+        if (spec > 0.5) chr = '*';
+        else { const wv = HF.noise.vnoise(wx * 3.2 + T * 0.35, wy * 7 - T * 0.2, 103); chr = wv < 0.58 ? ' ' : wv < 0.68 ? '.' : wv < 0.8 ? '-' : '~'; }
+      }
       if (!chr) chr = CSL_[b.cs[k]](t, Math.min(1, lum * 1.35));
       b.gl[k] = gidx(chr);
-      const fk = edge ? 0.72 : L.fgK;
+      const fk = L.fgK;
       b.fg[k] = pack(r * fk + 0.03, g * fk + 0.03, bl * fk + 0.03);
       b.bg[k] = pack(r * bgK, g * bgK, bl * bgK);
     }
@@ -691,8 +933,9 @@
     const parts = Array.isArray(sp) ? sp : [sp];
     const u = Math.round((x + 0.5) * CX), v = Math.round((y + 0.82) * CY);
     for (const p of parts) {
-      const s = HF.raster(p.key, p.prims, CX, CY);
-      HF.blit(s, u + Math.round((p.dx || 0) * CX), v + Math.round((p.dy || 0) * CY), x + 0.5, y + 0.5, id, flags | (p.flags || 0), flip && !p.noflip);
+      const s = HF.raster(p.key, p.prims, CX, CY, flip && !p.noflip);
+      if (!s) continue;
+      HF.blit(s, u + Math.round((p.dx || 0) * CX), v + Math.round((p.dy || 0) * CY), x + 0.5, y + 0.5, id, flags | (p.flags || 0));
     }
   };
   HF.alias = {};

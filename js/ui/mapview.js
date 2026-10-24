@@ -179,10 +179,10 @@
     const lvl = UI.gfxLevel || 1;
     const hifi = lvl >= 3 && Gfx.HF;
     if (twKey !== m.key) { tw.clear(); twKey = m.key; }
-    let TW, TH, hsz = null;
-    if (hifi) { hsz = Gfx.HF.tileSize(lvl, UI.zoomK * (L.wide ? 1 : 0.8)); TW = hsz.TW; TH = hsz.TH; }
-    else { Gfx.setScale(scaleFor(t, L), t.dpr || 1, t.family); TW = Gfx.S.TW; TH = Gfx.S.TH; }
     const vx0 = L.mx * t.cw, vy0 = L.my * t.ch, vw = L.mw * t.cw, vh = L.mh * t.ch;
+    let TW, TH, hsz = null;
+    if (hifi) { hsz = Gfx.HF.tileSize(lvl, UI.zoomK, t.dpr || 1, vw); TW = hsz.TW; TH = hsz.TH; }
+    else { Gfx.setScale(scaleFor(t, L), t.dpr || 1, t.family); TW = Gfx.S.TW; TH = Gfx.S.TH; }
     const vwT = vw / TW, vhT = vh / TH;
     // камера следует за плавной позицией игрока
     const ps = track('P', P.x, P.y, now);
@@ -345,7 +345,11 @@
     const hsNow = UI._hs;
     t.under = (ctx) => {
       sc.cursor = UI.mvCursor ? [UI.mvCursor[0] - tx0, UI.mvCursor[1] - ty0] : null;
-      if (hifi) Gfx.HF.render(ctx, sc, hsNow); else Gfx.drawScene(ctx, sc);
+      if (hifi) {
+        Gfx.HF.render(ctx, sc, hsNow);
+        // не всё успело нарисоваться — дорисовать в следующем кадре
+        if (Gfx.HF.pending && !rafOn) { rafOn = true; requestAnimationFrame(() => { rafOn = false; UI.render(); }); }
+      } else Gfx.drawScene(ctx, sc);
     };
     // пока кто-то идёт — рисуем чаще
     if (UI.animUntil > now && !rafOn) { rafOn = true; requestAnimationFrame(() => { rafOn = false; UI.render(); }); }

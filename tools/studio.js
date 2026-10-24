@@ -112,7 +112,7 @@
     sc.weather = opt.weather || null;
     const { Hm, Hs } = HF.heightsFor(sc);
     sc.hlights = (opt.lights || []).map((l) => { const c = HF.parseRGBA(l.glow) || [1, 0.7, 0.4, 0.3]; return { x: l.x + 0.5, y: l.y + 0.5, z: 0.6, r: Math.min(10, l.r * 1.4), col: [c[0], c[1], c[2]], i: l.glow ? 1.3 : 0.5, fl: 1 }; });
-    const hs = Object.assign({ level: st.level, dpr, family: FAMILY, time: (opt.hour != null ? opt.hour : 12) * 60, outdoor: true, weather: opt.weather || null, season: 1, cold: false, fullMoon: false, heights: Hm, hshape: Hs }, tz);
+    const hs = Object.assign({ level: st.level, budget: 1e6, dpr, family: FAMILY, time: (opt.hour != null ? opt.hour : 12) * 60, outdoor: true, weather: opt.weather || null, season: 1, cold: false, fullMoon: false, heights: Hm, hshape: Hs }, tz);
     HF.render(ctx, sc, hs);
   }
   function paintScene(cv, sc, opt) {

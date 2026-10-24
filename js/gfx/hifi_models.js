@@ -21,9 +21,43 @@
   };
   const leafTex = (seed) => texNoise(0.32, 1.1, 9, seed);
   const furTex = texNoise(0.18, 0.5, 14, 7);
-  const clothTex = texNoise(0.1, 0.35, 7, 11);
   const stoneTex = texNoise(0.2, 0.6, 8, 13);
-  const barkTex = (x, y, z, mo, n) => { const v = Math.abs(Math.sin(x * 60 + vnoise(x * 8, z * 3, 5) * 4)); const k = 0.75 + v * 0.45; mo.r *= k; mo.g *= k; mo.b *= k; mo.t = v; };
+  // кора: продольные борозды
+  const barkTex = (x, y, z, mo, n) => { const a = x * 70 + vnoise(x * 8, z * 3, 5) * 5, v = Math.abs(Math.sin(a)); const k = 0.72 + v * 0.45; mo.r *= k; mo.g *= k; mo.b *= k; mo.t = v; n[0] += Math.cos(a) * 0.5; mo.lk = (v - 0.5) * 0.12; };
+  // складки ткани: вертикальные волны с шумом — меняют наклон поверхности и тон штриха
+  const foldTex = (freq, amp, seed) => (x, y, z, mo, n) => {
+    const w = Math.sin(x * freq + vnoise(x * 6, z * 3, seed) * 4 + z * 2);
+    n[0] += w * amp; mo.lk = w * 0.03;
+    const k = 0.94 + vnoise(x * 10, z * 10, seed + 1) * 0.12; mo.r *= k; mo.g *= k; mo.b *= k;
+  };
+  const clothTex = foldTex(55, 0.22, 91);
+  const hairTex = (x, y, z, mo, n) => { const w = Math.sin(x * 140 + Math.sin(z * 45) * 2.5); n[0] += w * 0.35; mo.lk = w * 0.07; };
+  // мех: пряди вдоль тела
+  const furTex2 = (x, y, z, mo, n) => {
+    const w = Math.sin(x * 90 + z * 40 + vnoise(x * 12, z * 12, 94) * 6);
+    n[2] += w * 0.2; n[0] += Math.cos(x * 70 + z * 30) * 0.1; mo.lk = w * 0.04;
+    const k = 0.9 + vnoise(x * 14, (y + z) * 14, 95) * 0.2; mo.r *= k; mo.g *= k; mo.b *= k;
+  };
+  const scaleTex = (x, y, z, mo, n) => {
+    const u = x * 40, v = z * 40 + (Math.floor(u) % 2) * 0.5, fu = u - Math.floor(u), fv = v - Math.floor(v);
+    const d = Math.hypot(fu - 0.5, fv - 0.4);
+    n[0] += (fu - 0.5) * 0.8; n[2] += (0.5 - fv) * 0.5; mo.lk = d > 0.45 ? -0.12 : 0.03;
+  };
+  const mailTex = (x, y, z, mo, n) => { const u = Math.sin(x * 160) * Math.sin(z * 160); n[0] += u * 0.3; mo.lk = u * 0.06; };
+  const membraneTex = (x, y, z, mo, n) => { const v = Math.abs(Math.sin(x * 25)); mo.lk = v < 0.15 ? 0.1 : -0.03; };
+  // листва: мелкие листья — сильный шум наклона и тона на мелком шаге
+  const leafTex2 = (seed) => (x, y, z, mo, n) => {
+    const v = vnoise(x * 42 + seed, (y + z) * 42, seed), w = vnoise(x * 16, (y - z) * 16 + seed, seed + 3);
+    n[0] += (v - 0.5) * 0.6; n[1] += (w - 0.5) * 0.45; n[2] += (vnoise(x * 30, z * 30, seed + 5) - 0.5) * 0.35;
+    mo.lk = (v - 0.5) * 0.12;
+    const k = 0.84 + w * 0.3; mo.r *= k; mo.g *= k; mo.b *= k;
+  };
+  const needleTex = (seed) => (x, y, z, mo, n) => {
+    const a = Math.atan2(y, x), w = Math.sin(a * 22 + z * 9 + seed);
+    n[0] += Math.cos(a * 22 + seed) * 0.35; mo.lk = w * 0.08 + (vnoise(x * 30, z * 30, seed) - 0.5) * 0.1;
+    const k = 0.85 + vnoise(x * 18, (y + z) * 18, seed + 7) * 0.3; mo.r *= k; mo.g *= k; mo.b *= k;
+  };
+
 
   // ---------- примитивы ----------
   const el = (x, y, z, rx, ry, rz, m) => ({ t: 'e', x, y, z, rx, ry, rz, m });
@@ -44,14 +78,15 @@
     return c[k] || (c[k] = Object.assign({}, m, { cs: CS[k], tex: null }));
   }
   function limb(out, P, x0, y0, z0, x1, y1, z1, r0, r1, m) {
-    if (!m.keep) m = lineMat(m, x1 - x0, (y1 - y0) - (z1 - z0));
     const mn = 0.55 * P.px;
     r0 = Math.max(r0, mn); r1 = Math.max(r1, mn);
     const L = Math.hypot(x1 - x0, y1 - y0, z1 - z0);
-    const n = Math.max(2, Math.ceil(L / (Math.min(r0, r1) * 0.8)));
+    const n = Math.max(2, Math.ceil(L / (Math.min(r0, r1) * 0.45)));
     for (let i = 0; i <= n; i++) { const t = i / n; out.push(sph(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, z0 + (z1 - z0) * t, r0 + (r1 - r0) * t, m)); }
   }
   const pmin = (P, r) => Math.max(r, 0.55 * P.px);
+  // поднять модель (на постамент)
+  const lift = (prims, dz) => prims.map((p) => (p.t === 'b' ? Object.assign({}, p, { z0: p.z0 + dz, z1: p.z1 + dz }) : p.t === 'c' || p.t === 'y' ? Object.assign({}, p, { z0: p.z0 + dz }, p.t === 'y' ? { z1: p.z1 + dz } : {}) : Object.assign({}, p, { z: p.z + dz })));
   const colOf = (o, def) => (o.c && /^#[0-9a-f]{6}$/i.test(o.c) ? o.c : def);
 
   // ---------- особые режимы: удар, призрак, отражение ----------
@@ -70,52 +105,79 @@
   // ДЕРЕВЬЯ И РАСТЕНИЯ
   // ============================================================
   const BARK = mat('#5a3e24', 'bark', { tex: barkTex });
+  // крона — множество комков листвы вокруг центра; у каждого свой оттенок, снизу темнее
+  function crown(out, P, seed, cx, cy, cz, rx, ry, rz, n, rmin, rmax, c, sway) {
+    for (let q = 0; q < n; q++) {
+      const a = hash2(q, seed, 1) * Math.PI * 2, u = hash2(q, seed, 2) * 2 - 1, rr = Math.pow(hash2(q, seed, 3), 0.5);
+      const sx = Math.cos(a) * Math.sqrt(1 - u * u) * rr, sy = Math.sin(a) * Math.sqrt(1 - u * u) * rr, sz = u * rr;
+      const r = rmin + hash2(q, seed, 4) * (rmax - rmin);
+      const k = 0.8 + hash2(q, seed, 5) * 0.35 + sz * 0.12;
+      out.push(el(cx + sx * rx + (sway || 0) * (sz + 1), cy + sy * ry, cz + sz * rz, r, r * 0.9, r * 0.85, mat(shadeC(c, k), 'leaf', { tex: leafTex2(seed + q) })));
+    }
+  }
   function oak(o, P, variant) {
-    const v = variant, sway = Math.sin(o.f * 0.7 + (o.seed || 0)) * 0.025 * (P.level >= 4 ? 1 : 0);
-    const fr = (P.level >= 4 ? (o.f % 4) : 0);
+    const v = variant, fr = P.level >= 4 ? (o.f || 0) % 4 : 0, sway = Math.sin(fr * 1.57) * 0.012;
     const c = C(colOf(o, '#3e7b34'));
-    const L = mat(c, 'leaf', { tex: leafTex(v * 7 + 3) });
-    const L2 = mat(shadeC(c, 1.25), 'leaf', { tex: leafTex(v * 7 + 5) });
     const out = [];
-    limb(out, P, 0, 0, 0, 0.02, 0, 0.95, 0.09, 0.07, BARK);
-    limb(out, P, 0.02, 0, 0.75, 0.25, 0, 1.05, 0.05, 0.04, BARK);
-    const sx = sway * Math.sin(fr);
-    const cl = v === 0
-      ? [[0, 0, 1.35, 0.5, 0.42, 0.42], [-0.3, 0.06, 1.12, 0.32, 0.3, 0.3], [0.3, -0.04, 1.18, 0.34, 0.3, 0.3], [0.05, 0.1, 1.62, 0.3, 0.26, 0.24]]
-      : [[0, 0, 1.25, 0.44, 0.38, 0.36], [-0.22, 0.08, 1.5, 0.3, 0.26, 0.26], [0.26, 0.04, 1.42, 0.3, 0.26, 0.26], [0.0, 0.12, 1.05, 0.34, 0.28, 0.24]];
-    cl.forEach((q, i) => out.push(el(q[0] + sx, q[1], q[2], q[3], q[4], q[5], i === 3 ? L2 : L)));
-    return { key: 'oak' + v + '|' + c.join() + '|' + fr + '|' + P.level, prims: out };
+    // ствол с корнями, ветви к кроне
+    limb(out, P, 0, 0, 0.02, 0.03, 0, 1.05, 0.13, 0.08, BARK);
+    out.push(el(-0.12, 0.03, 0.04, 0.11, 0.07, 0.06, BARK), el(0.13, 0.0, 0.04, 0.1, 0.07, 0.05, BARK), el(0.02, 0.12, 0.04, 0.07, 0.1, 0.05, BARK));
+    limb(out, P, 0.02, 0, 0.82, -0.36, 0.04, 1.32, 0.06, 0.035, BARK);
+    limb(out, P, 0.03, 0, 0.9, 0.4, -0.02, 1.38, 0.055, 0.03, BARK);
+    limb(out, P, 0.03, 0, 1.0, 0.06, 0.12, 1.6, 0.05, 0.03, BARK);
+    crown(out, P, 11 + v * 7, 0, 0, v ? 1.78 : 1.72, v ? 0.5 : 0.58, 0.42, v ? 0.55 : 0.45, 13, 0.2, 0.3, c, sway);
+    return { key: 'oak' + v + '|' + c.join() + '|' + fr, prims: out };
   }
   MD.tree = (o, P) => oak(o, P, 0);
   MD.tree2 = (o, P) => oak(o, P, 1);
+  // голые ветви: ствол, сучья второго порядка, снег на развилках
+  function branches(out, P, B, seed, x0, z0, x1, y1, z1, r0, depth) {
+    limb(out, P, x0, 0, z0, x1, y1, z1, r0, r0 * 0.6, B);
+    if (depth <= 0) return;
+    for (let q = 0; q < 2; q++) {
+      const t = 0.55 + q * 0.25, bx = x0 + (x1 - x0) * t, bz = z0 + (z1 - z0) * t, by = y1 * t;
+      const dir = (hash2(q, seed, 9) - 0.5) * 0.7 + (x1 - x0) * 0.6;
+      branches(out, P, B, seed * 3 + q, bx, bz, bx + dir, by + (hash2(q, seed, 8) - 0.5) * 0.2, bz + 0.25 + hash2(q, seed, 7) * 0.2, r0 * 0.55, depth - 1);
+    }
+  }
   MD.tree_bare = (o, P) => {
     const out = [], S = mat('#e8eef4', 'snow');
-    limb(out, P, 0, 0, 0, 0, 0, 1.1, 0.08, 0.05, BARK);
-    for (const [x, z, h] of [[-0.35, 0.8, 1.35], [0.32, 0.75, 1.3], [-0.12, 1, 1.55], [0.18, 1.0, 1.6]]) { limb(out, P, 0, 0, z, x, 0.02, h, 0.04, 0.02, BARK); out.push(sph(x, 0.02, h + 0.02, pmin(P, 0.035), S)); }
-    return { key: 'treebare|' + P.level, prims: out };
+    limb(out, P, 0, 0, 0, 0, 0, 1.0, 0.1, 0.06, BARK);
+    branches(out, P, BARK, 3, 0, 0.7, -0.4, 0.03, 1.4, 0.05, 2);
+    branches(out, P, BARK, 5, 0, 0.8, 0.42, -0.02, 1.45, 0.05, 2);
+    branches(out, P, BARK, 7, 0, 0.95, 0.05, 0.08, 1.75, 0.045, 2);
+    for (const [x, z] of [[-0.2, 1.08], [0.21, 1.15], [0.02, 1.35]]) out.push(el(x, 0.02, z, 0.06, 0.05, 0.025, S));
+    return { key: 'treebare', prims: out };
   };
+  // ель: ярусы-конусы с «иголками» лучами, снизу каждого яруса — тень
   function pine(o, P, snow) {
     const c = C(colOf(o, '#2e6b55'));
-    const N = mat(c, 'leaf', { tex: leafTex(17) }), S = mat('#eef4f8', 'snow', { tex: texNoise(0.1, 0.3, 9, 19) });
+    const S = mat('#eef4f8', 'snow', { tex: texNoise(0.08, 0.3, 14, 19) });
     const out = [];
-    limb(out, P, 0, 0, 0, 0, 0, 0.45, 0.07, 0.06, BARK);
-    const tiers = [[0.25, 0.48, 0.75], [0.7, 0.38, 0.65], [1.1, 0.27, 0.6]];
-    tiers.forEach(([z, r, h]) => { out.push(cone(0, 0, z, r, h, N)); if (snow) out.push(cone(0, 0, z + h * 0.45, r * 0.55, h * 0.55, S)); });
-    return { key: 'pine|' + c.join() + (snow ? 's' : '') + '|' + P.level, prims: out };
+    limb(out, P, 0, 0, 0, 0, 0, 0.5, 0.075, 0.06, BARK);
+    const tiers = 6;
+    for (let q = 0; q < tiers; q++) {
+      const t = q / (tiers - 1), z = 0.32 + t * 1.55, r = 0.58 - t * 0.42, h = 0.62 - t * 0.2;
+      out.push(cone(0, 0, z, r, h, mat(shadeC(c, 0.85 + t * 0.3), 'leaf', { tex: needleTex(q) })));
+      if (snow) out.push(cone(0, -0.02, z + h * 0.42, r * 0.6, h * 0.55, S));
+    }
+    return { key: 'pine|' + c.join() + (snow ? 's' : ''), prims: out };
   }
   MD.pine = (o, P) => pine(o, P, false);
   MD.pine_snow = (o, P) => pine(o, P, true);
   MD.deadtree = (o, P) => {
     const out = [], B = mat('#6a5a46', 'bark', { tex: barkTex });
-    limb(out, P, 0, 0, 0, 0.05, 0, 0.9, 0.08, 0.05, B);
-    limb(out, P, 0.05, 0, 0.6, -0.3, 0.02, 1.0, 0.04, 0.02, B); limb(out, P, 0.05, 0, 0.75, 0.32, 0, 1.15, 0.035, 0.02, B); limb(out, P, -0.3, 0.02, 1.0, -0.4, 0.02, 1.2, 0.02, 0.015, B);
-    return { key: 'dead|' + P.level, prims: out };
+    limb(out, P, 0, 0, 0, 0.05, 0, 0.95, 0.09, 0.05, B);
+    out.push(el(-0.1, 0.03, 0.03, 0.09, 0.06, 0.04, B), el(0.1, 0.02, 0.03, 0.08, 0.06, 0.04, B));
+    branches(out, P, B, 13, 0.04, 0.6, -0.38, 0.02, 1.05, 0.045, 1);
+    branches(out, P, B, 17, 0.05, 0.75, 0.36, 0, 1.2, 0.04, 1);
+    return { key: 'dead', prims: out };
   };
   MD.bush = (o, P) => {
-    const L = mat('#3e6a2c', 'leaf', { tex: leafTex(23) }), R = mat('#c03030', 'glow', { sp: 0.6 });
-    const out = [el(-0.15, 0.04, 0.2, 0.24, 0.2, 0.2, L), el(0.15, 0, 0.22, 0.24, 0.2, 0.22, L), el(0, -0.05, 0.32, 0.22, 0.18, 0.2, L)];
-    if ((o.seed || 0) % 3 === 0) out.push(sph(0.1, 0.15, 0.3, pmin(P, 0.035), R), sph(-0.12, 0.17, 0.22, pmin(P, 0.035), R));
-    return { key: 'bush' + ((o.seed || 0) % 3 === 0 ? 'b' : '') + '|' + P.level, prims: out };
+    const out = [], berry = (o.seed || 0) % 3 === 0;
+    crown(out, P, 23 + ((o.seed || 0) % 2), 0, 0, 0.24, 0.3, 0.22, 0.18, 9, 0.11, 0.16, C('#3e6a2c'));
+    if (berry) for (let q = 0; q < 6; q++) out.push(sph(-0.2 + hash2(q, 4, 1) * 0.4, 0.12 + hash2(q, 4, 2) * 0.08, 0.15 + hash2(q, 4, 3) * 0.2, pmin(P, 0.028), mat('#c03030', 'glow', { sp: 0.6 })));
+    return { key: 'bush' + (berry ? 'b' : '') + ((o.seed || 0) % 2), prims: out };
   };
   MD.fern = (o, P) => {
     const L = mat('#3e8a4e', 'leaf', { tex: leafTex(29) }), out = [];
@@ -200,7 +262,7 @@
   MD.statue = (o, P) => {
     const st = mat('#a0a0a0', 'stone', { tex: stoneTex });
     const body = human({ cloth: st, pants: st, skin: st, hair: st, frame: 0 }, P, 1.05);
-    return { key: 'statue|' + P.level, prims: [box(-0.25, -0.2, 0, 0.25, 0.2, 0.22, DSTONE)].concat(body.map((p) => Object.assign({}, p, p.t === 'e' ? { z: p.z + 0.22 } : {}))) };
+    return { key: 'statue', prims: [box(-0.25, -0.2, 0, 0.25, 0.2, 0.22, DSTONE)].concat(lift(body, 0.22)) };
   };
   MD.pillar = (o, P) => ({ key: 'pillar|' + P.level, prims: [box(-0.22, -0.2, 0, 0.22, 0.2, 0.15, STONE), el(0, 0, 0.7, 0.15, 0.14, 0.62, mat('#9a9890', 'stone', { tex: (x, y, z, mo, n) => { const v = Math.abs(Math.sin(Math.atan2(y, x) * 8)); mo.t = v; const k = 0.85 + v * 0.25; mo.r *= k; mo.g *= k; mo.b *= k; } })), box(-0.22, -0.2, 1.25, 0.22, 0.2, 1.38, STONE)] });
   MD.tent = (o, P) => ({ key: 'tent|' + P.level, prims: [cone(0, 0, 0, 0.48, 0.9, mat('#b08a5a', 'cloth', { tex: clothTex })), box(-0.1, 0.3, 0, 0.1, 0.36, 0.35, mat('#2a1a0e', 'dark'))] });
@@ -216,13 +278,18 @@
   };
   MD.inscription = (o, P) => ({ key: 'inscr|' + P.level, prims: [box(-0.2, -0.08, 0, 0.2, 0.08, 0.75, mat('#6a7a86', 'rune', { tex: stoneTex })), el(0, 0, 0.75, 0.2, 0.08, 0.08, mat('#6a7a86', 'stone'))] });
   MD.grave = (o, P) => ({ key: 'grave|' + P.level, prims: [el(0, 0.08, 0.04, 0.3, 0.22, 0.08, mat('#4a3a26', 'dirt')), box(-0.15, -0.16, 0, 0.15, -0.08, 0.45, mat('#9a9a9a', 'stone', { tex: stoneTex })), el(0, -0.12, 0.45, 0.15, 0.04, 0.08, mat('#9a9a9a', 'stone')), box(-0.08, -0.081, 0.28, 0.08, -0.075, 0.31, mat('#5a5a5a', 'rune')), box(-0.015, -0.081, 0.2, 0.015, -0.075, 0.38, mat('#5a5a5a', 'rune'))] });
+  // колодец: каменный сруб, тёмная вода, столбы, ворот с ведром, маленькая крыша
+  const ringTex = (x, y, z, mo, n) => { const a = Math.atan2(y, x), row = Math.floor(z * 14), u = a * 3.2 + (row % 2) * 0.5, fu = u - Math.floor(u), fz = z * 14 - row; if (fz < 0.16 || fu < 0.07) { mo.r *= 0.45; mo.g *= 0.45; mo.b *= 0.45; mo.t = 0.05; mo.lk = -0.25; } else { mo.t = 0.6; const k = 0.85 + hash2(Math.floor(u), row, 5) * 0.3; mo.r *= k; mo.g *= k; mo.b *= k; } };
   MD.well = (o, P) => {
     const out = [];
-    for (let a = 0; a < 10; a++) { const ang = a / 10 * Math.PI * 2; out.push(el(Math.cos(ang) * 0.28, Math.sin(ang) * 0.2, 0.15, 0.1, 0.08, 0.16, STONE)); }
-    out.push(disc(0, 0, 0.22, 0.2, 0.14, mat('#2a5a8a', 'water', { sp: 1, fl: F.WATER })));
-    limb(out, P, -0.3, 0, 0.2, -0.3, 0, 0.85, 0.03, 0.03, DWOOD); limb(out, P, 0.3, 0, 0.2, 0.3, 0, 0.85, 0.03, 0.03, DWOOD);
-    out.push(box(-0.38, -0.2, 0.85, 0.38, 0.2, 0.92, mat('#6a4a2a', 'wood')), cone(0, 0, 0.92, 0.42, 0.25, mat('#7a3a2a', 'rooftile')));
-    return { key: 'well|' + P.level, prims: out };
+    out.push({ t: 'y', x: 0, y: 0, r: 0.29, z0: 0, z1: 0.34, m: mat('#8a8478', 'stone', { tex: ringTex }) });
+    out.push(disc(0, 0, 0.345, 0.22, 0.22, mat('#0c1824', 'water', { sp: 1, fl: F.WATER })));
+    limb(out, P, -0.3, 0, 0.3, -0.3, 0, 1.0, 0.032, 0.03, DWOOD); limb(out, P, 0.3, 0, 0.3, 0.3, 0, 1.0, 0.032, 0.03, DWOOD);
+    limb(out, P, -0.32, 0, 0.82, 0.32, 0, 0.82, 0.03, 0.03, WOOD);
+    limb(out, P, 0.05, 0, 0.8, 0.05, 0, 0.55, 0.006, 0.006, mat('#c8b890', 'cloth'));
+    out.push({ t: 'y', x: 0.05, y: 0, r: 0.06, z0: 0.45, z1: 0.55, m: mat('#6a4a2a', 'wood', { tex: texNoise(0.15, 0.3, 30, 7) }) });
+    out.push(cone(0, 0, 1.0, 0.36, 0.22, mat('#7a3a2a', 'rooftile', { tex: (x, y, z, mo, n) => { if ((z * 30) % 1 < 0.2) { mo.r *= 0.5; mo.g *= 0.5; mo.b *= 0.5; mo.lk = -0.2; } } })));
+    return { key: 'well', prims: out };
   };
   MD.lighthouse = (o, P) => {
     const out = [], R = mat('#c84040', 'cloth'), Wt = mat('#f0f0e0', 'cloth');
@@ -279,128 +346,181 @@
   // ЛЮДИ
   // ============================================================
   const SKIN = C('#d8a880');
-  // базовая фигура человека; o: { cloth, pants, skin, hair, frame, moving, armsFwd, robe, hunch }
+  const LEATHER = mat('#4a3020', 'cloth', { tex: texNoise(0.1, 0.3, 16, 93) });
+  const EYE = mat('#1a1210', 'dark');
+  // Фигура человека (рост около 1.35 клетки при s = 1). o: { cloth, pants, sleeve, skin, head, hair, boots, belt, eyes,
+  // frame, moving, armsFwd, robe, hunch, bulky, long, beard }. Смотрит на зрителя (на юг).
+  const HZ = 1.235;
   function human(o, P, s) {
     s = s || 1;
-    const out = [];
+    const out = [], S = (v) => v * s;
     const ph = (o.frame || 0) % 4, walk = o.moving ? Math.sin(ph * Math.PI / 2) : 0;
-    const hz = 0.52 * s, hunch = (o.hunch || 0) * s;
-    if (o.robe) out.push(el(0, 0, 0.3 * s, 0.17 * s, 0.12 * s, 0.32 * s, bodyOf(o.cloth)));
-    else {
-      limb(out, P, -0.07 * s, 0, hz, -0.08 * s, walk * 0.13 * s, 0.05 * s, 0.06 * s, 0.05 * s, o.pants);
-      limb(out, P, 0.07 * s, 0, hz, 0.08 * s, -walk * 0.13 * s, 0.05 * s, 0.06 * s, 0.05 * s, o.pants);
-      out.push(el(-0.08 * s, walk * 0.13 * s + 0.03 * s, 0.03 * s, 0.05 * s, 0.07 * s, 0.03 * s, o.boots || DWOOD), el(0.08 * s, -walk * 0.13 * s + 0.03 * s, 0.03 * s, 0.05 * s, 0.07 * s, 0.03 * s, o.boots || DWOOD));
+    const hunch = (o.hunch || 0) * s, bk = o.bulky || 1;
+    const cloth = o.cloth, pants = o.pants || cloth, sleeve = o.sleeve || cloth, skin = o.skin, boots = o.boots || LEATHER;
+    // ноги или подол
+    if (o.robe) {
+      out.push(el(0, 0, S(0.2), S(0.175) * bk, S(0.145) * bk, S(0.21), cloth), el(0, 0, S(0.45), S(0.15) * bk, S(0.115) * bk, S(0.2), cloth), el(0, 0, S(0.66), S(0.135) * bk, S(0.095) * bk, S(0.12), cloth));
+      for (const sd of [-1, 1]) out.push(el(sd * S(0.06), S(0.11 + walk * sd * 0.04), S(0.03), S(0.042), S(0.06), S(0.03), boots));
+    } else {
+      for (const sd of [-1, 1]) {
+        const sw = walk * sd * 0.12;
+        const hip = [sd * S(0.075) * bk, 0, S(0.66)], knee = [sd * S(0.074) * bk, S(sw * 0.55 + 0.015), S(0.37)], ank = [sd * S(0.067) * bk, S(sw), S(0.08)];
+        limb(out, P, hip[0], hip[1], hip[2], knee[0], knee[1], knee[2], S(0.068) * bk, S(0.05) * bk, pants);
+        limb(out, P, knee[0], knee[1], knee[2], ank[0], ank[1], S(0.22), S(0.05) * bk, S(0.044) * bk, pants);
+        limb(out, P, ank[0], ank[1], S(0.24), ank[0], ank[1], ank[2], S(0.048) * bk, S(0.042) * bk, boots);
+        out.push(el(ank[0], ank[1] + S(0.035), S(0.035), S(0.043) * bk, S(0.075), S(0.035), boots));
+      }
+      out.push(el(0, 0, S(0.685), S(0.13) * bk, S(0.088) * bk, S(0.075), pants));
     }
-    out.push(el(0, hunch * 0.5, 0.76 * s, 0.16 * s * (o.bulky || 1), 0.1 * s * (o.bulky || 1), 0.22 * s, bodyOf(o.cloth)));
-    const sw = o.armsFwd ? 0.26 : -walk * 0.1;
-    limb(out, P, -0.19 * s, hunch, 0.9 * s, -0.22 * s, sw * s + hunch, o.armsFwd ? 0.8 * s : 0.58 * s, 0.05 * s, 0.045 * s, o.sleeve || o.cloth);
-    limb(out, P, 0.19 * s, hunch, 0.9 * s, 0.22 * s, (o.armsFwd ? 0.26 : walk * 0.1) * s + hunch, o.armsFwd ? 0.8 * s : 0.58 * s, 0.05 * s, 0.045 * s, o.sleeve || o.cloth);
-    out.push(sph(-0.22 * s, sw * s + hunch, (o.armsFwd ? 0.8 : 0.56) * s, pmin(P, 0.045 * s), o.skin), sph(0.22 * s, (o.armsFwd ? 0.26 : walk * 0.1) * s + hunch, (o.armsFwd ? 0.8 : 0.56) * s, pmin(P, 0.045 * s), o.skin));
-    out.push(sph(0, hunch, 1.08 * s, 0.12 * s, o.head || faceOf(o.skin)));
-    if (o.hair) out.push(el(0, hunch - 0.025 * s, 1.13 * s, 0.128 * s, 0.11 * s, 0.085 * s, o.hair));
-    if (o.eyes) out.push(sph(-0.05 * s, hunch + 0.1 * s, 1.1 * s, pmin(P, 0.025), o.eyes), sph(0.05 * s, hunch + 0.1 * s, 1.1 * s, pmin(P, 0.025), o.eyes));
+    // туловище: живот, грудь, подол рубахи, пояс с пряжкой, плечи
+    const hy = hunch * 0.6;
+    out.push(el(0, hunch * 0.25, S(0.815), S(0.133) * bk, S(0.087) * bk, S(0.11), cloth));
+    out.push(el(0, hy, S(0.975), S(0.158) * bk, S(0.098) * bk, S(0.125), cloth));
+    if (!o.robe) out.push(el(0, 0, S(0.715), S(0.146) * bk, S(0.096) * bk, S(0.055), cloth));
+    out.push(el(0, hunch * 0.2, S(0.755), S(0.14) * bk, S(0.093) * bk, S(0.022), o.belt || LEATHER));
+    out.push(box(-S(0.017), S(0.088) * bk + hunch * 0.2, S(0.74), S(0.017), S(0.098) * bk + hunch * 0.2, S(0.772), GOLD));
+    for (const sd of [-1, 1]) out.push(sph(sd * S(0.157) * bk, hy, S(1.05), S(0.068) * bk, sleeve));
+    // руки: плечо — локоть — запястье, кисть
+    for (const sd of [-1, 1]) {
+      const fw = o.armsFwd ? 1 : 0, sw = -walk * sd * 0.11;
+      const sh = [sd * S(0.175) * bk, hy, S(1.035)];
+      const elb = fw ? [sd * S(0.19) * bk, hy + S(0.16), S(0.95)] : [sd * S(0.222) * bk, hy + S(sw * 0.55), S(0.81)];
+      const wr = fw ? [sd * S(0.15) * bk, hy + S(0.36), S(0.93)] : [sd * S(0.235) * bk, hy + S(sw + 0.035), S(0.6)];
+      limb(out, P, sh[0], sh[1], sh[2], elb[0], elb[1], elb[2], S(0.05) * bk, S(0.042) * bk, sleeve);
+      limb(out, P, elb[0], elb[1], elb[2], wr[0], wr[1], wr[2], S(0.042) * bk, S(0.033) * bk, sleeve);
+      out.push(el(wr[0], wr[1] + (fw ? S(0.04) : S(0.006)), wr[2] - (fw ? 0 : S(0.05)), S(0.031) * bk, fw ? S(0.05) : S(0.033), fw ? S(0.03) : S(0.052), skin));
+    }
+    // шея и голова: череп, челюсть, нос, уши, глаза; волосы, борода
+    const head = o.head || skin, hz = S(HZ), yh = hunch + S(0.01);
+    limb(out, P, 0, hunch * 0.8, S(1.09), 0, yh, S(1.165), S(0.046), S(0.044), skin);
+    out.push(el(0, yh - S(0.005), hz + S(0.015), S(0.097), S(0.104), S(0.112), head));
+    out.push(el(0, yh + S(0.03), hz - S(0.052), S(0.074), S(0.075), S(0.06), head));
+    out.push(el(0, yh + S(0.105), hz - S(0.01), S(0.018), S(0.024), S(0.028), head));
+    for (const sd of [-1, 1]) out.push(sph(sd * S(0.098), yh, hz - S(0.005), S(0.024), head));
+    for (const sd of [-1, 1]) out.push(sph(sd * S(0.036), yh + S(0.093), hz + S(0.018), S(0.014), o.eyes || EYE));
+    if (o.hair) {
+      out.push(el(0, yh - S(0.022), hz + S(0.055), S(0.104), S(0.11), S(0.085), o.hair));
+      out.push(el(0, yh - S(0.06), hz - S(0.008), S(0.1), S(0.068), S(0.096), o.hair));
+      if (o.long) out.push(el(0, yh - S(0.07), hz - S(0.14), S(0.096), S(0.05), S(0.16), o.hair));
+      if (o.beard) out.push(el(0, yh + S(0.06), hz - S(0.085), S(0.064), S(0.055), S(0.064), o.hair));
+    }
     return out;
   }
   HF.human = human;
-  // голова — (O), туловище — [#]: символ выбирается по тому, куда смотрит поверхность
-  const shapeCache = new Map();
-  function faceOf(m) { if (!m || m.cs === CS.player) return m; let r = shapeCache.get(m); if (!r) { r = [Object.assign({}, m, { cs: CS.face, nt: 1, tex: null }), Object.assign({}, m, { cs: CS.body, nt: 1 })]; shapeCache.set(m, r); } return r[0]; }
-  function bodyOf(m) { if (!m || m.cs === CS.metal || m.cs === CS.bone || m.cs === CS.bark || m.cs === CS.scale || m.cs === CS.fur) return m; let r = shapeCache.get(m); if (!r) { r = [Object.assign({}, m, { cs: CS.face, nt: 1, tex: null }), Object.assign({}, m, { cs: CS.body, nt: 1 })]; shapeCache.set(m, r); } return r[1]; }
+  function faceOf(m) { return m; }
+  function bodyOf(m) { return m; }
   const HAIR = ['#3a2416', '#1a1410', '#a87a40', '#6a4a2a', '#c8a060'];
-  // принадлежности: шапка, капюшон, шлем, корона, копьё, молот, посох, лук, удочка, книга, мешок, клюка, лютня
+  // принадлежности: шапка, капюшон, шлем, корона, копьё, молот, посох, лук, удочка, книга, мешок, клюка, лютня, плащ…
   function gear(out, P, kind, s, x) {
     x = x || {};
+    const S = (v) => v * s, hz = S(HZ);
     switch (kind) {
-      case 'hat': out.push(disc(0, 0, 1.2 * s, 0.22 * s, 0.17 * s, mat('#d8c070', 'thatchS')), el(0, 0, 1.24 * s, 0.1 * s, 0.09 * s, 0.07 * s, mat('#c8b060', 'thatchS'))); break;
-      case 'hood': out.push(el(0, -0.02 * s, 1.1 * s, 0.15 * s, 0.14 * s, 0.15 * s, x.m)); break;
-      case 'helm': out.push(el(0, -0.01 * s, 1.14 * s, 0.135 * s, 0.13 * s, 0.1 * s, METAL), box(-0.012 * s, 0.1 * s, 1.03 * s, 0.012 * s, 0.13 * s, 1.15 * s, METAL)); break;
-      case 'crown': for (let q = 0; q < 5; q++) out.push(sph(-0.1 * s + q * 0.05 * s, 0.02 * s, 1.22 * s, pmin(P, 0.03 * s), GOLD)); break;
-      case 'spear': limb(out, P, 0.27 * s, 0.02, 0, 0.27 * s, 0.02, 1.55 * s, 0.022, 0.022, DWOOD); out.push(cone(0.27 * s, 0.02, 1.55 * s, pmin(P, 0.04), 0.16 * s, METAL)); break;
-      case 'hammer': limb(out, P, 0.24 * s, 0.05, 0.55 * s, 0.32 * s, 0.05, 0.95 * s, 0.02, 0.02, DWOOD); out.push(box(0.26 * s, 0.0, 0.92 * s, 0.4 * s, 0.1, 1.02 * s, METAL)); break;
-      case 'staff': limb(out, P, 0.26 * s, 0.03, 0, 0.26 * s, 0.03, 1.4 * s, 0.022, 0.02, DWOOD); out.push(sph(0.26 * s, 0.03, 1.45 * s, pmin(P, 0.05), mat(x.orb || '#a0c0ff', 'glow', { em: 1.4, fl: F.NOSHADOW }))); break;
-      case 'bow': for (let q = 0; q <= 6; q++) { const a = (q / 6 - 0.5) * 2.2; out.push(sph(0.28 * s + Math.cos(a) * 0.06, 0.04, 0.78 * s + Math.sin(a) * 0.32 * s, pmin(P, 0.02), DWOOD)); } break;
-      case 'rod': limb(out, P, 0.22 * s, 0.05, 0.55 * s, 0.6 * s, 0.1, 1.45 * s, 0.018, 0.012, DWOOD); break;
-      case 'book': out.push(box(0.18 * s, 0.08, 0.6 * s, 0.3 * s, 0.14, 0.72 * s, mat('#8a2a2a', 'book'))); break;
-      case 'bag': out.push(el(0.27 * s, 0.03, 0.55 * s, 0.09 * s, 0.08 * s, 0.11 * s, mat('#8a6a40', 'cloth', { tex: clothTex }))); break;
-      case 'cane': limb(out, P, 0.26 * s, 0.08, 0, 0.24 * s, 0.08, 0.62 * s, 0.02, 0.02, DWOOD); break;
-      case 'lute': out.push(el(0.05 * s, 0.13 * s, 0.68 * s, 0.11 * s, 0.05 * s, 0.13 * s, mat('#a87040', 'wood'))); limb(out, P, 0.1 * s, 0.13 * s, 0.78 * s, 0.3 * s, 0.13 * s, 0.98 * s, 0.018, 0.015, DWOOD); break;
-      case 'flask': out.push(el(0.27 * s, 0.08, 0.58 * s, 0.05 * s, 0.05 * s, 0.07 * s, mat('#7ad0a0', 'glass', { em: 0.6, sp: 1 }))); break;
-      case 'bowl': out.push(el(0.25 * s, 0.12, 0.5 * s, 0.08 * s, 0.06 * s, 0.03 * s, mat('#8a6a40', 'wood'))); break;
-      case 'sword': limb(out, P, 0.25 * s, 0.08, 0.5 * s, 0.25 * s, 0.08, 1.05 * s, 0.018, 0.012, METAL); break;
-      case 'club': limb(out, P, 0.3 * s, 0.08, 0.4 * s, 0.38 * s, 0.1, 1.0 * s, 0.03, 0.07, DWOOD); break;
-      case 'trident': limb(out, P, 0.27 * s, 0.02, 0, 0.27 * s, 0.02, 1.45 * s, 0.022, 0.02, METAL); for (const dx of [-0.07, 0, 0.07]) out.push(cone(0.27 * s + dx, 0.02, 1.45 * s, pmin(P, 0.025), 0.15 * s, METAL)); break;
-      case 'note': { const k = (x.f || 0) % 8; out.push(sph(0.15 * s + Math.sin(k) * 0.05, 0, 1.45 * s + k * 0.03, pmin(P, 0.04), mat('#f0d060', 'glow', { em: 1, fl: F.NOSHADOW }))); break; }
-      case 'cape': out.push(el(0, -0.11 * s, 0.7 * s, 0.17 * s, 0.05 * s, 0.32 * s, x.m)); break;
-      case 'ring': out.push(disc(0, 0, 0.005, 0.36, 0.2, mat(x.c || '#f0d080', 'glow', { em: 0.9, a: 0.55, fl: F.NOSHADOW }))); break;
+      case 'hat': out.push(disc(0, 0, hz + S(0.085), S(0.22), S(0.18), mat('#c8b060', 'thatchS', { tex: texNoise(0.15, 0.3, 30, 101) })), el(0, -S(0.01), hz + S(0.12), S(0.104), S(0.1), S(0.065), mat('#d8c070', 'thatchS', { tex: texNoise(0.12, 0.3, 30, 103) })), el(0, -S(0.01), hz + S(0.092), S(0.106), S(0.104), S(0.016), mat('#7a3a2a', 'cloth'))); break;
+      case 'hood': out.push(el(0, -S(0.03), hz + S(0.025), S(0.122), S(0.122), S(0.135), x.m), el(0, -S(0.03), hz - S(0.12), S(0.15), S(0.1), S(0.075), x.m)); break;
+      case 'helm': out.push(el(0, -S(0.005), hz + S(0.04), S(0.11), S(0.115), S(0.098), METAL), disc(0, 0, hz + S(0.005), S(0.128), S(0.132), METAL), box(-S(0.012), S(0.105), hz - S(0.055), S(0.012), S(0.122), hz + S(0.05), METAL)); break;
+      case 'crown': out.push(el(0, 0, hz + S(0.1), S(0.1), S(0.106), S(0.024), GOLD)); for (let q = 0; q < 5; q++) { const a = -0.9 + q * 0.45; out.push(cone(Math.sin(a) * S(0.096), Math.cos(a) * S(0.1) * 0.6, hz + S(0.105), pmin(P, S(0.022)), S(0.06), GOLD)); } out.push(sph(0, S(0.1), hz + S(0.1), pmin(P, S(0.018)), mat('#e03040', 'glow', { em: 0.6, sp: 1 }))); break;
+      case 'spear': limb(out, P, S(0.235), S(0.06), 0, S(0.235), S(0.06), S(1.6), S(0.018), S(0.016), DWOOD); out.push(cone(S(0.235), S(0.06), S(1.6), pmin(P, S(0.032)), S(0.17), METAL), el(S(0.235), S(0.06), S(1.6), S(0.03), S(0.02), S(0.012), METAL)); break;
+      case 'hammer': limb(out, P, S(0.22), S(0.05), S(0.5), S(0.26), S(0.07), S(0.95), S(0.018), S(0.018), DWOOD); out.push(box(S(0.19), S(0.03), S(0.93), S(0.34), S(0.11), S(1.02), METAL)); break;
+      case 'staff': limb(out, P, S(0.255), S(0.05), 0, S(0.255), S(0.05), S(1.52), S(0.02), S(0.018), DWOOD); out.push(sph(S(0.255), S(0.05), S(1.57), pmin(P, S(0.045)), mat(x.orb || '#a0c0ff', 'glow', { em: 1.4, fl: F.NOSHADOW }))); break;
+      case 'bow': for (let q = 0; q <= 10; q++) { const a = (q / 10 - 0.5) * 2.3; out.push(sph(-S(0.25) - Math.cos(a) * S(0.07) + S(0.07), S(0.05), S(0.8) + Math.sin(a) * S(0.36), pmin(P, S(0.016)), DWOOD)); } limb(out, P, -S(0.25), S(0.05), S(0.8) - S(0.33), -S(0.25), S(0.05), S(0.8) + S(0.33), S(0.005), S(0.005), mat('#d0c8b0', 'cloth')); break;
+      case 'rod': limb(out, P, S(0.21), S(0.06), S(0.55), S(0.55), S(0.12), S(1.5), S(0.016), S(0.01), DWOOD); break;
+      case 'book': out.push(box(-S(0.09), S(0.1), S(0.8), S(0.09), S(0.15), S(0.94), mat('#8a2a2a', 'book')), box(-S(0.08), S(0.15), S(0.81), S(0.08), S(0.155), S(0.93), mat('#e8e0c8', 'cloth'))); break;
+      case 'bag': out.push(el(S(0.21), -S(0.02), S(0.66), S(0.07), S(0.08), S(0.1), mat('#8a6a40', 'cloth', { tex: clothTex })), el(S(0.21), -S(0.02), S(0.75), S(0.04), S(0.05), S(0.02), mat('#5a4228', 'cloth'))); break;
+      case 'cane': limb(out, P, S(0.22), S(0.07), S(0.56), S(0.25), S(0.1), 0, S(0.017), S(0.017), DWOOD); break;
+      case 'lute': out.push(el(-S(0.02), S(0.12), S(0.8), S(0.1), S(0.045), S(0.12), mat('#a87040', 'wood', { sp: 0.4 })), sph(-S(0.02), S(0.165), S(0.8), pmin(P, S(0.025)), mat('#2a1a0e', 'dark'))); limb(out, P, S(0.05), S(0.13), S(0.88), S(0.24), S(0.13), S(1.08), S(0.016), S(0.014), DWOOD); break;
+      case 'flask': out.push(el(S(0.215), S(0.06), S(0.52), S(0.04), S(0.04), S(0.05), mat('#7ad0a0', 'glass', { em: 0.6, sp: 1 })), el(S(0.215), S(0.06), S(0.58), S(0.012), S(0.012), S(0.02), mat('#8a6a40', 'wood'))); break;
+      case 'bowl': out.push(el(S(0.0), S(0.3), S(0.9), S(0.075), S(0.06), S(0.03), mat('#8a6a40', 'wood'))); break;
+      case 'sword': limb(out, P, S(0.215), S(0.07), S(0.56), S(0.23), S(0.12), S(1.05), S(0.014), S(0.008), METAL); out.push(el(S(0.215), S(0.07), S(0.6), S(0.045), S(0.015), S(0.012), METAL)); break;
+      case 'club': limb(out, P, S(0.22), S(0.06), S(0.55), S(0.3), S(0.1), S(1.05), S(0.025), S(0.065), DWOOD); break;
+      case 'trident': limb(out, P, S(0.245), S(0.05), 0, S(0.245), S(0.05), S(1.5), S(0.018), S(0.016), METAL); out.push(el(S(0.245), S(0.05), S(1.5), S(0.08), S(0.015), S(0.012), METAL)); for (const dx of [-0.07, 0, 0.07]) out.push(cone(S(0.245 + dx), S(0.05), S(1.5), pmin(P, S(0.02)), S(0.15), METAL)); break;
+      case 'note': { const k = (x.f || 0) % 8; out.push(sph(S(0.15) + Math.sin(k) * 0.05, 0, S(1.55) + k * 0.03, pmin(P, S(0.035)), mat('#f0d060', 'glow', { em: 1, fl: F.NOSHADOW })), box(S(0.17) + Math.sin(k) * 0.05, -0.005, S(1.55) + k * 0.03, S(0.18) + Math.sin(k) * 0.05, 0.005, S(1.66) + k * 0.03, mat('#f0d060', 'glow', { em: 1, fl: F.NOSHADOW }))); break; }
+      case 'cape': out.push(el(0, -S(0.105), S(0.8), S(0.175), S(0.05), S(0.36), x.m), el(0, -S(0.07), S(1.08), S(0.17), S(0.07), S(0.05), x.m)); break;
+      case 'ring': for (let q = 0; q < 18; q++) { const a = q / 18 * Math.PI * 2; out.push(disc(Math.cos(a) * 0.33, Math.sin(a) * 0.19, 0.005, pmin(P, 0.02), pmin(P, 0.014), mat(x.c || '#f0d080', 'glow', { em: 1.1, fl: F.NOSHADOW }))); } break;
     }
   }
   // житель: из ключа рисунка — одежда, принадлежности, рост
   const JOBGEAR = {
     npc_guard: { gear: ['helm', 'spear'], cloth: '#7a8a9a', pants: '#3a3a44' }, npc_hood: { gear: ['hood'], robe: 1 }, npc_mage: { gear: ['hood', 'staff'], robe: 1 },
-    npc_smith: { gear: ['hammer'], bulky: 1.15, apron: 1 }, npc_hat: { gear: ['hat'] }, npc_fisher: { gear: ['hat', 'rod'] }, npc_hunter: { gear: ['bow', 'cape'] },
-    npc_trader: { gear: ['bag'] }, npc_noble: { gear: ['crown', 'cape'] }, npc_bard: { gear: ['lute', 'note'] }, npc_beggar: { gear: ['bowl'], hunch: 0.08 },
-    npc_scholar: { gear: ['book'], robe: 1 }, npc_healer: { gear: ['flask'] }, npc_wander: { gear: ['hood', 'cane'] }, npc_elder: { gear: ['cane'], hunch: 0.06, grey: 1 },
-    npc_f: { robe: 1 }, npc_m: {}, npc_child: { scale: 0.68 },
+    npc_smith: { gear: ['hammer'], bulky: 1.15, apron: 1, beard: 1 }, npc_hat: { gear: ['hat'] }, npc_fisher: { gear: ['hat', 'rod'] }, npc_hunter: { gear: ['bow', 'cape'] },
+    npc_trader: { gear: ['bag'] }, npc_noble: { gear: ['crown', 'cape'] }, npc_bard: { gear: ['lute', 'note'] }, npc_beggar: { gear: ['bowl'], hunch: 0.08, armsFwd: 1 },
+    npc_scholar: { gear: ['book'], robe: 1 }, npc_healer: { gear: ['flask'] }, npc_wander: { gear: ['hood', 'cane'] }, npc_elder: { gear: ['cane'], hunch: 0.06, grey: 1, beard: 1 },
+    npc_f: { robe: 1, long: 1 }, npc_m: {}, npc_child: { scale: 0.68 },
   };
   for (const key in JOBGEAR) {
     MD[key] = (o, P) => {
       const j = JOBGEAR[key], s = j.scale || 1;
-      const cc = colOf(o, '#b89878'), cloth = mat(cc, 'cloth', { tex: clothTex }), pants = mat(j.pants || shadeC(C(cc), 0.55), 'cloth');
+      const cc = colOf(o, '#b89878'), cloth = mat(cc, 'cloth', { tex: clothTex }), pants = mat(j.pants || shadeC(C(cc), 0.55), 'cloth', { tex: clothTex });
       const hairC = j.grey ? '#d0d0d0' : HAIR[(o.seed || cc.charCodeAt(2)) % HAIR.length];
-      const prims = human({ cloth: j.cloth ? mat(j.cloth, 'metal', { sp: 0.4 }) : cloth, pants, skin: mat(SKIN, 'skin'), hair: j.gear && (j.gear.includes('hood') || j.gear.includes('helm')) ? null : mat(hairC, 'hair'), frame: o.f, moving: o.moving, robe: j.robe, hunch: j.hunch, bulky: j.bulky }, P, s);
-      if (j.apron) prims.push(el(0, 0.06 * s, 0.62 * s, 0.13 * s, 0.05 * s, 0.2 * s, mat('#6a4a30', 'cloth')));
+      const covered = j.gear && (j.gear.includes('hood') || j.gear.includes('helm'));
+      const prims = human({ cloth: j.cloth ? mat(j.cloth, 'metal', { sp: 0.5, tex: mailTex }) : cloth, pants, skin: mat(SKIN, 'skin'), hair: covered ? null : mat(hairC, 'hair', { tex: hairTex }), frame: o.f, moving: o.moving, robe: j.robe, hunch: j.hunch, bulky: j.bulky, long: j.long, beard: j.beard && !covered, armsFwd: j.armsFwd }, P, s);
+      if (j.apron) prims.push(el(0, S1(0.07), 0.66 * s, 0.12 * s, 0.05 * s, 0.24 * s, mat('#6a4a30', 'cloth', { tex: texNoise(0.1, 0.3, 14, 105) })));
       for (const g of j.gear || []) gear(prims, P, g, s, { m: mat(shadeC(C(cc), 0.8), 'cloth', { tex: clothTex }), f: o.f });
-      return wrap(key + '|' + cc + '|' + (o.moving ? o.f % 4 : 0) + (key === 'npc_bard' ? '|' + (o.f % 8) : '') + '|' + P.level, prims, o);
+      return wrap(key + '|' + cc + '|' + (o.moving ? o.f % 4 : 0) + (key === 'npc_bard' ? '|' + (o.f % 8) : ''), prims, o);
     };
   }
+  const S1 = (v) => v;
   MD.player = (o, P) => {
     const cc = colOf(o, '#c8a060');
-    const prims = human({ cloth: mat(cc, 'cloth', { tex: clothTex }), pants: mat('#3a3028', 'cloth'), skin: mat(SKIN, 'skin'), head: mat('#fff0d0', 'player', { em: 0.15 }), hair: null, frame: o.f, moving: o.moving }, P, 1);
+    const prims = human({ cloth: mat(cc, 'cloth', { tex: clothTex }), pants: mat('#3a3028', 'cloth', { tex: clothTex }), skin: mat(SKIN, 'skin'), hair: mat('#5a3a22', 'hair', { tex: hairTex }), frame: o.f, moving: o.moving }, P, 1);
     gear(prims, P, 'cape', 1, { m: mat(shadeC(C(cc), 0.6), 'cloth', { tex: clothTex }) });
     gear(prims, P, 'ring', 1, { c: o.ring || '#f0d080' });
-    return wrap('player|' + cc + '|' + (o.moving ? o.f % 4 : 0) + '|' + P.level, prims, o);
+    return wrap('player|' + cc + '|' + (o.moving ? o.f % 4 : 0), prims, o);
   };
 
   // ============================================================
   // ЗВЕРИ: четвероногие, птицы, гады, насекомые
   // ============================================================
-  // четвероногое, смотрит на восток; q: { len, h, w, body, belly, head, ears, tail, extras }
+  // четвероногое, смотрит на восток. q: { len, h, w, body, belly, headc, legc, snout, ears, tail, headR, headUp, legR, fat, cs, … }
+  // Корпус — грудь, бочка, круп; ноги с суставами (у задних — скакательный сустав назад); шея, череп, морда с носом
   function quad(o, P, q) {
-    const out = [], L = q.len, Hh = q.h, Wd = q.w || 0.16;
+    const out = [], L = q.len, Hh = q.h, Wd = q.w || 0.16, fat = q.fat || 1;
     const ph = (o.f || 0) % 4, walk = o.moving ? Math.sin(ph * Math.PI / 2) : 0;
-    const B = mat(q.body, q.cs || 'fur', { tex: furTex }), Bl = mat(q.belly || q.body, q.cs || 'fur'), Hd = mat(q.headc || q.body, q.cs || 'fur', { tex: furTex });
-    const bz = Hh * 0.62;
-    out.push(el(0, 0, bz, L * 0.5, Wd, Hh * 0.22 * (q.fat || 1), B));
-    out.push(el(0, 0.02, bz - Hh * 0.08, L * 0.38, Wd * 0.8, Hh * 0.12, Bl));
+    const tx = q.cs === 'scale' ? scaleTex : furTex2;
+    const B = mat(q.body, q.cs || 'fur', { tex: tx }), Bl = mat(q.belly || q.body, q.cs || 'fur', { tex: tx }), Hd = mat(q.headc || q.body, q.cs || 'fur', { tex: tx });
+    const Lg = mat(q.legc || shadeC(q.body, 0.82), q.cs || 'fur', { tex: tx });
+    const bz = Hh * 0.6, legR = q.legR || 0.045;
+    out.push(el(L * 0.24, 0, bz + Hh * 0.04, L * 0.25, Wd * 1.05 * fat, Hh * 0.21 * fat, B));
+    out.push(el(0, 0, bz - Hh * 0.01, L * 0.3, Wd * fat, Hh * 0.185 * fat, B));
+    out.push(el(-L * 0.27, 0, bz + Hh * 0.02, L * 0.22, Wd * 0.95 * fat, Hh * 0.18 * fat, B));
+    out.push(el(0, 0, bz - Hh * 0.12 * fat, L * 0.3, Wd * 0.72 * fat, Hh * 0.09, Bl));
     // ноги
-    const legR = q.legR || 0.045;
-    for (const [lx, ly, phs] of [[L * 0.32, Wd * 0.6, 1], [L * 0.32, -Wd * 0.6, -1], [-L * 0.32, Wd * 0.6, -1], [-L * 0.32, -Wd * 0.6, 1]]) {
-      const st = walk * phs * L * 0.12;
-      limb(out, P, lx, ly, bz - Hh * 0.1, lx + st, ly, 0.03, legR, legR * 0.8, mat(q.legc || shadeC(q.body, 0.8), q.cs || 'fur'));
+    for (const [fx, sy, phs] of [[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]]) {
+      const lx = fx * L * 0.3, ly = sy * Wd * 0.55, st = walk * phs * L * 0.13, lc = sy > 0 ? Lg : mat(shadeC(q.legc ? C(q.legc) : q.body, 0.62), q.cs || 'fur');
+      const top = [lx, ly, bz - Hh * 0.02], foot = [lx + st, ly, legR * 0.6];
+      const mid = fx > 0 ? [lx + st * 0.45 + L * 0.015, ly, bz * 0.47] : [lx + st * 0.45 - L * 0.07, ly, bz * 0.42];
+      limb(out, P, top[0], top[1], top[2], mid[0], mid[1], mid[2], legR * (fx > 0 ? 1.35 : 1.7), legR, lc);
+      limb(out, P, mid[0], mid[1], mid[2], foot[0], foot[1], foot[2], legR, legR * 0.8, lc);
+      out.push(el(foot[0] + legR * 0.5, foot[1], legR * 0.55, legR * 1.25, legR * 0.95, legR * 0.6, lc));
     }
-    // голова и морда
-    const hx = L * 0.55, hz = bz + Hh * (q.headUp || 0.18);
-    out.push(sph(hx, 0, hz, q.headR || 0.11, Hd));
-    if (q.snout) out.push(el(hx + (q.headR || 0.11) * 0.9, 0, hz - 0.03, q.snout, q.snout * 0.6, q.snout * 0.55, Hd));
-    if (q.ears === 'up') out.push(cone(hx - 0.03, -0.05, hz + 0.06, pmin(P, 0.04), 0.1, Hd), cone(hx - 0.03, 0.05, hz + 0.06, pmin(P, 0.04), 0.1, Hd));
-    if (q.ears === 'long') { limb(out, P, hx - 0.02, -0.03, hz + 0.05, hx - 0.06, -0.04, hz + 0.3, 0.03, 0.025, Hd); limb(out, P, hx - 0.02, 0.03, hz + 0.05, hx - 0.06, 0.04, hz + 0.3, 0.03, 0.025, Hd); }
-    if (q.ears === 'round') out.push(sph(hx - 0.04, -0.07, hz + 0.08, pmin(P, 0.04), Hd), sph(hx - 0.04, 0.07, hz + 0.08, pmin(P, 0.04), Hd));
-    out.push(sph(hx + (q.headR || 0.11) * 0.6, 0.06, hz + 0.03, pmin(P, 0.022), mat(q.eye || '#1a1410', q.eye ? 'eye' : 'dark', q.eye ? { em: 1.2 } : {})));
+    // шея и голова
+    const hR = q.headR || 0.11, hx = L * 0.56, hz = bz + Hh * (q.headUp != null ? q.headUp : 0.2);
+    limb(out, P, L * 0.36, 0, bz + Hh * 0.12, hx - hR * 0.3, 0, hz - hR * 0.2, Wd * 0.75 * fat, hR * 0.8, B);
+    out.push(el(hx, 0, hz, hR * 1.05, hR * 0.9, hR, Hd));
+    const sn = (q.snout || 0) * 2.3;
+    if (sn > 0) {
+      limb(out, P, hx + hR * 0.5, 0, hz - hR * 0.25, hx + hR * 0.5 + sn, 0, hz - hR * 0.42, hR * 0.62, hR * 0.36, Hd);
+      out.push(sph(hx + hR * 0.5 + sn + hR * 0.25, 0, hz - hR * 0.36, pmin(P, hR * 0.2), mat('#141010', 'dark', { sp: 0.6 })));
+    }
+    for (const sy of [-1, 1]) out.push(sph(hx + hR * 0.55, sy * hR * 0.5, hz + hR * 0.25, pmin(P, hR * 0.14), mat(q.eye || '#1a1410', q.eye ? 'eye' : 'dark', q.eye ? { em: 1.2 } : { sp: 0.8 })));
+    if (q.ears === 'up') for (const sy of [-1, 1]) out.push(cone(hx - hR * 0.25, sy * hR * 0.5, hz + hR * 0.55, pmin(P, hR * 0.36), hR * 1.05, Hd));
+    if (q.ears === 'long') for (const sy of [-1, 1]) limb(out, P, hx - hR * 0.2, sy * hR * 0.35, hz + hR * 0.6, hx - hR * 0.6, sy * hR * 0.45, hz + hR * 3, hR * 0.3, hR * 0.22, Hd);
+    if (q.ears === 'round') for (const sy of [-1, 1]) out.push(sph(hx - hR * 0.35, sy * hR * 0.62, hz + hR * 0.7, pmin(P, hR * 0.3), Hd));
     // хвост
-    if (q.tail === 'bushy') out.push(el(-L * 0.62, 0, bz + 0.05, 0.14, 0.07, 0.07, mat(q.tailc || q.body, 'fur', { tex: furTex })));
-    else if (q.tail === 'thin') limb(out, P, -L * 0.48, 0, bz, -L * 0.75, 0, bz + 0.12, 0.025, 0.015, B);
-    else if (q.tail === 'puff') out.push(sph(-L * 0.52, 0, bz + 0.04, pmin(P, 0.05), mat('#f0f0f0', 'fur')));
-    else if (q.tail === 'long') limb(out, P, -L * 0.48, 0, bz - 0.04, -L * 1.05, 0.02, 0.06, 0.06, 0.02, B);
+    const tz = bz + Hh * 0.08, tx0 = -L * 0.48;
+    if (q.tail === 'bushy') { limb(out, P, tx0, 0, tz, tx0 - L * 0.2, 0, tz - Hh * 0.12, Wd * 0.35, Wd * 0.55, mat(q.tailc ? C(q.tailc) : q.body, 'fur', { tex: furTex2 })); limb(out, P, tx0 - L * 0.2, 0, tz - Hh * 0.12, tx0 - L * 0.38, 0, tz - Hh * 0.3, Wd * 0.55, Wd * 0.3, mat(q.tailc ? C(q.tailc) : q.body, 'fur', { tex: furTex2 })); }
+    else if (q.tail === 'thin') limb(out, P, tx0, 0, tz, tx0 - L * 0.25, 0, tz - Hh * 0.3, 0.022, 0.012, B);
+    else if (q.tail === 'puff') out.push(sph(tx0 - 0.02, 0, tz, pmin(P, Wd * 0.4), mat('#f0f0f0', 'fur', { tex: furTex2 })));
+    else if (q.tail === 'long') limb(out, P, tx0, 0, tz - 0.03, -L * 1.05, 0.02, 0.05, Wd * 0.45, 0.015, B);
     // особое
-    if (q.antlers) for (const sy of [-1, 1]) { limb(out, P, hx - 0.03, sy * 0.05, hz + 0.08, hx - 0.1, sy * 0.15, hz + 0.38, 0.02, 0.015, mat('#c8b090', 'bone')); limb(out, P, hx - 0.08, sy * 0.1, hz + 0.25, hx + 0.05, sy * 0.18, hz + 0.36, 0.015, 0.012, mat('#c8b090', 'bone')); }
-    if (q.tusks) for (const sy of [-1, 1]) limb(out, P, hx + 0.08, sy * 0.04, hz - 0.06, hx + 0.2 * q.tusks, sy * 0.06, hz - 0.02 + 0.08 * q.tusks, 0.02, 0.015, mat('#f0ece0', 'bone'));
-    if (q.trunk) limb(out, P, hx + 0.1, 0, hz - 0.05, hx + 0.2, 0.03, 0.08, 0.05, 0.03, Hd);
-    if (q.mane) out.push(el(hx - 0.1, 0, hz + 0.02, 0.12, 0.09, 0.13, mat(q.mane, 'fur', { tex: furTex, em: q.maneEm || 0 })));
-    if (q.wings) { const fl = Math.sin((o.f || 0) * 1.3) * 0.15; out.push(el(-0.05, -0.18, bz + 0.22 + fl, 0.22, 0.14, 0.03, mat(shadeC(q.body, 0.85), 'wing')), el(-0.05, 0.18, bz + 0.22 + fl, 0.22, 0.14, 0.03, mat(shadeC(q.body, 0.85), 'wing'))); }
+    if (q.antlers) for (const sy of [-1, 1]) { const A = mat('#c8b090', 'bone'); limb(out, P, hx - 0.03, sy * 0.05, hz + 0.08, hx - 0.1, sy * 0.15, hz + 0.4, 0.018, 0.012, A); limb(out, P, hx - 0.07, sy * 0.1, hz + 0.24, hx + 0.06, sy * 0.17, hz + 0.36, 0.013, 0.01, A); limb(out, P, hx - 0.09, sy * 0.13, hz + 0.33, hx - 0.2, sy * 0.18, hz + 0.45, 0.012, 0.009, A); }
+    if (q.tusks) for (const sy of [-1, 1]) limb(out, P, hx + hR * 0.7, sy * hR * 0.4, hz - hR * 0.5, hx + hR * 0.7 + 0.12 * q.tusks, sy * hR * 0.5, hz - hR * 0.2 + 0.08 * q.tusks, 0.018, 0.01, mat('#f0ece0', 'bone', { sp: 0.5 }));
+    if (q.trunk) limb(out, P, hx + hR * 0.7, 0, hz - hR * 0.3, hx + hR * 1.1, 0.03, 0.08, hR * 0.32, hR * 0.18, Hd);
+    if (q.mane) out.push(el(hx - hR * 1.1, 0, hz - hR * 0.1, hR * 1.2, hR * 0.95, hR * 1.3, mat(q.mane, 'fur', { tex: furTex2, em: q.maneEm || 0 })));
+    if (q.wings) { const fl = Math.sin((o.f || 0) * 1.3) * 0.15; for (const sy of [-1, 1]) { const W2 = mat(shadeC(q.body, 0.85), 'wing', { tex: membraneTex }); out.push(el(-0.02, sy * 0.2, bz + Hh * 0.35 + fl, 0.24, 0.15, 0.025, W2)); limb(out, P, 0.1, sy * 0.06, bz + Hh * 0.25, -0.15, sy * 0.36, bz + Hh * 0.4 + fl, 0.015, 0.01, B); } }
     return out;
   }
   const QUADS = {
-    m_wolf: { len: 0.72, h: 0.62, body: '#8a8a8a', belly: '#c8c8c8', snout: 0.07, ears: 'up', tail: 'bushy' },
+    m_wolf: { len: 0.74, h: 0.66, w: 0.17, body: '#8a8a8a', belly: '#c8c8c8', snout: 0.07, ears: 'up', tail: 'bushy', headR: 0.125, legR: 0.05, fat: 1.12 },
     m_fox: { len: 0.56, h: 0.45, w: 0.12, body: '#d8763a', belly: '#f0e8e0', snout: 0.06, ears: 'up', tail: 'bushy', tailc: '#e88a4a', headR: 0.09 },
     m_beast: { len: 0.72, h: 0.62, body: '#8a6a5a', snout: 0.07, ears: 'up', tail: 'bushy' },
     m_deer: { len: 0.7, h: 0.95, w: 0.13, body: '#a07a4a', belly: '#e0d0b0', snout: 0.06, ears: 'up', tail: 'puff', antlers: 1, headUp: 0.42, legR: 0.03 },

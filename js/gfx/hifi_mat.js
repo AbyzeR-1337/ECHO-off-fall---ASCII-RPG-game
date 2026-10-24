@@ -8,11 +8,82 @@
   const smooth = HF.smooth;
   const frac = (x) => x - Math.floor(x);
   // общий «результат материала» — без лишних объектов в горячем цикле
-  const o = { r: 0, g: 0, b: 0, t: 0.5, cs: 0, sp: 0, em: 0, fl: 0, nx: 0, ny: 0 };
+  const o = { r: 0, g: 0, b: 0, t: 0.5, cs: 0, sp: 0, em: 0, fl: 0, nx: 0, ny: 0, ink: -1 };
   const col = (c, k) => { o.r = c[0] * k; o.g = c[1] * k; o.b = c[2] * k; };
   const mixc = (a, b, t, k) => { k = k || 1; o.r = (a[0] + (b[0] - a[0]) * t) * k; o.g = (a[1] + (b[1] - a[1]) * t) * k; o.b = (a[2] + (b[2] - a[2]) * t) * k; };
   const tint = (c, t) => { o.r += (c[0] - o.r) * t; o.g += (c[1] - o.g) * t; o.b += (c[2] - o.b) * t; };
-  const reset = () => { o.t = 0.5; o.sp = 0; o.em = 0; o.fl = 0; o.nx = 0; o.ny = 0; };
+  const reset = () => { o.t = 0.5; o.sp = 0; o.em = 0; o.fl = 0; o.nx = 0; o.ny = 0; o.ink = -1; };
+
+  // ============================================================
+  // «Чернила»: где в клетке штрих, а где пусто. По ним подбирается символ по форме,
+  // а цвет земли остаётся мягким фоном — земля спокойная, фигуры на ней читаются.
+  // ============================================================
+  // травинка: тонкий наклонный штрих в своей ячейке
+  const blade = (X, Y, dens, seed) => {
+    const gx = X * 15, gy = Y * 7.5, ix = Math.floor(gx), iy = Math.floor(gy), h = hash2(ix, iy, seed || 77);
+    if (h >= dens) return 0;
+    const lean = (hash2(ix, iy, 78) - 0.5) * 0.9, fy = frac(gy);
+    const fx = frac(gx) - 0.5 - (fy - 0.5) * lean;
+    return Math.abs(fx) < 0.2 && fy > 0.15 ? 0.85 : 0;
+  };
+  const speck = (X, Y, dens, k, seed) => (hash2(Math.floor(X * k), Math.floor(Y * k), seed || 79) < dens ? 0.6 : 0);
+  HF.ink = { blade, speck };
+  const INK = {};
+  const inkBy = (name, fn) => { INK[CS[name]] = fn; };
+  inkBy('grass', (t, X, Y) => blade(X, Y, 0.26));
+  inkBy('moss', (t, X, Y) => blade(X, Y, 0.26, 81));
+  inkBy('crop', (t, X, Y) => (frac(X * 9) < 0.28 && frac(Y * 5) > 0.2 ? 0.8 : 0));
+  inkBy('flower', () => 0.75);
+  inkBy('dirt', (t, X, Y) => speck(X, Y, 0.045, 22));
+  inkBy('sand', (t, X, Y) => (t > 0.82 ? 0.4 : speck(X, Y, 0.06, 26, 83)));
+  inkBy('snow', (t, X, Y) => speck(X, Y, 0.09, 28, 85) || speck(X, Y, 0.1, 13, 86) * 0.5);
+  // постройки рисуются линиями, как в ASCII-арте: шов кладки, стык досок, ряд черепицы — штрих; гладь — почти пусто
+  inkBy('pebble', (t) => 0.55 + t * 0.2);
+  inkBy('stone', (t) => (t < 0.15 ? 0.85 : 0.06));
+  inkBy('rock', (t, X, Y) => (t > 0.85 ? 0.7 : speck(X, Y, 0.03, 24, 87)));
+  inkBy('cobble', (t) => (t < 0.12 ? 0.8 : 0.05));
+  inkBy('tiles', (t) => (t < 0.42 ? 0.8 : 0));
+  inkBy('wood', (t) => (t < 0.12 || t > 0.9 ? 0.85 : 0.05));
+  inkBy('brick', (t) => (t < 0.26 ? 0.9 : 0.04));
+  inkBy('rooftile', (t) => (t < 0.15 ? 0.9 : 0.06));
+  inkBy('slate', (t) => (t > 0.8 ? 0.9 : 0.05));
+  inkBy('thatchN', (t) => (t > 0.55 ? 0.75 : 0.08));
+  inkBy('thatchS', (t) => (t > 0.55 ? 0.75 : 0.08));
+  inkBy('bark', (t) => (t > 0.7 ? 0.7 : 0.1));
+  inkBy('leaf', (t) => 0.2 + t * 0.6);
+  inkBy('glass', () => 0.7);
+  inkBy('metal', () => 0.65);
+  inkBy('gold', () => 0.75);
+  inkBy('book', (t) => 0.4 + t * 0.4);
+  inkBy('bone', (t) => 0.6);
+  inkBy('root', (t) => 0.3 + t * 0.4);
+  inkBy('star', (t) => (t > 0.5 ? 0.9 : 0));
+  inkBy('glow', (t) => 0.2 + t * 0.5);
+  inkBy('ghost', (t) => (t > 0.7 ? 0.5 : t * 0.25));
+  inkBy('smoke', (t) => t * 0.3);
+  inkBy('dark', () => 0);
+  inkBy('ice', (t) => (t > 0.65 ? 0.6 : 0.05));
+  const inkOf = (X, Y) => (o.ink >= 0 ? o.ink : INK[o.cs] ? INK[o.cs](o.t, X, Y, Math.min(1, (o.r * 0.3 + o.g * 0.59 + o.b * 0.11) * 1.6)) : o.t * 0.3);
+
+  // Клетка из SX×SY долей: средний цвет, нормаль, блеск — и символ по рисунку «чернил».
+  const SG = { sx: 2, sy: 4 };
+  const acc = { r: 0, g: 0, b: 0, nx: 0, ny: 0, sp: 0, em: 0, fl: 0, cs: 0, t: 0, code: 32 };
+  const itv = new Float32Array(64);
+  function sampleCell(fn, X0, Y0, dX, dY, set) {
+    const SX = SG.sx, SY = SG.sy, D = SX * SY, pt = HF.patterns(SX, SY, set || 'light');
+    let r = 0, g = 0, b = 0, nx = 0, ny = 0, sp = 0, em = 0, fl = 0;
+    for (let j = 0; j < SY; j++) for (let i = 0; i < SX; i++) {
+      const X = X0 + (i + 0.5) / SX * dX, Y = Y0 + (j + 0.5) / SY * dY;
+      reset(); fn(X, Y);
+      r += o.r; g += o.g; b += o.b; nx += o.nx; ny += o.ny; sp += o.sp; em += o.em; fl |= o.fl;
+      itv[j * SX + i] = Math.min(1, inkOf(X, Y)) * pt.top * 1.3;
+      if (j === SY >> 1 && i === SX >> 1) { acc.cs = o.cs; acc.t = o.t; }
+    }
+    acc.r = r / D; acc.g = g / D; acc.b = b / D; acc.nx = nx / D; acc.ny = ny / D; acc.sp = sp / D; acc.em = em / D; acc.fl = fl;
+    acc.code = pt.codes[HF.matchGlyph(pt, itv)];
+    return acc;
+  }
+  HF.sampleCell = sampleCell;
 
   // ============================================================
   // ЗЕМЛЯ
@@ -272,7 +343,6 @@
 
   // клетка земли: кэш по месту, ключу, соседям и времени года
   const gcache = new Map();
-  HF.clearGround = () => gcache.clear();
   HF.groundTile = function (sc, i, j, CX, CY, memFlag, P) {
     const W = sc.W, H = sc.H;
     const key = sc.g[j * W + i];
@@ -284,10 +354,10 @@
     let cdat = gcache.get(ck);
     if (!cdat) {
       const n = CX * CY;
-      cdat = { r: new Float32Array(n), g: new Float32Array(n), b: new Float32Array(n), nx: new Float32Array(n), ny: new Float32Array(n), t: new Float32Array(n), cs: new Uint8Array(n), sp: new Float32Array(n), em: new Float32Array(n), fl: new Uint16Array(n) };
+      cdat = { r: new Float32Array(n), g: new Float32Array(n), b: new Float32Array(n), nx: new Float32Array(n), ny: new Float32Array(n), t: new Float32Array(n), cs: new Uint8Array(n), sp: new Float32Array(n), em: new Float32Array(n), fl: new Uint16Array(n), code: new Int16Array(n) };
       const soft = SOFT.has(key);
-      for (let cv = 0; cv < CY; cv++) for (let cu = 0; cu < CX; cu++) {
-        const X = tx + (cu + 0.5) / CX, Y = ty + (cv + 0.5) / CY;
+      const PwWet = Object.assign({}, P, { wet: true });
+      const matAt = (X, Y) => {
         let use = key;
         if (soft) {
           const jx = (vnoise(X * 1.9, Y * 1.9, 3) - 0.5) * 0.8, jy = (vnoise(X * 1.9 + 5.2, Y * 1.9 + 1.3, 4) - 0.5) * 0.8;
@@ -296,9 +366,21 @@
           if (k2 !== key && SOFT.has(k2)) use = k2;
         }
         const fn = G[use] || G.rock;
-        const Pw = WET.has(use) ? P : (P.wet ? P : nearWet(nk, X, Y, tx, ty) ? Object.assign({}, P, { wet: true }) : P);
-        fn(X, Y, Pw);
+        fn(X, Y, WET.has(use) || P.wet ? P : nearWet(nk, X, Y, tx, ty) ? PwWet : P);
+        return use;
+      };
+      for (let cv = 0; cv < CY; cv++) for (let cu = 0; cu < CX; cu++) {
+        const X = tx + (cu + 0.5) / CX, Y = ty + (cv + 0.5) / CY;
+        reset();
+        const use = matAt(X, Y);
         let fl = o.fl;
+        let code = -1;
+        // вода и лава живые — их символ выбирается каждый кадр; остальное — по форме «чернил»
+        if (!(fl & (F.WATER | F.LAVA))) {
+          const a = sampleCell(matAt, tx + cu / CX, ty + cv / CY, 1 / CX, 1 / CY);
+          o.r = a.r; o.g = a.g; o.b = a.b; o.nx = a.nx; o.ny = a.ny; o.sp = a.sp; o.em = a.em; o.cs = a.cs; o.t = a.t; fl = a.fl & ~(F.WATER | F.LAVA);
+          code = a.code;
+        }
         // пена у берега и мокрый песок
         if (WET.has(use) && use !== 'bog') {
           for (const [ax, ay] of [[0.28, 0], [-0.28, 0], [0, 0.28], [0, -0.28]]) {
@@ -307,7 +389,7 @@
           }
         }
         const q = cv * CX + cu;
-        cdat.r[q] = o.r; cdat.g[q] = o.g; cdat.b[q] = o.b; cdat.nx[q] = o.nx; cdat.ny[q] = o.ny; cdat.t[q] = o.t; cdat.cs[q] = o.cs; cdat.sp[q] = o.sp; cdat.em[q] = o.em; cdat.fl[q] = fl;
+        cdat.r[q] = o.r; cdat.g[q] = o.g; cdat.b[q] = o.b; cdat.nx[q] = o.nx; cdat.ny[q] = o.ny; cdat.t[q] = o.t; cdat.cs[q] = o.cs; cdat.sp[q] = o.sp; cdat.em[q] = o.em; cdat.fl[q] = fl; cdat.code[q] = code;
       }
       if (gcache.size > 6000) gcache.clear();
       gcache.set(ck, cdat);
@@ -318,7 +400,7 @@
       o.r = cdat.r[q]; o.g = cdat.g[q]; o.b = cdat.b[q]; o.t = cdat.t[q]; o.cs = cdat.cs[q]; o.sp = cdat.sp[q]; o.em = cdat.em[q]; o.fl = cdat.fl[q];
       let nx = cdat.nx[q], ny = cdat.ny[q], nz = 1;
       const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
-      HF.put(k, o, i + (cu + 0.5) / CX, j + (cv + 0.5) / CY, 0, nx, ny, nz, 0, F.GROUND | memFlag);
+      HF.putG(k, o, i + (cu + 0.5) / CX, j + (cv + 0.5) / CY, 0, nx, ny, nz, 0, F.GROUND | memFlag, cdat.code[q]);
     }
   };
   function nearWet(nk, X, Y, tx, ty) {
@@ -440,15 +522,35 @@
     } };
   for (const k in BL) BL[k].key = k;
 
+  // готовые клетки построек: кэш по месту, виду и времени (окна ночью светятся)
+  const scache = new Map();
+  HF.clearGround = () => { gcache.clear(); scache.clear(); };
+  function cells(ck, n, fill) {
+    let c = scache.get(ck);
+    if (!c) {
+      c = { r: new Float32Array(n), g: new Float32Array(n), b: new Float32Array(n), nx: new Float32Array(n), ny: new Float32Array(n), sp: new Float32Array(n), em: new Float32Array(n), fl: new Uint16Array(n), cs: new Uint8Array(n), t: new Float32Array(n), code: new Int16Array(n) };
+      fill(c);
+      if (scache.size > 4000) scache.clear();
+      scache.set(ck, c);
+    }
+    return c;
+  }
+  const store = (c, q, a) => { c.r[q] = a.r; c.g[q] = a.g; c.b[q] = a.b; c.nx[q] = a.nx; c.ny[q] = a.ny; c.sp[q] = a.sp; c.em[q] = a.em; c.fl[q] = a.fl; c.cs[q] = a.cs; c.t[q] = a.t; c.code[q] = a.code; };
+  const load = (c, q) => { o.r = c.r[q]; o.g = c.g[q]; o.b = c.b[q]; o.sp = c.sp[q]; o.em = c.em[q]; o.fl = c.fl[q]; o.cs = c.cs[q]; o.t = c.t[q]; };
+  const PK = (P) => P.season + (P.cold ? 'c' : '') + (P.night ? 'n' : '');
+
   // верх стены/скалы
   HF.blockTop = function (sc, i, j, CX, CY, memFlag, P) {
     const W = sc.W, k0 = j * W + i, key = sc.b[k0], d = BL[key] || BL.cave, mask = sc.m[k0];
     const b = HF.buf(), NU = b.NU, tx = sc.tx0 + i, ty = sc.ty0 + j;
+    const c = cells('T' + tx + ',' + ty + key + mask + '|' + CX + PK(P), CX * CY, (c) => {
+      for (let cv = 0; cv < CY; cv++) for (let cu = 0; cu < CX; cu++) store(c, cv * CX + cu, sampleCell((X, Y) => d.top(X, Y, mask, P), tx + cu / CX, ty + cv / CY, 1 / CX, 1 / CY, 'line'));
+    });
     for (let cv = 0; cv < CY; cv++) for (let cu = 0; cu < CX; cu++) {
-      const X = tx + (cu + 0.5) / CX, Y = ty + (cv + 0.5) / CY;
-      d.top(X, Y, mask, P);
-      let nx = o.nx, ny = o.ny, nz = 1; const l = Math.hypot(nx, ny, nz);
-      HF.put((j * CY + cv) * NU + i * CX + cu, o, i + (cu + 0.5) / CX, j + (cv + 0.5) / CY, d.h, nx / l, ny / l, nz / l, 1 + (blockId(key)), memFlag);
+      const q = cv * CX + cu;
+      load(c, q);
+      let nx = c.nx[q], ny = c.ny[q], nz = 1; const l = Math.hypot(nx, ny, nz);
+      HF.putG((j * CY + cv) * NU + i * CX + cu, o, i + (cu + 0.5) / CX, j + (cv + 0.5) / CY, d.h, nx / l, ny / l, nz / l, 1 + (blockId(key)), memFlag | F.WALL, c.code[q]);
     }
   };
   const BID = {};
@@ -457,13 +559,16 @@
   HF.blockFace = function (sc, i, j, CX, CY, memFlag, P, facade) {
     const W = sc.W, a = (j - 1) * W + i, key = sc.b[a], d = BL[key] || BL.cave;
     const rows = facade ? CY : Math.max(1, Math.round(d.faceH * CY));
-    const b = HF.buf(), NU = b.NU, tx = sc.tx0 + i;
+    const b = HF.buf(), NU = b.NU, tx = sc.tx0 + i, hh = facade ? 1.2 : d.h;
+    const c = cells('F' + tx + ',' + (sc.ty0 + j) + key + (facade ? 'f' : '') + '|' + CX + PK(P), CX * rows, (c) => {
+      for (let cv = 0; cv < rows; cv++) for (let cu = 0; cu < CX; cu++) store(c, cv * CX + cu, sampleCell((X, fy) => d.face(X, fy, hh, P), tx + cu / CX, cv / rows, 1 / CX, 1 / rows, 'line'));
+    });
     for (let cv = 0; cv < rows; cv++) for (let cu = 0; cu < CX; cu++) {
-      const X = tx + (cu + 0.5) / CX, fy = (cv + 0.5) / rows;
-      d.face(X, fy, facade ? 1.2 : d.h, P);
-      let nx = o.nx, ny = 1, nz = 0.12; const l = Math.hypot(nx, ny, nz);
+      const q = cv * CX + cu, fy = (cv + 0.5) / rows;
+      load(c, q);
+      let nx = c.nx[q], ny = 1, nz = 0.12; const l = Math.hypot(nx, ny, nz);
       const k = (j * CY + cv) * NU + i * CX + cu;
-      HF.put(k, o, i + (cu + 0.5) / CX, j + 0.02, d.h * (1 - fy), nx / l, ny / l, nz / l, 1 + blockId(key), memFlag);
+      HF.putG(k, o, i + (cu + 0.5) / CX, j + 0.02, d.h * (1 - fy), nx / l, ny / l, nz / l, 1 + blockId(key), memFlag | F.WALL, c.code[q]);
       b.ao[k] = Math.round(255 * (0.55 + 0.45 * (1 - fy * fy)));
     }
   };
@@ -484,7 +589,8 @@
   // КРЫШИ: скаты по-разному освещены солнцем, конёк, свесы
   // ============================================================
   const RF = HF.roofs;
-  RF.thatch = (rx, ry, X, Y, north, ridge, P) => { reset(); const s = vnoise(X * 14, Y * 3, 81); mixc(C('#7a5e2e'), C('#c8a45a'), s * 0.7 + (north ? 0 : 0.25)); o.cs = north ? CS.thatchN : CS.thatchS; o.t = hash2(Math.floor(X * 30), Math.floor(Y * 6), 82); if (ridge) { col(C('#d8b870'), 0.9); o.cs = CS.wood; o.t = 0.6; } };
+  // солома: ряды снопов (нижний край ряда — линия) и редкие соломины
+  RF.thatch = (rx, ry, X, Y, north, ridge, P) => { reset(); const s = vnoise(X * 14, Y * 3, 81); mixc(C('#7a5e2e'), C('#c8a45a'), s * 0.7 + (north ? 0 : 0.25)); o.cs = north ? CS.thatchN : CS.thatchS; o.t = hash2(Math.floor(X * 30), Math.floor(Y * 6), 82); const fr = frac(Y * 4.5 + vnoise(X * 3, Y, 83) * 0.3); o.ink = fr > 0.84 ? 0.85 : hash2(Math.floor(X * 22), Math.floor(Y * 9), 84) > 0.82 ? 0.45 : 0.03; if (fr > 0.84) col([o.r, o.g, o.b], 0.7); if (ridge) { col(C('#d8b870'), 0.9); o.cs = CS.wood; o.t = 0.6; o.ink = 0.9; } };
   RF.tiles = (rx, ry, X, Y, north, ridge, P) => { reset(); const row = Math.floor(Y * 4), off = (row % 2) * 0.5, f = frac(X * 3 + off), fyy = frac(Y * 4); mixc(C('#7a2a1e'), C('#c8584a'), hash2(Math.floor(X * 3 + off), row, 83) * 0.5 + (north ? 0.1 : 0.4)); o.cs = CS.rooftile; o.t = fyy > 0.8 ? 0.05 : 0.5; o.nx = (f - 0.5) * 0.8; if (ridge) { col(C('#e08a6a'), 1); o.t = 0.5; } };
   RF.slate = (rx, ry, X, Y, north, ridge, P) => { reset(); const row = Math.floor(Y * 5), off = (row % 2) * 0.5; mixc(C('#2e3a46'), C('#6a7a8a'), hash2(Math.floor(X * 2.5 + off), row, 84) * 0.6 + (north ? 0 : 0.3)); o.cs = CS.slate; o.t = frac(Y * 5) > 0.8 ? 0.9 : 0.2; o.sp = 0.25; if (ridge) { col(C('#9aaaba'), 1); } };
   RF.temple = (rx, ry, X, Y, north, ridge, P) => { reset(); mixc(C('#6a645a'), C('#b0a898'), vnoise(X * 6, Y * 6, 85) * 0.5 + (north ? 0.1 : 0.4)); o.cs = CS.stone; o.t = 0.5; if (ridge) { col(C('#f0d060'), 1); o.cs = CS.gold; o.sp = 0.9; o.em = 0.1; } };
@@ -494,19 +600,31 @@
     const r = sc.roofs[sc.rf[j * sc.W + i]];
     const fn = RF[r.style] || RF.thatch;
     const b = HF.buf(), NU = b.NU;
-    for (let cv = 0; cv < CY; cv++) for (let cu = 0; cu < CX; cu++) {
-      const lx = i + (cu + 0.5) / CX, ly = j + (cv + 0.5) / CY;
-      const rx = (lx - r.x) / r.w, ry = (ly - r.y) / r.h;
+    const rx0 = sc.tx0 + r.x, ry0 = sc.ty0 + r.y;
+    // доля ската: свой цвет, наклон, конёк, свесы, снег зимой
+    const at = (X, Y) => {
+      const rx = (X - rx0) / r.w, ry = (Y - ry0) / r.h;
       const north = ry < 0.5, ridge = Math.abs(ry - 0.5) < 0.5 / (r.h * CY) + 0.02;
-      const X = sc.tx0 + lx, Y = sc.ty0 + ly;
       fn(rx, ry, X, Y, north, ridge, P);
       if (P.season === 3 && P.cold && vnoise(X * 3, Y * 3, 87) > 0.35) { tint(C('#eef2f6'), 0.75); o.cs = CS.snow; }
-      let nx = o.nx, ny = ridge ? 0 : north ? -0.62 : 0.62, nz = 0.8;
+      let nx = o.nx;
       const eave = rx < 0.03 || rx > 0.97;
-      if (eave) { nx += rx < 0.5 ? -0.5 : 0.5; col([o.r, o.g, o.b], 0.7); }
-      if (ry > 0.97) col([o.r, o.g, o.b], 0.65);
+      if (eave) { nx += rx < 0.5 ? -0.5 : 0.5; col([o.r, o.g, o.b], 0.7); o.ink = 0.85; }
+      if (ry > 0.97) { col([o.r, o.g, o.b], 0.65); o.ink = 0.9; }
+      if (ridge) o.ink = 0.9;
+      o.nx = nx; o.ny = ridge ? 0 : north ? -0.62 : 0.62;
+    };
+    const tx = sc.tx0 + i, ty = sc.ty0 + j;
+    const c = cells('R' + tx + ',' + ty + r.style + rx0 + ',' + ry0 + ',' + r.w + ',' + r.h + '|' + CX + PK(P), CX * CY, (c) => {
+      for (let cv = 0; cv < CY; cv++) for (let cu = 0; cu < CX; cu++) store(c, cv * CX + cu, sampleCell(at, tx + cu / CX, ty + cv / CY, 1 / CX, 1 / CY, 'line'));
+    });
+    for (let cv = 0; cv < CY; cv++) for (let cu = 0; cu < CX; cu++) {
+      const q = cv * CX + cu;
+      const lx = i + (cu + 0.5) / CX, ly = j + (cv + 0.5) / CY, ry = (ly - r.y) / r.h;
+      load(c, q);
+      let nx = c.nx[q], ny = c.ny[q], nz = 0.8;
       const l = Math.hypot(nx, ny, nz);
-      HF.put((j * CY + cv) * NU + i * CX + cu, o, lx, ly, 1 + 0.6 * (1 - Math.abs(ry - 0.5) * 2), nx / l, ny / l, nz / l, 3, memFlag);
+      HF.putG((j * CY + cv) * NU + i * CX + cu, o, lx, ly, 1 + 0.6 * (1 - Math.abs(ry - 0.5) * 2), nx / l, ny / l, nz / l, 3, memFlag | F.WALL, c.code[q]);
     }
   };
 })(window.EOF);
