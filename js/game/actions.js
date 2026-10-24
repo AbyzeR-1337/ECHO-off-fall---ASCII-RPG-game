@@ -10,6 +10,14 @@
   Gm.swim = () => Gm.fxFlag('gills');
 
   // ---------- движение ----------
+  // может ли существо встать на клетку (место игрока при обмене местами)
+  Gm.canStand = function (e, x, y) {
+    const m = G.map, t = TL[m.tiles[y * m.w + x]], tags = e.tags || [];
+    if (!t.walk) return t.water === 2 && (tags.includes('water') || !!e.ghost);
+    if (t.fall && !e.ghost && !tags.includes('spirit')) return false;
+    if (t.lava && !tags.includes('fire')) return false;
+    return true;
+  };
   Gm.move = function (dx, dy) {
     const P = G.P, m = G.map;
     if (P.dead || P.ended) return;
@@ -19,14 +27,22 @@
     if (nx < 0 || ny < 0 || nx >= m.w || ny >= m.h) { Gm.edge(dx, dy); return; }
     const e = Gm.entAt(nx, ny);
     if (e) {
-      if (e.kind === 'ally') { Ent.move(e, P.x, P.y); P.x = nx; P.y = ny; Gm.endTurn(1); return; }
-      // шаг ни с кем не заговаривает и мирных не бьёт: разговор — действием, удар по мирному — атакой (F)
-      if (e.kind === 'npc' && !e.hostile && !e.duel) { Gm.msg('Дорогу загораживает: ' + E.Dlg.label(e).toLowerCase() + '.', '#9a9aa8'); return; }
-      if (e.kind === 'mon' && e.ai === 'passive' && !e.hostileToP) { Gm.msg('На пути — ' + e.n.toLowerCase() + '.', '#9a9aa8'); return; }
-      E.Combat.playerAttack(e);
-      P.stillTurns = 0;
-      Gm.endTurn(1);
-      return;
+      // шаг ни с кем не заговаривает и мирных не бьёт: разговор — действием, удар по мирному — атакой (F).
+      // Союзник, мирный житель и смирный зверь уступают дорогу — вы меняетесь местами.
+      const meek = e.kind === 'ally' || (e.kind === 'npc' && !e.hostile && !e.duel) || (e.kind === 'mon' && e.ai === 'passive' && !e.hostileToP);
+      if (!meek) {
+        E.Combat.playerAttack(e);
+        P.stillTurns = 0;
+        Gm.endTurn(1);
+        return;
+      }
+      const t0 = TL[m.tiles[ny * m.w + nx]], f0 = m.feat[ny * m.w + nx];
+      if (!Gm.canStand(e, P.x, P.y) || !t0.walk || t0.lava || t0.fall || (f0 && f0.k === 'locked')) {
+        Gm.msg(e.kind === 'npc' ? 'Дорогу загораживает: ' + E.Dlg.label(e).toLowerCase() + '.' : 'На пути — ' + e.n.toLowerCase() + '.', '#9a9aa8');
+        return;
+      }
+      // дальше — обычный шаг на освободившуюся клетку
+      Ent.move(e, P.x, P.y);
     }
     const ti = ny * m.w + nx;
     const t = TL[m.tiles[ti]];
