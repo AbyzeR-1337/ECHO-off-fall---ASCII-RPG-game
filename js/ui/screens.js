@@ -646,24 +646,23 @@
         const W = Math.min(L.mw - 2, 66), H = 8;
         const x0 = L.mx + Math.floor((L.mw - W) / 2), y0 = L.my + L.mh - H - 1;
         t.box(x0, y0, W, H, COL.border, COL.panel, 'Графика');
-        const left = 'ASCII', right = 'почти реальность';
-        const tw = Math.max(18, W - left.length - right.length - 8), step = Math.floor(tw / 5);
+        const left = 'ASCII', right = 'пиксели 3D';
+        const tw = Math.max(18, W - left.length - right.length - 8), step = Math.floor(tw / 6);
         const tx = x0 + 3 + left.length + 1;
         t.text(x0 + 2, y0 + 2, left, COL.dim, COL.panel);
-        for (let i = 0; i <= 5 * step; i++) t.put(tx + i, y0 + 2, i % step === 0 ? (i / step === lv ? '●' : '○') : '─', i <= lv * step ? COL.accent : COL.faint, COL.panel);
-        t.text(tx + 5 * step + 2, y0 + 2, right, COL.dim, COL.panel);
-        for (let k = 0; k <= 5; k++) {
+        for (let i = 0; i <= 6 * step; i++) t.put(tx + i, y0 + 2, i % step === 0 ? (i / step === lv ? '●' : '○') : '─', i <= lv * step ? COL.accent : COL.faint, COL.panel);
+        t.text(tx + 6 * step + 2, y0 + 2, right, COL.dim, COL.panel);
+        for (let k = 0; k <= 6; k++) {
           t.put(tx + k * step, y0 + 3, String(k), k === lv ? COL.selfg : COL.dim, COL.panel);
           t.hot(tx + k * step - 1, y0 + 2, 3, 2, () => { UI.setGfx(k, true); });
         }
         t.text(x0 + 2, y0 + 4, lv + ' · ' + UI.GFX[lv][0], COL.title, COL.panel, W - 4);
         UI.wrapText(t, x0 + 2, y0 + 5, W - 4, UI.GFX[lv][1], COL.text, 1);
-        t.text(x0 + 2, y0 + H - 2, '←/→ или 0–5 — менять · Enter — готово', COL.dim, COL.panel, W - 4);
+        t.text(x0 + 2, y0 + H - 2, '←/→ или 0–6 — менять · Enter — готово', COL.dim, COL.panel, W - 4);
       },
       key(c) {
-        const d = UI.dirOf(c);
-        if (d && d[0]) { UI.setGfx((UI.gfxLevel || 0) + d[0], true); return; }
-        if (c.n != null && c.n >= 0 && c.n <= 5) { UI.setGfx(c.n, true); return; }
+        if (c.k === 'left' || c.k === 'right') { UI.setGfx((UI.gfxLevel || 0) + (c.k === 'right' ? 1 : -1), true); return; }
+        if (c.n != null && c.n >= 0 && c.n <= 6) { UI.setGfx(c.n, true); return; }
         if (c.k === 'gup' || c.k === 'gdown') { UI.setGfx((UI.gfxLevel || 0) + (c.k === 'gup' ? 1 : -1), true); return; }
         if (c.k === 'esc' || c.k === 'enter' || c.k === 'view' || c.k === 'act') { UI.pop(); E.Gm.msg('Графика: ' + UI.GFX[UI.gfxLevel || 0][0] + '.', '#808090'); }
       },

@@ -236,6 +236,17 @@
   Gm.playerHour = function () {
     hour0.apply(this, arguments);
     if (G.P && !G.P.dead && !G.P.ended) needsHour();
+    // в дороге с караваном или знакомыми тропами: вода из бочонка, привалы у ручьёв и кустов
+    const P = G.P;
+    if (P && P._trip && !P.dead) {
+      if (P.thirst > 35) { P.thirst = 30; Gm.rmFx('thirsty'); Gm.rmFx('parched'); }
+      if (P.need > 50) { P.need = 10; Gm.rmFx('bursting'); }
+    }
+  };
+  const travel0 = E.Dlg && E.Dlg.travel;
+  if (travel0) E.Dlg.travel = function () {
+    G.P._trip = true;
+    try { return travel0.apply(this, arguments); } finally { if (G.P) delete G.P._trip; }
   };
 })(window.EOF);
 

@@ -133,18 +133,23 @@
     ['Объём', 'Каждая вещь — объёмная фигура, нарисованная символами по форме: контур — «/ ( d», свет — «# %», тень — «: .». Видно дальше всего.'],
     ['Детально', 'Камера ближе: люди, звери, деревья, дома — подробные рисунки из символов; облака, мягкие тени, огни.'],
     ['Почти реальность', 'Камера совсем близко: каждая фигура — как ASCII-картина. Тяжелее для слабых устройств; «−» отодвигает камеру.'],
+    ['Пиксели 3D', 'Мир от первого лица в пикселях, как в старых RPG: небо, даль в тумане, дома с крышами, люди и звери. ↑↓ — шаг, ←→ — поворот, мышь или палец по карте — оглядеться.'],
   ];
   UI.gfxLevel = (() => {
     try {
       const v = localStorage.getItem('eotf_gfx');
-      if (v != null && /^[0-5]$/.test(v)) return +v;
+      if (v != null && /^[0-6]$/.test(v)) return +v;
       if (localStorage.getItem('eotf_view') === 'flat') return 0;
     } catch (e) { /* без хранилища — выберем по экрану */ }
     return null;
   })();
   Object.defineProperty(UI, 'view3d', { get: () => UI.gfxLevel > 0 });
+  // без WebGL пиксельного 3D нет — лучший из остальных уровней
+  const has3D = () => !!(E.Gfx && E.Gfx.P3 && E.Gfx.P3.supported());
   UI.setGfx = function (lv, quiet) {
-    UI.gfxLevel = U.clamp(lv, 0, 5);
+    UI.gfxLevel = U.clamp(lv, 0, 6);
+    if (UI.gfxLevel === 6 && !has3D()) { UI.gfxLevel = 5; if (!quiet && E.G.P) E.Gm.msg('Пиксельное 3D недоступно: браузер не даёт WebGL.', '#a08080'); }
+    if (UI.syncPad) UI.syncPad();
     try { localStorage.setItem('eotf_gfx', String(UI.gfxLevel)); } catch (e) { /* только на эту сессию */ }
     if (!quiet && E.G.P) E.Gm.msg('Графика: ' + UI.GFX[UI.gfxLevel][0] + '.', '#808090');
     UI.render();
@@ -155,9 +160,12 @@
     if (!m) return;
     const clip = { x: L.mx * t.cw, y: L.my * t.ch, w: L.mw * t.cw, h: L.mh * t.ch };
     let rect;
-    if (UI.gfxLevel == null) UI.gfxLevel = 4;
+    if (UI.gfxLevel == null) UI.gfxLevel = 6;
+    if (UI.gfxLevel === 6 && !has3D()) UI.gfxLevel = 5;
     if (UI.gfxLevel > 0) UI._lastGfx = UI.gfxLevel;
-    if (UI.view3d) { UI.drawMapGfx(t, L); rect = UI.mvRect; }
+    const fp = UI.is3D && UI.is3D();
+    if (fp) { UI.drawMap3D(t, L); rect = UI.mvRect3; }
+    else if (UI.view3d) { UI.drawMapGfx(t, L); rect = UI.mvRect; }
     else {
       UI.drawMapFlat(t, L);
       const [cx, cy] = UI.cam;
@@ -167,10 +175,11 @@
     const hints = UI.top() && UI.top().name === 'game' ? E.Gm.useHints() : [];
     UI.syncAct(hints.some((o) => o.main));
     if (hints.length) {
-      const list = hints.map((o) => ({ x: o.x, y: o.y, main: o.main, dy: o.y - P.y, self: o.x === P.x && o.y === P.y, tall: UI.view3d && UI.tallAt(o.x, o.y) }));
+      const list = hints.map((o) => ({ x: o.x, y: o.y, main: o.main, dy: fp ? 0 : o.y - P.y, self: !fp && o.x === P.x && o.y === P.y, tall: !fp && UI.view3d && UI.tallAt(o.x, o.y) }));
       t.over = (ctx, tt) => UI.drawBadges(ctx, tt, list, rect, clip);
     }
     t.hot(L.mx, L.my, L.mw, L.mh, (h, cx2, cy2, btn, px, py) => {
+      if (fp && px != null) { const p = UI.mvTileAt3(px, py); if (p) UI.mapClick(p[0], p[1], btn); return; }
       if (UI.view3d && px != null) { const p = UI.mvTileAt(px, py); if (p) UI.mapClick(p[0], p[1], btn); return; }
       const [cx, cy] = UI.cam;
       UI.mapClick(cx2 - L.mx + cx, cy2 - L.my + cy, btn);
@@ -446,6 +455,12 @@
     key(c) {
       const P = G.P;
       if (!P || P.dead || P.ended) return;
+      // от первого лица: ←→ — повернуться, A/D — шаг вбок, ↑↓ — вперёд и назад
+      if (UI.is3D && UI.is3D()) {
+        const V3 = UI.V3;
+        if ((c.k === 'left' || c.k === 'right') && c.code !== 'KeyA' && c.code !== 'KeyD') { V3.turn(c.k === 'left' ? -1 : 1); return; }
+        if (c.k === 'tl' || c.k === 'tr') { V3.turn(c.k === 'tl' ? -1 : 1); return; }
+      }
       const dir = UI.dirOf(c);
       if (dir) { if (dir[0] === 0 && dir[1] === 0) { E.Gm.wait(); return; } E.Gm.move(dir[0], dir[1]); return; }
       switch (c.k) {
@@ -476,8 +491,22 @@
     },
   };
   UI.dirOf = function (c) {
+    // от первого лица направления — относительно взгляда
+    if (UI.is3D && UI.is3D() && UI.V3) {
+      const rel = { up: 0, ur: 1, right: 2, dr: 3, down: 4, dl: -3, left: -2, ul: -1, pgup: 1, pgdn: 3, end: -3, home: -1 };
+      if (c.k === 'wait') return [0, 0];
+      if (rel[c.k] != null) return UI.V3.dirRel(rel[c.k]);
+      return null;
+    }
     const m = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0], ul: [-1, -1], ur: [1, -1], dl: [-1, 1], dr: [1, 1], wait: [0, 0], home: [-1, -1], pgup: [1, -1], end: [-1, 1], pgdn: [1, 1] };
     return m[c.k] || null;
+  };
+  // сенсорная крестовина: от первого лица ← → — повороты
+  UI.syncPad = function () {
+    const fp = UI.is3D && UI.is3D();
+    const l = document.querySelector('#touch [data-k="left"]'), r = document.querySelector('#touch [data-k="right"]');
+    if (l) l.textContent = fp ? '⟲' : '←';
+    if (r) r.textContent = fp ? '⟳' : '→';
   };
   E.Gm.wait = function () {
     const P = G.P;

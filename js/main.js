@@ -9,13 +9,13 @@
     Numpad8: 'up', Numpad2: 'down', Numpad4: 'left', Numpad6: 'right', Numpad7: 'ul', Numpad9: 'ur', Numpad1: 'dl', Numpad3: 'dr', Numpad5: 'wait',
     Home: 'home', End: 'end', PageUp: 'pgup', PageDown: 'pgdn',
     KeyE: 'act', Space: 'act', KeyG: 'act', Enter: 'enter', NumpadEnter: 'enter', Escape: 'esc', Tab: 'tab',
-    KeyI: 'inv', KeyC: 'char', KeyP: 'pray', KeyK: 'skills', KeyM: 'map', KeyJ: 'mem', KeyR: 'rest', KeyF: 'fire', KeyL: 'look', KeyX: 'look', KeyH: 'log', KeyV: 'view', KeyB: 'body', KeyO: 'outfit', KeyT: 'stats',
+    KeyQ: 'tl', KeyI: 'inv', KeyC: 'char', KeyP: 'pray', KeyK: 'skills', KeyM: 'map', KeyJ: 'mem', KeyR: 'rest', KeyF: 'fire', KeyL: 'look', KeyX: 'look', KeyH: 'log', KeyV: 'view', KeyB: 'body', KeyO: 'outfit', KeyT: 'stats',
     Equal: 'zin', NumpadAdd: 'zin', Minus: 'zout', NumpadSubtract: 'zout', BracketLeft: 'gdown', BracketRight: 'gup',
     Period: 'wait', KeyZ: 'wait', NumpadDecimal: 'wait', F1: 'help', Slash: 'help',
   };
   let term;
   function cmdFromEvent(ev) {
-    const c = { raw: ev.key };
+    const c = { raw: ev.key, code: ev.code };
     let k = CODE[ev.code];
     if (ev.code && ev.code.startsWith('Digit') && !ev.shiftKey) { c.n = +ev.code.slice(5); }
     else if (ev.code && ev.code.startsWith('Numpad') && /\d$/.test(ev.code) && !k) c.n = +ev.code.slice(6);
@@ -64,14 +64,31 @@
     // мышь и касания
     const pos = (ev) => { const r = cv.getBoundingClientRect(); return term.cellAt(ev.clientX - r.left, ev.clientY - r.top); };
     cv.addEventListener('contextmenu', (ev) => ev.preventDefault());
+    // от первого лица: потянуть по карте — оглядеться; короткое касание — клик
+    let pend = null;
     cv.addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
       const [cx, cy] = pos(ev);
       const h = term.hit(cx, cy);
       const r = cv.getBoundingClientRect();
+      const top = UI.top();
+      if (h && UI.is3D && UI.is3D() && top && top.name === 'game' && UI.mv3 && ev.clientX - r.left >= UI.mv3.vx0 && ev.clientX - r.left < UI.mv3.vx0 + UI.mv3.vw && ev.clientY - r.top >= UI.mv3.vy0 && ev.clientY - r.top < UI.mv3.vy0 + UI.mv3.vh) {
+        pend = { h, cx, cy, b: ev.button, x: ev.clientX - r.left, y: ev.clientY - r.top };
+        UI.V3.dragStart(ev.clientX);
+        try { cv.setPointerCapture(ev.pointerId); } catch (e) { /* */ }
+        return;
+      }
       if (h) { h.fn(h, cx, cy, ev.button, ev.clientX - r.left, ev.clientY - r.top); UI.render(); }
       else if (UI.top() && UI.top().name === 'popup') { UI.pop(); }
     });
+    cv.addEventListener('pointermove', (ev) => { if (pend && UI.V3) UI.V3.dragMove(ev.clientX); });
+    const release = () => {
+      if (!pend) return;
+      const p = pend; pend = null;
+      if (!UI.V3.dragEnd()) { p.h.fn(p.h, p.cx, p.cy, p.b, p.x, p.y); UI.render(); }
+    };
+    cv.addEventListener('pointerup', release);
+    cv.addEventListener('pointercancel', () => { pend = null; if (UI.V3) UI.V3.dragEnd(); });
     // мышь над экраном — подсказки к вещам и эффектам
     cv.addEventListener('pointermove', (ev) => {
       if (ev.pointerType && ev.pointerType !== 'mouse') return;

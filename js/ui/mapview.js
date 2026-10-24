@@ -380,6 +380,7 @@
     const bw = Math.round(cw * 3.2), bh = Math.round(fpx * 1.3);
     for (const o of list) {
       const r = rect(o.x, o.y);
+      if (!r) continue;
       const lift = o.self ? r.h * 0.55 : o.tall ? r.h * 0.6 : 0;
       const x = Math.round(r.x + r.w / 2 - bw / 2);
       const y = o.dy === 1 && !o.self ? Math.round(r.y + r.h + 1) : Math.round(r.y - bh - 1 - lift);
@@ -393,6 +394,8 @@
     ctx.globalAlpha = 1;
     ctx.restore();
   };
+  // для мира от первого лица (js/ui/view3d.js)
+  UI.mvTiles = { GK, BK, OK, FIX, LOW, roofsOf, roofIntact, entArt, itemArt, track, curPos, HLIGHT, ALWAYS, CLS, DIM_AMB };
   UI.tallAt = (x, y) => { const m = G.map, tid = m.tiles[y * m.w + x]; const k = BK[tid] || OK[tid]; if (!k) return false; if (BK[tid]) return true; if (UI.gfxLevel >= 3) return (OBJH[k] || 0.4) > 0.8; const sz = Gfx.size(k); return sz && sz.h > 2; };
   // кнопка «Действие» на сенсорной панели загорается, когда есть очевидное дело
   let actBtn, actOn = null;
