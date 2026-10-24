@@ -13,6 +13,13 @@
     Equal: 'zin', NumpadAdd: 'zin', Minus: 'zout', NumpadSubtract: 'zout', BracketLeft: 'gdown', BracketRight: 'gup',
     Period: 'wait', KeyZ: 'wait', NumpadDecimal: 'wait', F1: 'help', Slash: 'help',
   };
+  // в живом мире направления держат, а не нажимают: пока держишь — идёшь
+  const HOLD = {
+    ArrowUp: 'fwd', KeyW: 'fwd', Numpad8: 'fwd', ArrowDown: 'back', KeyS: 'back', Numpad2: 'back',
+    ArrowLeft: 'turnL', Numpad4: 'turnL', KeyQ: 'turnL', ArrowRight: 'turnR', Numpad6: 'turnR', KeyA: 'strL', KeyD: 'strR',
+    Numpad7: 'ul', Home: 'ul', Numpad9: 'ur', PageUp: 'ur', Numpad1: 'dl', End: 'dl', Numpad3: 'dr', PageDown: 'dr',
+  };
+  const liveGame = () => { const RT = E.RT, top = UI.top(); return RT && RT.on && top && top.name === 'game' && G.P && !G.P.dead && !G.P.ended; };
   let term;
   function cmdFromEvent(ev) {
     const c = { raw: ev.key, code: ev.code };
@@ -31,6 +38,13 @@
       if (ev.key === 'Enter') { ev.preventDefault(); inp.blur(); UI.key({ k: 'down' }); }
       else if (ev.key === 'Escape') { inp.blur(); }
       return;
+    }
+    if (liveGame()) {
+      const RT = E.RT, hk = HOLD[ev.code];
+      if (hk) { ev.preventDefault(); if (!ev.repeat) { RT.held.add(hk); RT.path = null; UI.auto = null; } return; }
+      if (ev.key === 'Shift') { RT.run = true; return; }
+      if (ev.code === 'KeyF' && UI.is3D && UI.is3D()) { ev.preventDefault(); RT.attack(); return; }
+      if (ev.repeat && ['KeyE', 'Space', 'KeyG'].includes(ev.code)) { ev.preventDefault(); return; }
     }
     const c = cmdFromEvent(ev);
     if (!c.k && !c.n && !(top && top.name === 'create')) return;
@@ -61,6 +75,17 @@
     layout();
     window.addEventListener('resize', layout);
     window.addEventListener('keydown', onKey);
+    window.addEventListener('keyup', (ev) => { const RT = E.RT; if (!RT) return; const hk = HOLD[ev.code]; if (hk) RT.held.delete(hk); if (ev.key === 'Shift') RT.run = false; });
+    window.addEventListener('blur', () => { const RT = E.RT; if (RT) { RT.held.clear(); RT.run = false; } });
+    // мышь от первого лица: щелчок по картинке «берёт» мышь — дальше она поворачивает голову
+    const SENS = 0.0026;
+    document.addEventListener('mousemove', (ev) => {
+      if (document.pointerLockElement !== cv || !UI.V3) return;
+      const V3 = UI.V3;
+      V3.yaw += ev.movementX * SENS; V3.yawT = V3.yaw;
+      V3.pitch = U.clamp((V3.pitch || 0) - ev.movementY * SENS, -0.62, 0.5);
+    });
+    document.addEventListener('pointerlockchange', () => { UI.locked = document.pointerLockElement === cv; UI.render(); });
     // мышь и касания
     const pos = (ev) => { const r = cv.getBoundingClientRect(); return term.cellAt(ev.clientX - r.left, ev.clientY - r.top); };
     cv.addEventListener('contextmenu', (ev) => ev.preventDefault());
@@ -68,20 +93,29 @@
     let pend = null;
     cv.addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
+      // мышь уже «взята»: левая кнопка — удар, правая — действие
+      if (document.pointerLockElement === cv) {
+        if (liveGame()) { if (ev.button === 2) E.Gm.interact(); else E.RT.attack(); UI.render(); }
+        return;
+      }
+      if (liveGame() && UI.is3D && UI.is3D() && ev.pointerType === 'mouse' && ev.button === 0 && UI.mv3 && cv.requestPointerLock) {
+        const r0 = cv.getBoundingClientRect(), x = ev.clientX - r0.left, y = ev.clientY - r0.top, v = UI.mv3;
+        if (x >= v.vx0 && x < v.vx0 + v.vw && y >= v.vy0 && y < v.vy0 + v.vh) { try { const p = cv.requestPointerLock(); if (p && p.catch) p.catch(() => 0); } catch (e) { /* без захвата — тянуть мышью */ } return; }
+      }
       const [cx, cy] = pos(ev);
       const h = term.hit(cx, cy);
       const r = cv.getBoundingClientRect();
       const top = UI.top();
       if (h && UI.is3D && UI.is3D() && top && top.name === 'game' && UI.mv3 && ev.clientX - r.left >= UI.mv3.vx0 && ev.clientX - r.left < UI.mv3.vx0 + UI.mv3.vw && ev.clientY - r.top >= UI.mv3.vy0 && ev.clientY - r.top < UI.mv3.vy0 + UI.mv3.vh) {
         pend = { h, cx, cy, b: ev.button, x: ev.clientX - r.left, y: ev.clientY - r.top };
-        UI.V3.dragStart(ev.clientX);
+        UI.V3.dragStart(ev.clientX, ev.clientY);
         try { cv.setPointerCapture(ev.pointerId); } catch (e) { /* */ }
         return;
       }
       if (h) { h.fn(h, cx, cy, ev.button, ev.clientX - r.left, ev.clientY - r.top); UI.render(); }
       else if (UI.top() && UI.top().name === 'popup') { UI.pop(); }
     });
-    cv.addEventListener('pointermove', (ev) => { if (pend && UI.V3) UI.V3.dragMove(ev.clientX); });
+    cv.addEventListener('pointermove', (ev) => { if (pend && UI.V3) UI.V3.dragMove(ev.clientX, ev.clientY); });
     const release = () => {
       if (!pend) return;
       const p = pend; pend = null;
@@ -110,18 +144,33 @@
       b.addEventListener('pointerdown', (ev) => {
         ev.preventDefault();
         const k = b.dataset.k;
+        // живой мир: кнопки направлений держат
+        const TH = { up: 'fwd', down: 'back', left: 'turnL', right: 'turnR', ul: 'strL', ur: 'strR', dl: 'dl', dr: 'dr' };
+        if (liveGame() && TH[k]) { E.RT.held.add(TH[k]); E.RT.path = null; b._held = TH[k]; return; }
         const c = /^\d$/.test(k) ? { n: +k } : { k };
         UI.key(c);
         if (['up', 'down', 'left', 'right', 'ul', 'ur', 'dl', 'dr', 'wait'].includes(k)) { stop(); let n = 0; rep = setInterval(() => { if (++n > 2) UI.key(c); }, 140); }
       });
-      b.addEventListener('pointerup', stop);
-      b.addEventListener('pointerleave', stop);
-      b.addEventListener('pointercancel', stop);
+      const up = () => { stop(); if (b._held && E.RT) { E.RT.held.delete(b._held); b._held = null; } };
+      b.addEventListener('pointerup', up);
+      b.addEventListener('pointerleave', up);
+      b.addEventListener('pointercancel', up);
     }
+    // живой мир: каждый кадр — ход часов, шаги и картинка
+    const loop = (now) => {
+      requestAnimationFrame(loop);
+      const RT = E.RT;
+      if (!RT) return;
+      const live = RT.frame(now);
+      if (!live) { if (RT.held.size && !liveGame()) RT.held.clear(); if (document.pointerLockElement === cv && !liveGame()) document.exitPointerLock(); return; }
+      UI.render();
+    };
+    requestAnimationFrame(loop);
     // анимация: пепел на заставке, огонь, дождь
     setInterval(() => {
       const top = UI.top();
       if (!top) return;
+      if (E.RT && E.RT.active()) return;
       if (top.anim) { UI.render(); return; }
       const now = performance.now();
       if (G.map && G.P && UI.stack.some((s) => s.name === 'game')) {

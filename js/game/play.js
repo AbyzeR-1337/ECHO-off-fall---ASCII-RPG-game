@@ -385,7 +385,10 @@
     G.turn++;
     P.turn++;
     const prevKey = m.key;
-    E.Sim.advance(C.TURN, () => { Gm.playerHour(); return !P.dead && !P.ended && G.map.key === prevKey; });
+    // в реальном времени ход мира короче: игровые минуты копятся дробно (js/game/realtime.js)
+    let adv = C.TURN, k = 1;
+    if (E.RT && E.RT.ticking) { G.minAcc = (G.minAcc || 0) + E.RT.MIN; adv = Math.floor(G.minAcc); G.minAcc -= adv; k = E.RT.MIN / C.TURN; }
+    if (adv > 0) E.Sim.advance(adv, () => { Gm.playerHour(); return !P.dead && !P.ended && G.map.key === prevKey; });
     if (P.dead || P.ended || G.map.key !== prevKey) { G.mapChanged = true; return; }
     // перезарядки
     for (const k in P.cd) if (P.cd[k] > 0) P.cd[k]--;
@@ -394,7 +397,12 @@
     for (let i = P.fx.length - 1; i >= 0; i--) {
       const f = P.fx[i];
       const d = D.effects[f.id];
-      if (d && d.dot) { Gm.hurtPlayer(d.dot + Math.floor(P.mhp * 0.01), f.id === 'poison' ? 'poison' : f.id === 'bleed' ? 'bleed' : 'fire'); if (P.dead) return; }
+      if (d && d.dot) {
+        // урон от яда и огня — за игровое время, а не за число ходов
+        P.dotAcc = (P.dotAcc || 0) + (d.dot + Math.floor(P.mhp * 0.01)) * k;
+        const dmg = Math.floor(P.dotAcc);
+        if (dmg > 0) { P.dotAcc -= dmg; Gm.hurtPlayer(dmg, f.id === 'poison' ? 'poison' : f.id === 'bleed' ? 'bleed' : 'fire'); if (P.dead) return; }
+      }
       if (f.until <= G.S.time) { P.fx.splice(i, 1); if (d && (d.kind === 'bless' || d.kind === 'curse')) Gm.msg('Отпускает: ' + d.n + '.', '#909090'); }
     }
     // регенерация
@@ -407,9 +415,9 @@
     }
     P.mpAcc = (P.mpAcc || 0) + P.mmp / 300;
     if (P.mpAcc >= 1) { const k = Math.floor(P.mpAcc); P.mp = Math.min(P.mmp, P.mp + k); P.mpAcc -= k; }
-    if (P.light > 0) { P.light -= C.TURN; if (P.light <= 0) { P.light = 0; Gm.msg('Факел догорел.', '#a08060'); } }
+    if (P.light > 0) { P.light -= C.TURN * k; if (P.light <= 0) { P.light = 0; Gm.msg('Факел догорел.', '#a08060'); } }
     // под водой без жабр
-    if (m.underwater && !Gm.fxFlag('gills')) { Gm.hurtPlayer(Math.max(1, Math.round(P.mhp * 0.04)), 'drown'); if (P.dead) return; if (G.turn % 5 === 0) Gm.msg('Нечем дышать!', '#80a0ff'); }
+    if (m.underwater && !Gm.fxFlag('gills') && (k >= 1 || G.turn % Math.round(1 / k) === 0)) { Gm.hurtPlayer(Math.max(1, Math.round(P.mhp * 0.04)), 'drown'); if (P.dead) return; if (G.turn % 5 === 0) Gm.msg('Нечем дышать!', '#80a0ff'); }
     if (m.underwater) Gm.cnt('under_turns');
     if (m.dimName === 'void') { Gm.cnt('void_turns'); Gm.gain('void'); }
     if (m.kind === 'dun' && m.dtype === 'abyss') Gm.gain('abyss');
@@ -427,7 +435,7 @@
       }
     }
     // блуждающие существа приходят
-    if (G.turn % 60 === 0 && m.sett < 0 && Math.random() < (Gm.night() ? 0.5 : 0.25) && m.ents.filter((e) => e.kind === 'mon').length < 14) {
+    if (G.turn % Math.round(60 / k) === 0 && m.sett < 0 && Math.random() < (Gm.night() ? 0.5 : 0.25) && m.ents.filter((e) => e.kind === 'mon').length < 14) {
       const tbl = monTable(m, Gm.monFlags(m));
       if (tbl.length) { const r = U.rng(G.turn, m.key); placeMon(m, r.weighted(tbl), (m.spawn ? m.spawn.danger : 1) + (Gm.night() ? 1 : 0)); }
     }

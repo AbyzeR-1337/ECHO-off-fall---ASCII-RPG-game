@@ -128,7 +128,11 @@
   const DUR = 110;
   const tw = new Map();
   let twKey = null;
-  const curPos = (s, now) => { const k = s.t0 ? Math.min(1, (now - s.t0) / DUR) : 1; return [s.fx + (s.x - s.fx) * k, s.fy + (s.y - s.fy) * k, k < 1]; };
+  // в живом мире существа шагают раз в ход мира — скользят весь ход, а не прыгают
+  const durOf = (id) => { const RT = E.RT; if (!RT || !RT.on) return DUR; return id === 'P' ? 900 / RT.speed() : RT.TICK * 1000 * 0.95; };
+  const curPos = (s, now) => { const k = s.t0 ? Math.min(1, (now - s.t0) / (s.dur || DUR)) : 1; return [s.fx + (s.x - s.fx) * k, s.fy + (s.y - s.fy) * k, k < 1]; };
+  // где существо сейчас на экране (между клетками, пока идёт)
+  UI.trackPos = (e) => { const s = tw.get(e.id); if (!s) return [e.x, e.y]; const p = curPos(s, performance.now()); return [p[0], p[1]]; };
   function track(id, x, y, now) {
     let s = tw.get(id);
     if (!s) { s = { x, y, fx: x, fy: y, t0: 0, flip: false, step: 0, seen: now }; tw.set(id, s); }
@@ -136,7 +140,7 @@
     if (s.x !== x || s.y !== y) {
       const [cx, cy] = curPos(s, now);
       if (Math.abs(x - cx) > 1.6 || Math.abs(y - cy) > 1.6) { s.fx = x; s.fy = y; s.t0 = 0; }
-      else { s.fx = cx; s.fy = cy; s.t0 = now; UI.animUntil = Math.max(UI.animUntil || 0, now + DUR + 20); }
+      else { s.fx = cx; s.fy = cy; s.t0 = now; s.dur = durOf(id); UI.animUntil = Math.max(UI.animUntil || 0, now + s.dur + 20); }
       if (x < s.x) s.flip = true; else if (x > s.x) s.flip = false;
       s.x = x; s.y = y; s.step++;
     }

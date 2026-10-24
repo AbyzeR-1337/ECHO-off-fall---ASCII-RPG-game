@@ -236,6 +236,7 @@
         lines.push((P.level >= 999 ? 'Уровень: —' : 'Уровень ' + P.level + '  (опыт ' + P.xp + ' / ' + Gm.need(P.level) + ')') + '   Возраст: ' + Gm.age() + '   Путь: ' + UI.clsLabel());
         if (P.cls) { const c = D.classes[P.cls]; const pts = Math.floor(P.prog[P.cls] || 0); const r = D.rankOf(pts); lines.push('«' + c.d + '»  ' + c.res + ': ' + pts + ' / ' + D.rankPts(r + 1)); }
         lines.push('Здоровье ' + Math.ceil(P.hp) + '/' + P.mhp + '   Дух ' + Math.floor(P.mp) + '/' + P.mmp + '   Защита ' + st.def + '   Уклонение ' + st.dodge + '   Крит ' + st.crit + '%');
+        if (Gm.tasteLine) lines.push(Gm.handLine(P) + '. ' + Gm.tasteLine(P));
         const fx = P.fx.map((f) => D.effects[f.id]).filter(Boolean);
         if (fx.length) lines.push('На тебе: ' + fx.map((d) => d.n).join(', ') + '  (подробнее — ниже)');
         lines.push('Свободных очков: ' + P.pts + (P.talentPts ? '   Очков древ: ' + P.talentPts : ''));
@@ -460,10 +461,13 @@
           const g = G.W.regions[y * C.WS + x];
           const known = P.known.regions[g.id];
           const isCur = cur[0] === x && cur[1] === y;
-          if (!known && !isCur) { t.put(sx, sy, ' ', COL.faint); continue; }
+          // виденное издалека — бледно: силуэты гор и замков на горизонте
+          const seen = !known && P.known.seen && P.known.seen[g.id];
+          if (!known && !isCur && !seen) { t.put(sx, sy, ' ', COL.faint); continue; }
           const b = D.biomes[g.biome];
           let ch = b.g, c = b.c;
           if (g.settlement >= 0 && G.W.settlements[g.settlement].type !== 'vanish') { const st = G.W.settlements[g.settlement]; ch = G.S.sett[st.id].destroyed ? '×' : st.type === 'capital' ? '◆' : st.type === 'town' ? '■' : '▪'; c = G.S.sett[st.id].destroyed ? '#806060' : '#e0c890'; }
+          if (seen) c = '#5a6070';
           if (isCur) { ch = '@'; c = '#fff6d0'; }
           const sel = x === s.cx && y === s.cy;
           t.put(sx, sy, ch, c, sel ? '#3a3050' : null);
@@ -476,7 +480,8 @@
         if (!inDim) {
           const g = G.W.regions[s.cy * C.WS + s.cx];
           const known = P.known.regions[g.id];
-          let info = known ? g.name + ' — ' + D.biomes[g.biome].n : 'Ты там не был[|а].';
+          const seenI = P.known.seen && P.known.seen[g.id];
+          let info = known ? g.name + ' — ' + D.biomes[g.biome].n : seenI ? D.biomes[g.biome].n + ' — видно издалека, но ты там не был[|а].' : 'Ты там не был[|а].';
           if (known && g.settlement >= 0) { const st = G.W.settlements[g.settlement]; info += '. ' + st.nom + (G.S.sett[st.id].destroyed ? ' (руины)' : ''); }
           t.text(x0, yI, fmt(info), COL.text, null, t.cols - x0 - 1);
         }
@@ -489,6 +494,8 @@
           t.put(lx, ly, '■', '#e0c890'); t.text(lx + 2, ly++, 'город', COL.dim);
           t.put(lx, ly, '▪', '#e0c890'); t.text(lx + 2, ly++, 'деревня', COL.dim);
           t.put(lx, ly, '×', '#806060'); t.text(lx + 2, ly++, 'руины', COL.dim);
+          ly++;
+          t.put(lx, ly, '▪', '#5a6070'); t.text(lx + 2, ly++, 'видно издалека', COL.dim);
           ly++;
           t.text(lx, ly++, 'Повидано земель: ' + (P.c.regions || 0), COL.dim);
         }
@@ -617,17 +624,22 @@
   UI.help = function () {
     UI.textScreen('Как играть', [
       ['Мир не объясняет себя. Эта страница объясняет только руки.', COL.dim], '',
-      ['Движение: стрелки, WASD или цифровой блок (1–9, по диагонали тоже). 5 или «.» — подождать.', COL.text],
+      ['Мир живёт сам: звери бегают, люди ходят по делам, день сменяет ночь, пока ты стоишь. Меню и разговоры ставят мир на паузу. Время «по ходам» — в меню (Esc).', COL.text],
+      ['От первого лица (пиксели 3D): WASD — идти, Shift — бегом, ←/→ или Q — повернуться. Щёлкни по картинке — и мышь станет головой: смотри, левая кнопка или F — удар, правая или E — действие. Esc отпускает мышь.', COL.text],
+      ['На телефоне: кнопки — идти и поворачиваться, потяни по картинке — оглядеться, коснись земли — пойти туда, человека или вещи — действие.', COL.text],
+      ['Движение в ASCII-видах: стрелки, WASD или цифровой блок (1–9, по диагонали тоже) — держи, чтобы идти. 5 или «.» — подождать.', COL.text],
       ['Мышь/палец: нажми на клетку — пойти туда. Правая кнопка — осмотреть.', COL.text],
       ['Шаг ни с чем не взаимодействует сам: заговорить, открыть, войти — только действием (E). Мирные люди и звери уступают дорогу, врага шаг бьёт.', COL.text],
       '',
       ['E / Пробел — действие (взять, открыть, войти, помолиться, порыбачить, сорвать траву...)', COL.text],
       ['I — сумка   C — персонаж   K — умения   P — молитвы   1–9 — быстрые умения', COL.text],
-      ['F — атаковать в направлении (или выстрелить, если в руке лук)', COL.text],
+      ['F — атаковать (от первого лица — того, кто перед тобой; в ASCII — в выбранном направлении)', COL.text],
+      ['O — одежда   B — тело (вода, нужда)   T — что ты знаешь о мире', COL.text],
       ['R — отдых   M — карта   J — память   L — осмотреться   H — журнал   Esc — меню', COL.text],
       ['V — графика: ползунок от классического ASCII до «почти реальности». [ и ] — быстро сменить уровень.', COL.text],
       ['+ и − (или колесо мыши) — масштаб карты.', COL.text],
-      ['Значок [E] над вещью — до неё можно дотянуться.', COL.text],
+      ['Значок [E] над вещью — до неё можно дотянуться. От первого лица подпись [E] внизу прицела говорит, что сделает действие.', COL.text],
+      ['Места, что видны с холма на горизонте, сами ложатся на карту мира (M) — бледным, пока ты там не был[|а]. Компас сверху отмечает их.', COL.text],
       '',
       ['Ты — обычный человек. Ешь, когда голоден. Грейся, когда холодно. Спи, когда темно.', COL.dim],
       ['Мир живёт и без тебя: люди рождаются и умирают, города богатеют и пустеют, короли сменяют друг друга.', COL.dim],
@@ -678,6 +690,7 @@
     if (so.length) opts.push({ t: G.map.sett >= 0 ? 'Остаться здесь навсегда' : 'Остаться в этих краях навсегда', f: () => UI.settle(so) });
     opts.push({ t: 'Уйти навсегда', f: () => UI.confirm('Уйти, не оглядываясь? Эта жизнь закончится.', () => Gm.ending(G.P.flags.nameless ? 'hidden_nobody' : 'walk_away')) });
     opts.push({ t: 'Графика: ' + UI.GFX[UI.gfxLevel || 0][0] + ' (V)', f: () => UI.gfxScreen() });
+    if (E.RT) opts.push({ t: 'Время: ' + (E.RT.on ? 'идёт само' : 'по ходам'), f: () => { E.RT.set(!E.RT.on); Gm.msg(E.RT.on ? 'Мир живёт сам: время идёт, пока ты стоишь.' : 'Время замирает между твоими шагами — по ходам.', '#a0b0c0'); } });
     if (UI.view3d) { opts.push({ t: 'Карта крупнее (+)', f: () => UI.zoom(1) }); opts.push({ t: 'Карта мельче (−)', f: () => UI.zoom(-1) }); }
     opts.push({ t: 'Журнал сообщений', f: () => UI.logScreen() });
     opts.push({ t: 'Как играть', f: () => UI.help() });

@@ -133,7 +133,7 @@
     ['Объём', 'Каждая вещь — объёмная фигура, нарисованная символами по форме: контур — «/ ( d», свет — «# %», тень — «: .». Видно дальше всего.'],
     ['Детально', 'Камера ближе: люди, звери, деревья, дома — подробные рисунки из символов; облака, мягкие тени, огни.'],
     ['Почти реальность', 'Камера совсем близко: каждая фигура — как ASCII-картина. Тяжелее для слабых устройств; «−» отодвигает камеру.'],
-    ['Пиксели 3D', 'Мир от первого лица в пикселях, как в старых RPG: небо, даль в тумане, дома с крышами, люди и звери. ↑↓ — шаг, ←→ — поворот, мышь или палец по карте — оглядеться.'],
+    ['Пиксели 3D', 'Мир от первого лица, как живописный пиксель-арт: холмы и горы, соседние земли и горизонт, тени от солнца, облака, рука с оружием. WASD — идти, мышь или палец — смотреть.'],
   ];
   UI.gfxLevel = (() => {
     try {
@@ -174,8 +174,10 @@
       rect = (x, y) => ({ x: (L.mx + x - cx) * t.cw, y: (L.my + y - cy) * t.ch, w: t.cw, h: t.ch });
     }
     // подсказки [E] — только когда поверх карты ничего не открыто
-    const hints = UI.top() && UI.top().name === 'game' ? E.Gm.useHints() : [];
-    UI.syncAct(hints.some((o) => o.main));
+    // в живом мире от первого лица подсказка одна — то, на что смотришь (её рисует js/ui/hud3d.js)
+    const liveFP = fp && E.RT && E.RT.on;
+    const hints = UI.top() && UI.top().name === 'game' && !liveFP ? E.Gm.useHints() : [];
+    UI.syncAct(liveFP ? !!G.focus : hints.some((o) => o.main));
     if (hints.length) {
       const list = hints.map((o) => ({ x: o.x, y: o.y, main: o.main, dy: fp ? 0 : o.y - P.y, self: !fp && o.x === P.x && o.y === P.y, tall: !fp && UI.view3d && UI.tallAt(o.x, o.y) }));
       t.over = (ctx, tt) => UI.drawBadges(ctx, tt, list, rect, clip);
@@ -396,6 +398,18 @@
     if (UI.top().name !== 'game' || P.dead || P.ended) return;
     if (mx < 0 || my < 0 || mx >= m.w || my >= m.h) return;
     if (btn === 2) { UI.describeAt(mx, my); return; }
+    const RT = E.RT;
+    // от первого лица в живом мире: коснулся существа или вещи перед собой — удар или действие, иначе идти туда
+    if (RT && RT.on && UI.is3D && UI.is3D()) {
+      const e = m.occ.get(my * m.w + mx);
+      if (e && G.aim === e) { RT.attack(); return; }
+      if (G.focus && G.focus.x === mx && G.focus.y === my) { E.Gm.interact(); return; }
+      if (mx === P.x && my === P.y) { E.Gm.interact(); return; }
+      if (!m.ex[my * m.w + mx] && !G.vis[my * m.w + mx]) return;
+      RT.walkTo(mx, my);
+      return;
+    }
+    if (RT && RT.on && RT.busy()) return;
     const d = U.dist(mx, my, P.x, P.y);
     if (d === 0) { E.Gm.interact(); UI.render(); return; }
     if (d === 1) { E.Gm.move(U.sign(mx - P.x), U.sign(my - P.y)); UI.render(); return; }
@@ -414,7 +428,10 @@
       const [nx, ny] = path.shift();
       const key = G.map.key;
       const before = G.log.length;
-      E.Gm.move(nx - G.P.x, ny - G.P.y);
+      // в живом мире шаги идут своим темпом
+      if (E.RT && E.RT.on && E.RT.busy()) { path.unshift([nx, ny]); setTimeout(step, Math.max(16, E.RT.busyUntil - performance.now())); return; }
+      if (E.RT) E.RT.stepping = true;
+      try { E.Gm.move(nx - G.P.x, ny - G.P.y); } finally { if (E.RT) E.RT.stepping = false; }
       UI.render();
       if (G.map.key !== key) return;
       if (G.P.x !== nx || G.P.y !== ny) return;
@@ -477,7 +494,7 @@
         case 'map': UI.worldMap(); break;
         case 'mem': UI.memory(); break;
         case 'rest': UI.rest(); break;
-        case 'fire': UI.fireCmd(); break;
+        case 'fire': if (E.RT && E.RT.on && UI.is3D && UI.is3D()) E.RT.attack(); else UI.fireCmd(); break;
         case 'look': UI.look(); break;
         case 'help': UI.help(); break;
         case 'esc': UI.pause(); break;

@@ -139,6 +139,8 @@
     row('Возраст', Gm.age() + ' ' + U.plural(Gm.age(), 'год', 'года', 'лет'));
     row('Путь', P.cls ? D.classes[P.cls].n + ' ' + U.roman(P.rank[P.cls] || 1) : 'нет');
     row('Прожито дней', String(Time.day(S.time) - P.startDay));
+    row('Рука', P.hand === 'L' ? 'левша' : 'правша');
+    if (P.taste) { row('Любимая еда', D.items[P.taste.love].n.toLowerCase(), '#f0d080'); row('Не выносишь', D.items[P.taste.hate].n.toLowerCase(), '#a0b090'); }
     row('Одежда', Gm.fmt(Gm.dressName()));
     row('Кошелёк', Gm.purseStr());
     row('Сытость / жажда / нужда', Math.round(P.hunger) + ' / ' + Math.round(P.thirst || 0) + ' / ' + Math.round(P.need || 0));
