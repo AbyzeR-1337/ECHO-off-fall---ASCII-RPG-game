@@ -325,8 +325,7 @@
     t.text(X, y++, 'Кошелёк: ' + E.Gm.purseStr(true), '#e0c070', COL.panel, IW);
     if (P.pts > 0) t.text(X, y++, '(+' + P.pts + ' очк. — окно персонажа)', COL.accent, COL.panel, IW);
     y++;
-    const hand = P.eq.hand;
-    t.text(X, y++, 'В руке: ' + (hand ? E.Items.name(hand) : 'ничего'), COL.text, COL.panel, IW);
+    t.text(X, y++, E.Gm.handsLine(P), COL.text, COL.panel, IW);
     if (P.light > 0) t.text(X, y++, 'Факел: ' + Math.ceil(P.light / 60) + ' ч', '#ffc070', COL.panel, IW);
     const fx = P.fx.filter((f) => D.effects[f.id]);
     if (fx.length) {

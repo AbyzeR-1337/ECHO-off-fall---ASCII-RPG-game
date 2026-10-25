@@ -146,7 +146,7 @@
     UI.askDir('Атаковать', (d) => {
       const e = d ? Gm.entAt(P.x + d[0], P.y + d[1]) : E.Combat.nearestEnemy(1);
       if (!e) { Gm.msg('Там никого.'); return; }
-      if (e.kind === 'npc' && !e.hostile) { UI.confirm('Напасть на ' + (Gm.knows(e.npc) ? U.acc(e.n, e.g) : 'этого человека') + '?', () => { e.wasPeaceful = 1; E.Combat.playerAttack(e, { force: 1 }); Gm.endTurn(1); }); return; }
+      if (e.kind === 'npc' && !e.hostile) { E.Combat.strikePeaceful(e); return; }
       E.Combat.playerAttack(e, { force: 1 });
       Gm.endTurn(1);
     });
@@ -177,7 +177,13 @@
     else if (t === 'book' || it.b === 'book') opts.push({ t: 'Прочитать', f: () => Gm.use(it) });
     else if (it.cont) { opts.push({ t: it.water ? 'Выпить воду' : 'Наполнить водой', f: () => Gm.use(it) }); if (it.water && Gm.nearWater(P.x, P.y, 1)) opts.push({ t: 'Набрать заново', f: () => Gm.fill(it) }); }
     else if (!it.s && !b.s) opts.push({ t: 'Использовать', f: () => Gm.use(it) });
-    if (it.s || b.s) { const on = P.eq[it.s || b.s] === it; opts.push({ t: on ? 'Снять' : (it.s === 'hand' ? 'Взять в руку' : 'Надеть'), f: () => Gm.equip(it) }); if (b.music || it.music || it.b === 'mask' || it.art || it.b === 'signet') opts.push({ t: 'Использовать', f: () => Gm.use(it) }); }
+    if ((it.s || b.s) === 'hand') {
+      Gm.ensureSlots(P);
+      const mainSide = P.hand === 'L' ? 'левую' : 'правую', offSide = P.hand === 'L' ? 'правую' : 'левую';
+      if (Gm.holds(P, it)) opts.push({ t: 'Убрать из руки', f: () => Gm.equip(it, P.eq.hand === it ? 'hand' : 'off') });
+      if (P.eq.hand !== it) opts.push({ t: Gm.twoHanded(it) ? 'Взять в обе руки' : 'Взять в ' + mainSide + ' руку (главную)', f: () => Gm.equip(it, 'hand') });
+      if (P.eq.off !== it && !Gm.twoHanded(it)) opts.push({ t: 'Взять в ' + offSide + ' руку', f: () => Gm.equip(it, 'off') });
+    } else if (it.s || b.s) { const on = P.eq[it.s || b.s] === it; opts.push({ t: on ? 'Снять' : 'Надеть', f: () => Gm.equip(it) }); if (b.music || it.music || it.b === 'mask' || it.art || it.b === 'signet') opts.push({ t: 'Использовать', f: () => Gm.use(it) }); }
     if (b.light && it.b === 'torch') { /* в «Использовать» */ }
     let lava = false; for (const [dx, dy] of U.DIR8) { const x = P.x + dx, y = P.y + dy; if (x >= 0 && y >= 0 && x < G.map.w && y < G.map.h && TL[G.map.tiles[y * G.map.w + x]].lava) lava = true; }
     if (lava) opts.push({ t: 'Бросить в лаву', f: () => Gm.throwInto(it) });
@@ -208,14 +214,15 @@
       header: () => U.cap(Gm.fmt(Gm.dressName())) + '.  Тепло одежды: ' + (Math.round(Object.values(P.eq).reduce((a, it) => a + ((it && it.warm) || 0), 0) * 10) / 10) + '.  Защита: ' + P.st.def + '.',
       items: () => D.SLOTS.map(([s, n]) => {
         const it = P.eq[s];
-        return { t: U.pad(n, 13) + (it ? Items.name(it) : '—'), c: it ? COL.text : COL.dim, slot: s, it, r: it && it.warm ? 'тепло ' + it.warm : '' };
+        return { t: U.pad(Gm.slotName(P, s), 13) + (it ? Items.name(it) : s === 'off' && P.light > 0 ? 'горящий факел' : '—'), c: it ? COL.text : COL.dim, slot: s, it, r: it && it.warm ? 'тепло ' + it.warm : '' };
       }),
       tip: (x) => (x.it ? UI.itemTip(x.it) : null),
       onSelect: (x) => {
-        const cand = P.inv.filter((i) => (i.s || (D.items[i.b] || {}).s) === x.slot);
-        const items = cand.map((i) => ({ t: Items.name(i) + (P.eq[x.slot] === i ? '  (надето)' : ''), g: UI.itemGlyph(i), it: i, f: () => { UI.pop(); if (P.eq[x.slot] !== i) Gm.equip(i); return 'keep'; } }));
-        if (P.eq[x.slot]) items.unshift({ t: 'Снять: ' + Items.name(P.eq[x.slot]), f: () => { UI.pop(); Gm.equip(P.eq[x.slot]); return 'keep'; } });
-        UI.list({ title: D.SLOTS.find((q) => q[0] === x.slot)[1], items, empty: 'Нечего надеть на это место.', tip: (y) => (y.it ? UI.itemTip(y.it) : null) });
+        const want = x.slot === 'off' ? 'hand' : x.slot;
+        const cand = P.inv.filter((i) => (i.s || (D.items[i.b] || {}).s) === want && !(x.slot === 'off' && Gm.twoHanded(i)));
+        const items = cand.map((i) => ({ t: Items.name(i) + (P.eq[x.slot] === i ? '  (надето)' : Gm.holds(P, i) ? '  (в другой руке)' : ''), g: UI.itemGlyph(i), it: i, f: () => { UI.pop(); if (P.eq[x.slot] !== i) Gm.equip(i, x.slot === 'off' || x.slot === 'hand' ? x.slot : undefined); return 'keep'; } }));
+        if (P.eq[x.slot]) items.unshift({ t: 'Снять: ' + Items.name(P.eq[x.slot]), f: () => { UI.pop(); Gm.equip(P.eq[x.slot], x.slot === 'off' || x.slot === 'hand' ? x.slot : undefined); return 'keep'; } });
+        UI.list({ title: Gm.slotName(P, x.slot), items, empty: 'Нечего надеть на это место.', tip: (y) => (y.it ? UI.itemTip(y.it) : null) });
         return 'keep';
       },
     });
@@ -313,7 +320,7 @@
   UI.talk = function (e) {
     Dlg.onTalk(e);
     const s = {
-      name: 'dialog', e, reply: e.npc != null ? Gm.fmt(Dlg.greet(e), Gm.npc(e.npc)) : (e.ghostShop != null ? 'Мы торгуем тем, чего у живых нет. Платят нам по-разному.' : '...'), sel: 0,
+      name: 'dialog', e, reply: e.npc != null ? Gm.fmt(Dlg.greet(e), Gm.npc(e.npc)) : (e.greet || (e.ghostShop != null ? 'Мы торгуем тем, чего у живых нет. Платят нам по-разному.' : '...')), sel: 0,
       draw(t) {
         const W = Math.min(t.cols - 2, 76);
         const n = e.npc != null ? Gm.npc(e.npc) : null;

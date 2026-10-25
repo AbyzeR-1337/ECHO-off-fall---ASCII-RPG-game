@@ -12,7 +12,8 @@
   const V3 = UI.V3 = { face: 4, yaw: Math.PI, yawT: Math.PI, pitch: 0, last: 0, drag: null, head: new Map(), cd: new Map(), mesh: new Map() };
   const DIRS = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
   const EYE = 0.82, WALL = 1.5, CAVE = 2.0, K_ENT = 0.7, SEA = -0.15;
-  const NEAR = 60;   // в стольких клетках земля рисуется во всех подробностях
+  const NEAR = 110;  // в стольких клетках земля рисуется во всех подробностях
+  const FARSPR = 130; // люди, звери и вещи видны так далеко
   UI.is3D = () => UI.gfxLevel === 6 && !!Gfx.P3 && Gfx.P3.supported();
   const live = () => !!(E.RT && E.RT.on);
   const turnTo = (f) => { V3.face = (f + 8) % 8; const t = V3.face * Math.PI / 4; let d = t - V3.yawT; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; V3.yawT += d; UI.animUntil = performance.now() + 400; };
@@ -122,6 +123,24 @@
     return cd;
   }
   function sameTiles(a, b) { if (!a || !b || a.tiles.length !== b.tiles.length) return false; for (let i = 0; i < a.tiles.length; i++) if (a.tiles[i] !== b.tiles[i]) return false; return true; }
+  // карта соседнего региона — только клетки (для берегов на стыке кусков)
+  const PEEK = new Map();
+  function peekMap(rx, ry) {
+    const cd = V3.cd.get(rx + ',' + ry);
+    if (cd) return cd.m;
+    const cur = G.map && G.map.kind === 'over' && G.map.region.x === rx && G.map.region.y === ry;
+    const key = cur ? G.map.key : regionKey(rx, ry);
+    if (!key) return null;
+    let mm = (G.cache && G.cache.get(key)) || PEEK.get(key);
+    if (!mm) {
+      mm = E.MapGen.build(key);
+      const dyn = G.S.maps[key];
+      if (dyn && dyn.t) for (const k in dyn.t) mm.tiles[k] = dyn.t[k];
+      PEEK.set(key, mm);
+      if (PEEK.size > 24) PEEK.delete(PEEK.keys().next().value);
+    }
+    return mm;
+  }
   // классы и высоты клеток куска
   function prep(cd) {
     fields();
@@ -137,11 +156,31 @@
       else cls[i] = CL.LAND;
     }
     if (flat) { for (let i = 0; i < n; i++) h[i] = cls[i] === CL.WATER ? (TL[m.tiles[i]].water === 1 ? -0.07 : -0.14) : 0; return; }
+    // окрестность куска с запасом R клеток: вода у соседей тоже притягивает берег (иначе на стыке — обрыв)
+    const R = 6, EW = W + 2 * R, EH = H + 2 * R;
+    const ewat = new Uint8Array(EW * EH), ewl = new Float32Array(EW * EH);
+    const coastalOf = (mm) => ['coast', 'ocean', 'volcanic'].includes(mm.biome) || (mm.region && ['coast', 'ocean', 'volcanic'].includes(mm.region.biome));
+    const coastal = coastalOf(m);
+    const levelOf = (t, gx, gz, cst) => { const fl = HGT.land(gx, gz, 0.15); return TL[t].lava ? fl - 0.2 : TL[t].water === 2 && cst ? SEA : Math.max(SEA, fl - (TL[t].water === 1 ? 0.1 : 0.2)); };
+    for (let ey = 0; ey < EH; ey++) for (let ex = 0; ex < EW; ex++) {
+      const x = ex - R, y = ey - R;
+      let t, cst = coastal;
+      if (x >= 0 && y >= 0 && x < W && y < H) t = m.tiles[y * W + x];
+      else {
+        const gx0 = cd.ox + x, gz0 = cd.oz + y, nb = peekMap(Math.floor(gx0 / MW), Math.floor(gz0 / MH));
+        if (!nb) continue;
+        t = nb.tiles[(gz0 - Math.floor(gz0 / MH) * MH) * MW + (gx0 - Math.floor(gx0 / MW) * MW)]; cst = coastalOf(nb);
+      }
+      if (!isLow(t) || X.LOW[t] === 2) continue;
+      ewat[ey * EW + ex] = 1;
+      ewl[ey * EW + ex] = levelOf(t, cd.ox + x + 0.5, cd.oz + y + 0.5, cst);
+    }
     // до воды — чем ближе, тем ровнее берег
     const dw = new Uint8Array(n).fill(9);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      if (cls[y * W + x] !== CL.WATER) continue;
-      for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) { const a = x + dx, b = y + dy; if (a < 0 || b < 0 || a >= W || b >= H) continue; const d = Math.max(Math.abs(dx), Math.abs(dy)); const k = b * W + a; if (d < dw[k]) dw[k] = d; }
+      let d = 9;
+      for (let dy = -4; dy <= 4 && d > 0; dy++) for (let dx = -4; dx <= 4; dx++) { if (ewat[(y + dy + R) * EW + x + dx + R]) { const dd = Math.max(Math.abs(dx), Math.abs(dy)); if (dd < d) d = dd; } }
+      dw[y * W + x] = d;
     }
     // до проходимой земли — скалы растут вглубь массива, а не торчат пиками
     const dr = new Uint8Array(n);
@@ -155,18 +194,7 @@
     const sr = m.settRect;
     let setLevel = 0;
     if (sr) { const cx = cd.ox + sr.x + sr.w / 2, cz = cd.oz + sr.y + sr.h / 2; setLevel = Math.max(0.3, HGT.base(cx, cz) + HGT.hills(cx, cz) * 0.15); }
-    const coastal = ['coast', 'ocean', 'volcanic'].includes(m.biome) || (m.region && ['coast', 'ocean', 'volcanic'].includes(m.region.biome));
-    // уровень воды: море — на уровне моря, озёра и реки — чуть ниже своих берегов
-    const wl = new Float32Array(n);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const i = y * W + x;
-      if (cls[i] !== CL.WATER) continue;
-      const gx = cd.ox + x + 0.5, gz = cd.oz + y + 0.5, t = m.tiles[i];
-      const flat = HGT.land(gx, gz, 0.15);
-      wl[i] = TL[t].lava ? flat - 0.2 : TL[t].water === 2 && coastal ? SEA : Math.max(SEA, flat - (TL[t].water === 1 ? 0.1 : 0.2));
-    }
-    // ближайшая вода и её уровень — берег сходит к ней полого, без обрывов
-    const R6 = 6;
+    // ближайшая вода и её уровень (в том числе за краем куска) — берег сходит к ней полого, без обрывов
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = y * W + x, gx = cd.ox + x + 0.5, gz = cd.oz + y + 0.5, t = m.tiles[i];
       let hk = 0.15 + 0.85 * U.clamp(dw[i] / 4, 0, 1);
@@ -174,16 +202,15 @@
       let land = HGT.land(gx, gz, hk);
       if (cls[i] !== CL.WATER) {
         let bd = 99, bl = 0;
-        for (let dy = -R6; dy <= R6; dy++) for (let dx = -R6; dx <= R6; dx++) {
-          const a = x + dx, b = y + dy;
-          if (a < 0 || b < 0 || a >= W || b >= H) continue;
-          const k = b * W + a;
-          if (cls[k] !== CL.WATER) continue;
+        for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+          const k = (y + dy + R) * EW + x + dx + R;
+          if (!ewat[k]) continue;
           const d = Math.hypot(dx, dy);
-          if (d < bd) { bd = d; bl = wl[k]; }
+          if (d < bd) { bd = d; bl = ewl[k]; }
         }
-        if (bd < R6 && land > bl + 0.12) { const f = U.clamp((bd - 0.5) / (R6 - 0.5), 0, 1); land = bl + 0.12 + (land - bl - 0.12) * f * f * (3 - 2 * f); }
+        if (bd < R && land > bl + 0.12) { const f = U.clamp((bd - 0.5) / (R - 0.5), 0, 1); land = bl + 0.12 + (land - bl - 0.12) * f * f * (3 - 2 * f); }
       }
+      const wli = cls[i] === CL.WATER ? ewl[(y + R) * EW + x + R] : 0;
       let ws = 0;
       if (sr) {
         const ddx = Math.max(sr.x - 1 - x, 0, x - (sr.x + sr.w)), ddy = Math.max(sr.y - 1 - y, 0, y - (sr.y + sr.h));
@@ -193,7 +220,7 @@
       }
       const c = cls[i];
       if (c === CL.ROCK) { const d = dr[i], f = U.clamp((d - 0.5) / 5, 0, 1); h[i] = land + (0.9 + d * 0.8 + (HGT.rock(gx, gz, HGT.mtn(gx, gz)) - 2.6) * f * f * (3 - 2 * f)) * (1 - ws * 0.8) * (X.BK[t] === 'peak' ? 1.2 : X.BK[t] === 'basalt' ? 0.6 : 1); }
-      else if (c === CL.WATER) h[i] = sr && ws > 0.5 ? Math.min(wl[i], setLevel - 0.2) : wl[i];
+      else if (c === CL.WATER) h[i] = sr && ws > 0.5 ? Math.min(wli, setLevel - 0.2) : wli;
       else h[i] = land;
     }
   }
@@ -301,7 +328,7 @@
       if (dungeon && !m.ex[i] && !(G.map === m && G.vis[i])) continue; // подземелья — только увиденное
       const c = cd.cls[i], bk = BK[tid];
       const indoorT = TL[tid].indoor || insideRoof[i];
-      const sky = dungeon ? 0 : indoorT ? 0.3 : 1;
+      const sky = dungeon ? 0 : indoorT ? 0.6 : 1;
       const hb = cd.h[i];
       // ---- стены и прочие глыбы ----
       if (c === CL.BLOCK && bk !== 'door') {
@@ -316,7 +343,7 @@
           let p0, p1;
           if (dy === -1) { p0 = [x + 1, 0, y]; p1 = [x, 0, y]; } else if (dx === 1) { p0 = [x + 1, 0, y + 1]; p1 = [x + 1, 0, y]; } else if (dy === 1) { p0 = [x, 0, y + 1]; p1 = [x + 1, 0, y + 1]; } else { p0 = [x, 0, y]; p1 = [x, 0, y + 1]; }
           const b0 = nc === CL.WATER ? Math.min(bot, hAt(x + dx, y + dy) - 0.3) : bot;
-          const fsky = dungeon ? 0 : (TL[tidAt(x + dx, y + dy)].indoor || (x + dx >= 0 && y + dy >= 0 && x + dx < W && y + dy < H && insideRoof[(y + dy) * W + x + dx])) ? 0.3 : 1;
+          const fsky = dungeon ? 0 : (TL[tidAt(x + dx, y + dy)].indoor || (x + dx >= 0 && y + dy >= 0 && x + dx < W && y + dy < H && insideRoof[(y + dy) * W + x + dx])) ? 0.6 : 1;
           P3.quad(M, [p0[0], b0, p0[2]], [p1[0], b0, p1[2]], [p1[0], top, p1[2]], [p0[0], top, p0[2]], [0, top - b0], [1, 0], tex, [nx, 0, nz], fsky);
         }
         continue;
@@ -382,7 +409,7 @@
       if (dungeon) P3.quad(M, [x, CAVE, y], [x + 1, CAVE, y], [x + 1, CAVE, y + 1], [x, CAVE, y + 1], [0, 0], [1, 1], 'ceiling_rock', [0, -1, 0], 0);
       else if (insideRoof[i]) P3.quad(M, [x, hb + WALL, y], [x + 1, hb + WALL, y], [x + 1, hb + WALL, y + 1], [x, hb + WALL, y + 1], [0, 0], [1, 1], 'ceiling_wood', [0, -1, 0], 0.3, K.CEIL);
       // ---- вещи на клетке ----
-      if (OK[tid] && tid !== T.DOWN && tid !== T.UP && tid !== T.MINE && tid !== T.PORTAL) {
+      if (OK[tid] && tid !== T.DOWN && tid !== T.UP && tid !== T.MINE && tid !== T.PORTAL && !(UI.V3furn && UI.V3furn.has(tid))) {
         let ok = OK[tid], col = null;
         const hh = (x * 7 + y * 13) % 5;
         if (ok === 'tree') { if (sea === 3 && cold) ok = 'tree_bare'; else { ok = hh < 2 ? 'tree2' : 'tree'; col = fol[(x + y * 3) % fol.length]; } }
@@ -392,9 +419,20 @@
         if (SYM.has(ok) && !ANIM.has(ok)) statics.push(o); else objs.push(o);
       }
       if (X.HLIGHT[tid]) { const d = X.HLIGHT[tid]; lights.push({ x: x + 0.5, y: hb + 0.6, z: y + 0.5, r: d[2] * 1.1, col: d[0], i: d[1] * 0.9, fl: d[3] }); }
+      // днём окна и двери светят внутрь дома
+      if (!dungeon && (bk === 'window' || bk === 'door')) for (const [dx, dy] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) {
+        const ax = x + dx, ay = y + dy;
+        if (ax < 0 || ay < 0 || ax >= W || ay >= H) continue;
+        const ti = ay * W + ax;
+        if (!TL[m.tiles[ti]].walk || !(TL[m.tiles[ti]].indoor || insideRoof[ti])) continue;
+        lights.push({ x: x + 0.5 + dx * 0.75, y: hb + (bk === 'door' ? 0.8 : 1.0), z: y + 0.5 + dy * 0.75, r: bk === 'door' ? 3.4 : 4.2, col: [1, 0.95, 0.86], i: bk === 'door' ? 0.55 : 0.8, day: 1 });
+        break;
+      }
     }
     // ---- входы в подземелья, шахты, лестницы — настоящие постройки ----
     if (UI.V3props) UI.V3props.build(M, cd, { tileAt, corner, CL, hAt, clsAt, lights, dungeon, over });
+    // ---- мебель и утварь — объёмные ----
+    if (UI.V3furn) UI.V3furn.build(M, cd, { lights, dungeon, over, insideRoof });
     // ---- двускатные крыши ----
     for (const rf of roofs) {
       const r = rf.rect;
@@ -781,6 +819,32 @@
     return h + '|' + season();
   }
 
+  // люди соседнего посёлка: кто где стоит в этот час (пока ты не пришёл туда сам)
+  function crowdOf(cd) {
+    const m = cd.m, sid = m.sett;
+    if (sid == null || sid < 0 || !E.Sim.settAlive || !E.Sim.settAlive[sid]) return [];
+    const hour = Math.floor(((G.S.time % 1440) + 1440) % 1440 / 60);
+    const night = hour < 6 || hour >= 22;
+    const key = sid + '|' + (night ? 'n' : Math.floor(hour / 3));
+    if (cd.crowd && cd.crowdKey === key) return cd.crowd;
+    const sp = m.spots || {};
+    const spots = [].concat(sp.square || [], sp.street || [], night ? [] : sp.field || [], night ? [] : sp.dock || []);
+    const out = [];
+    if (spots.length) {
+      const ids = E.Sim.settAlive[sid];
+      const n = Math.min(ids.length, night ? 3 : 16, spots.length);
+      for (let k = 0; k < n; k++) {
+        const id = ids[(k * 7 + hour) % ids.length], nn = E.Sim.npc(id);
+        if (!nn) continue;
+        const p = spots[(U.hash(sid, id, hour) >>> 0) % spots.length];
+        if (out.some((q) => q.x === p.x && q.y === p.y)) continue;
+        const job = E.Sim.job(id);
+        out.push({ x: p.x, y: p.y, key: UI.entArt({ kind: 'npc', npc: id, job }), c: nn.col || '#c8b8a0', hd: (U.hash(id, hour, 5) % 8) * Math.PI / 4 });
+      }
+    }
+    cd.crowd = out; cd.crowdKey = key;
+    return out;
+  }
   UI.drawMap3D = function (t, L) {
     const m = G.map, P = G.P, X = UI.mvTiles, P3 = Gfx.P3, RT = E.RT;
     const now = performance.now();
@@ -819,7 +883,7 @@
     const sky = skyOf(m, hs);
     const rects = X.roofsOf(m);
     const inside = rects.find((r) => P.x >= r.rect.x && P.y >= r.rect.y && P.x < r.rect.x + r.rect.w && P.y < r.rect.y + r.rect.h && X.roofIntact(m, r.rect)) || null;
-    if (inside && m.outdoor) sky.amb = sky.amb.map((v) => v * 0.7);
+    if (inside && m.outdoor) sky.amb = sky.amb.map((v) => v * 0.9);
     const walked = RT ? RT.walked || 0 : 0;
     const bob = pmov ? (live() ? Math.sin(walked * 5.2) * 0.022 : Math.sin(now / 55) * 0.015) : 0;
     const ground = HGT.groundAt(gx, gz);
@@ -828,7 +892,12 @@
     const fx = Math.sin(V3.yaw), fz = -Math.cos(V3.yaw);
     // огни: ближние к камере + факел
     const lights = [];
-    for (const ms of meshes) for (const l of ms.lights) { const lx = ms.cd.ox + l.x - RO[0], lz = ms.cd.oz + l.z - RO[1], d = (lx - cam.x) ** 2 + (lz - cam.z) ** 2; if (d < 900) lights.push({ x: lx, y: l.y, z: lz, r: l.r, col: l.col, i: l.fl ? l.i * (0.85 + 0.15 * Math.sin(now / 90 + l.x * 3)) : l.i, d }); }
+    const dayK = m.outdoor ? U.clamp((Time.light(G.S.time) - 0.15) / 0.6, 0, 1) : 0;
+    for (const ms of meshes) for (const l of ms.lights) {
+      const lx = ms.cd.ox + l.x - RO[0], lz = ms.cd.oz + l.z - RO[1], d = (lx - cam.x) ** 2 + (lz - cam.z) ** 2;
+      if (d >= 900 || (l.day && dayK < 0.05)) continue;
+      lights.push({ x: lx, y: l.y, z: lz, r: l.r, col: l.col, i: l.day ? l.i * dayK : l.fl ? l.i * (0.85 + 0.15 * Math.sin(now / 90 + l.x * 3)) : l.i, d: l.day ? d * 1.5 : d });
+    }
     lights.sort((a, b) => a.d - b.d);
     lights.length = Math.min(lights.length, 7);
     const dark = !m.outdoor || m.dimName ? 1 : Math.max(0, 1 - Time.light(G.S.time) * 1.4);
@@ -840,7 +909,7 @@
     const add = (key, o, wx, wz, heading, scale, skyK) => {
       const dx = wx - cam.x, dz = wz - cam.z;
       const dist = Math.hypot(dx, dz);
-      if (dist > 44) return;
+      if (dist > FARSPR) return;
       if ((dx * fx + dz * fz) < -0.6 && dist > 1.5) return; // позади
       let yaw = 0;
       if (!SYM.has(key)) {
@@ -868,16 +937,18 @@
     // вещи-«не-щиты» (сундуки, кровати, костры…)
     for (const ms of meshes) for (const ob of ms.objs) {
       const wx = ms.cd.ox + ob.x + 0.5 - RO[0], wz = ms.cd.oz + ob.y + 0.5 - RO[1];
-      if (Math.abs(wx - cam.x) > 40 || Math.abs(wz - cam.z) > 40) continue;
+      if (Math.abs(wx - cam.x) > FARSPR || Math.abs(wz - cam.z) > FARSPR) continue;
       add(ob.k, { c: ob.c, seed: ob.seed % 3, f: ob.k === 'campfire' || ob.k === 'hearth' ? Math.floor(now / 160) % 4 : 0, season: season() }, wx, wz, Math.PI / 2, K_ENT, ob.sky);
     }
     // вещи на земле
     for (const it of m.items) { if (!G.vis[it.y * m.w + it.x]) continue; add(X.itemArt(it.it), {}, gox + it.x + 0.5 - RO[0], goz + it.y + 0.5 - RO[1], Math.PI / 2, K_ENT, skyKAt(it.x, it.y)); }
     // существа
     const reveal = G.revealUntil && G.turn < G.revealUntil;
+    // на улице видно всех, кто не заслонён (заслоняет сама картинка); в подземелье — только в поле зрения
+    const openAir = m.outdoor && !m.dimName;
     for (const e of m.ents) {
       if (e.dead) continue;
-      const vis = G.vis[e.y * m.w + e.x];
+      const vis = G.vis[e.y * m.w + e.x] || (openAir && !e.hidden && !e.asleep);
       if (!vis && !(reveal && e.kind !== 'npc')) continue;
       const s = X.track(e.id, e.x, e.y, now);
       const [ex, ey, moving] = X.curPos(s, now);
@@ -895,6 +966,12 @@
       if (e.kind === 'npc' && e.hostile) c = '#e07060';
       const hit = G.hitEnt === e.id && now - (G.hitEntT || 0) < 160;
       add(key, { c, f, moving, mode, hit }, gox + ex + 0.5 - RO[0], goz + ey + 0.5 - RO[1], hd, K_ENT, skyKAt(e.x, e.y));
+    }
+    // в соседних посёлках тоже живут: издали видно людей на площадях и улицах
+    if (over) for (const ms of meshes) {
+      const cd = ms.cd;
+      if (cd.m === m) continue;
+      for (const p of crowdOf(cd)) add(p.key, { c: p.c, f: 0 }, cd.ox + p.x + 0.5 - RO[0], cd.oz + p.y + 0.5 - RO[1], p.hd, K_ENT, 1);
     }
     // погода
     let wx = null;

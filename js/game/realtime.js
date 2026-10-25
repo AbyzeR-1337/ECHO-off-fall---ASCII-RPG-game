@@ -260,20 +260,24 @@
     P.x = x; P.y = y;
     try { Gm.pickupAll(); } finally { P.x = ox; P.y = oy; Gm.computeFov(); }
   };
-  RT.swing = 0;
-  RT.attack = function () {
+  RT.swing = 0; RT.swingOff = 0;
+  // hand: 'off' — второй рукой (ПКМ)
+  RT.attack = function (hand) {
     const P = G.P;
     if (!P || P.dead || P.ended || RT.busy()) return;
-    const e = G.aim, w = P.eq.hand;
-    RT.swing = performance.now();
+    const off = hand === 'off';
+    if (off && Gm.twoHanded && Gm.twoHanded(P.eq.hand)) { RT.attack(); return; }
+    const e = G.aim, w = off ? P.eq.off : P.eq.hand;
+    if (off) RT.swingOff = performance.now(); else RT.swing = performance.now();
     if (!e) {
       if (w && w.range) Gm.msg('Стрела уходит в пустоту.');
       Gm.endTurn(1);
       return;
     }
     const peaceful = e.kind === 'npc' && !e.hostile;
-    if (peaceful) { E.UI.confirm('Напасть на ' + (Gm.knows(e.npc) ? U.acc(e.n, e.g) : 'этого человека') + '?', () => { e.wasPeaceful = 1; E.Combat.playerAttack(e, { force: 1 }); Gm.endTurn(1); }); return; }
-    E.Combat.playerAttack(e, { force: 1 });
+    if (peaceful && !(e.wasPeaceful || (e.npc != null && P.okHit && P.okHit[e.npc]))) { E.Combat.strikePeaceful(e); return; }
+    if (off) Gm.offStrike(e);
+    else E.Combat.playerAttack(e, { force: 1 });
     P.stillTurns = 0;
     Gm.endTurn(1);
   };

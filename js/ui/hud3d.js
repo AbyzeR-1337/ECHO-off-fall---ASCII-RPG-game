@@ -24,6 +24,7 @@
     if (t === T.CAMPFIRE || t === T.HEARTH) return ['Готовить', TL[t].name];
     if (t === T.OUTHOUSE) return ['Зайти', 'нужник'];
     if (t === T.SIGN) return ['Прочесть', 'вывеска'];
+    if (TL[t].stall || (m.stalls && m.stalls[i])) return ['Торговать', t === T.COUNTER ? 'стойка' : E.Gm.stallName(m, f.x, f.y)];
     if (TL[t].ore) return ['Добыть', 'рудная жила'];
     return ['Использовать', ft && ft.name ? ft.name : TL[t].name];
   }
@@ -68,7 +69,7 @@
     const lines = [];
     if (now - started < 25000) {
       if (touch) lines.push('Кнопки — идти и поворачиваться', 'Потяни по картинке — оглядеться', 'Коснись земли — идти, человека или вещи — действие');
-      else lines.push('WASD — идти, Shift — бегом', 'Мышь — смотреть, ЛКМ или F — удар', 'E или ПКМ — действие, Esc — меню');
+      else lines.push('WASD — идти, Shift — бегом', 'Мышь — смотреть, ЛКМ или F — удар', 'ПКМ — удар второй рукой, E — действие');
     }
     if (!touch && !UI.locked) lines.push('Щёлкни по картинке, чтобы смотреть мышью');
     if (lines.length) {

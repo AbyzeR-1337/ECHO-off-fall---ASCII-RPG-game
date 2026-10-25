@@ -251,6 +251,29 @@
   MD.chair = (o, P) => ({ key: 'chair', prims: [box(-0.14, -0.12, 0.28, 0.14, 0.14, 0.33, WOOD), box(-0.14, -0.15, 0.33, 0.14, -0.11, 0.72, DWOOD), box(-0.13, 0.1, 0, -0.1, 0.13, 0.28, DWOOD), box(0.1, 0.1, 0, 0.13, 0.13, 0.28, DWOOD), box(-0.13, -0.14, 0, -0.1, -0.11, 0.28, DWOOD), box(0.1, -0.14, 0, 0.13, -0.11, 0.28, DWOOD)] });
   MD.bench = (o, P) => ({ key: 'bench', prims: [box(-0.45, -0.12, 0.3, 0.45, 0.12, 0.36, WOOD), box(-0.4, -0.08, 0, -0.34, 0.08, 0.3, DWOOD), box(0.34, -0.08, 0, 0.4, 0.08, 0.3, DWOOD)] });
   MD.outhouse = (o, P) => ({ key: 'outhouse', prims: [box(-0.3, -0.28, 0, 0.3, 0.28, 1.15, mat('#7a5634', 'wood', { tex: (x, y, z, mo) => { if (((x + 0.3) * 18) % 1 < 0.12) { mo.r *= 0.55; mo.g *= 0.55; mo.b *= 0.55; mo.t = 0.05; } } })), box(-0.34, -0.32, 1.15, 0.34, 0.32, 1.22, DWOOD), box(-0.04, 0.28, 0.85, 0.04, 0.29, 0.95, mat('#1a120a', 'dark'))] });
+  // утварь посёлков
+  MD.barrel = (o, P) => ({ key: 'barrel|' + P.level, prims: [{ t: 'y', x: 0, y: 0, r: 0.24, z0: 0, z1: 0.55, m: mat('#8a5e34', 'wood', { tex: (x, y, z, mo) => { if (Math.abs(z - 0.12) < 0.025 || Math.abs(z - 0.43) < 0.025) { mo.r *= 0.4; mo.g *= 0.4; mo.b *= 0.4; mo.t = 0.05; } } }) }, disc(0, 0, 0.555, 0.22, 0.22, DWOOD)] });
+  MD.crate = (o, P) => ({ key: 'crate|' + P.level, prims: [box(-0.28, -0.28, 0, 0.28, 0.28, 0.5, mat('#a07a48', 'wood', { tex: texNoise(0.12, 0.2, 10, 21) })), box(-0.2, -0.2, 0.5, 0.18, 0.2, 0.75, mat('#8a6a3a', 'wood'))] });
+  MD.stall = (o, P) => {
+    const out = [box(-0.45, -0.2, 0, 0.45, 0.2, 0.45, WOOD), box(-0.47, -0.22, 0.45, 0.47, 0.22, 0.5, mat('#9a7448', 'wood'))];
+    for (const x of [-0.43, 0.43]) limb(out, P, x, -0.18, 0.5, x, -0.18, 1.15, 0.025, 0.025, DWOOD);
+    out.push(box(-0.5, -0.3, 1.1, 0.5, 0.15, 1.16, mat(['#a83c2c', '#2a5a8a', '#3a7a3a', '#c09030'][(o.seed || 0) % 4], 'cloth', { tex: (x, y, z, mo) => { if (Math.floor((x + 0.5) * 10) % 2) { mo.r = mo.r * 0.4 + 0.55; mo.g = mo.g * 0.4 + 0.52; mo.b = mo.b * 0.4 + 0.46; } } })));
+    for (let i = 0; i < 4; i++) out.push(sph(-0.3 + i * 0.2, 0, 0.56, pmin(P, 0.06), mat(['#d04030', '#e0b040', '#70a040', '#c07030'][i], 'skin')));
+    return { key: 'stall' + ((o.seed || 0) % 4) + '|' + P.level, prims: out };
+  };
+  MD.hay = (o, P) => ({ key: 'hay|' + P.level, prims: [el(0, 0, 0.25, 0.42, 0.36, 0.3, mat('#d8b868', 'grass', { tex: texNoise(0.25, 0.6, 18, 5) }))] });
+  MD.lamppost = (o, P) => { const out = []; limb(out, P, 0, 0, 0, 0, 0, 1.25, 0.035, 0.03, mat('#2a2a2e', 'metal')); out.push(box(-0.08, -0.08, 1.2, 0.08, 0.08, 1.38, mat('#ffd070', 'glow', { em: 1.6, fl: F.NOSHADOW })), cone(0, 0, 1.38, 0.12, 0.1, mat('#2a2a2e', 'metal'))); return { key: 'lamppost|' + P.level, prims: out }; };
+  MD.boat = (o, P) => ({ key: 'boat|' + P.level, prims: [el(0, 0, 0.08, 0.46, 0.22, 0.14, mat('#7a4e2a', 'wood', { tex: texNoise(0.15, 0.3, 12, 31) })), box(-0.3, -0.16, 0.12, 0.3, 0.16, 0.16, mat('#4a3018', 'wood')), box(-0.05, -0.2, 0.16, 0.05, 0.2, 0.2, WOOD)] });
+  MD.cart = (o, P) => {
+    const out = [box(-0.42, -0.24, 0.25, 0.42, 0.24, 0.32, WOOD), box(-0.42, -0.26, 0.32, 0.42, -0.22, 0.5, DWOOD), box(-0.42, 0.22, 0.32, 0.42, 0.26, 0.5, DWOOD)];
+    for (const y of [-0.27, 0.27]) out.push({ t: 'd', x: 0, y, z: 0.2, rx: 0.2, ry: 0.2, m: DWOOD });
+    out.push(el(0, 0, 0.45, 0.3, 0.18, 0.12, mat('#c8b890', 'cloth', { tex: clothTex })));
+    limb(out, P, 0.42, 0, 0.28, 0.85, 0, 0.18, 0.025, 0.025, DWOOD);
+    return { key: 'cart|' + P.level, prims: out };
+  };
+  MD.rack = (o, P) => { const out = [box(-0.42, -0.06, 0, 0.42, 0.06, 0.08, DWOOD)]; for (const x of [-0.4, 0.4]) limb(out, P, x, 0, 0, x, 0, 0.9, 0.025, 0.025, DWOOD); limb(out, P, -0.4, 0, 0.8, 0.4, 0, 0.8, 0.02, 0.02, DWOOD); for (let i = 0; i < 4; i++) { const x = -0.27 + i * 0.18; out.push(box(x - 0.02, -0.01, 0.12, x + 0.02, 0.01, 0.95, METAL)); } return { key: 'rack|' + P.level, prims: out }; };
+  MD.workbench = (o, P) => { const out = MD.table({ seed: 0 }, P).prims.slice(); out.push(box(-0.3, -0.05, 0.5, -0.05, 0.05, 0.55, METAL), box(0.1, -0.1, 0.5, 0.3, 0.1, 0.58, mat('#9a7448', 'wood'))); return { key: 'workbench|' + P.level, prims: out }; };
+  MD.rug = (o, P) => ({ key: 'rug|' + P.level, prims: [box(-0.45, -0.4, 0, 0.45, 0.4, 0.02, mat(['#8a2a24', '#2a4a7a', '#5a3a6a'][(o.seed || 0) % 3], 'cloth', { tex: clothTex }))] });
   MD.counter = (o, P) => ({ key: 'counter|' + P.level, prims: [box(-0.48, -0.22, 0, 0.48, 0.22, 0.5, WOOD), box(-0.5, -0.24, 0.5, 0.5, 0.24, 0.55, mat('#9a7448', 'wood'))] });
   MD.bed = (o, P) => ({ key: 'bed|' + P.level, prims: [box(-0.42, -0.3, 0, 0.42, 0.3, 0.25, DWOOD), box(-0.4, -0.28, 0.25, 0.4, 0.28, 0.32, mat('#d8d0c0', 'cloth')), box(-0.1, -0.28, 0.3, 0.4, 0.28, 0.36, mat('#8a5a8a', 'cloth', { tex: clothTex })), el(-0.28, 0, 0.36, 0.11, 0.18, 0.06, mat('#f0ece0', 'cloth'))] });
   MD.anvil = (o, P) => ({ key: 'anvil|' + P.level, prims: [box(-0.12, -0.1, 0, 0.12, 0.1, 0.25, DSTONE), box(-0.28, -0.1, 0.25, 0.22, 0.1, 0.36, METAL), el(0.3, 0, 0.32, 0.12, 0.06, 0.04, METAL)] });

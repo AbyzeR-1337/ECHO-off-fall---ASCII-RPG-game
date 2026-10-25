@@ -93,9 +93,9 @@
     let pend = null;
     cv.addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
-      // мышь уже «взята»: левая кнопка — удар, правая — действие
+      // мышь уже «взята»: левая кнопка — удар правой рукой, правая — левой (действие — только E)
       if (document.pointerLockElement === cv) {
-        if (liveGame()) { if (ev.button === 2) E.Gm.interact(); else E.RT.attack(); UI.render(); }
+        if (liveGame()) { if (ev.button === 2) E.RT.attack('off'); else if (ev.button === 0) E.RT.attack(); UI.render(); }
         return;
       }
       if (liveGame() && UI.is3D && UI.is3D() && ev.pointerType === 'mouse' && ev.button === 0 && UI.mv3 && cv.requestPointerLock) {

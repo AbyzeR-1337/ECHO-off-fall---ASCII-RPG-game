@@ -161,13 +161,14 @@
   // Очевидное дело в клетке — то, что видно глазом: дверь вниз, сундук, очаг, алтарь.
   // Тайное, разрушение и ремёсла по наитию (руда, деревья, трещины, останки) не подсказываются.
   const PLAIN_FEAT = { shrine: 1, altar: 1, inscr: 1, grave: 1, throne: 1, lighthouse: 1, archive: 1, forge: 1 };
-  const PLAIN_TILE = new Set([T.CAMPFIRE, T.HEARTH, T.WELL, T.ANVIL, T.ALCHTABLE, T.SHELF, T.SIGN, T.OUTHOUSE]);
+  const PLAIN_TILE = new Set([T.CAMPFIRE, T.HEARTH, T.WELL, T.ANVIL, T.ALCHTABLE, T.SHELF, T.SIGN, T.OUTHOUSE, T.STALL, T.WORKBENCH]);
   Gm.plainUse = function (x, y) {
     const m = G.map, i = y * m.w + x, t = m.tiles[i], f = m.feat[i];
     if (m.chests[i]) return true;
     if (f && f.k === 'link') return !!TL[t].link;
     if (f && PLAIN_FEAT[f.k]) return true;
     if (f && (f.k === 'corpse' || f.k === 'locked')) return false;
+    if (m.stalls && m.stalls[i]) return true;
     return PLAIN_TILE.has(t);
   };
   Gm.useCands = function () {
@@ -178,7 +179,7 @@
       const i = y * m.w + x;
       const e = Gm.entAt(x, y);
       if (e && e.kind === 'npc' && !e.hostile) { first.push({ x, y, e }); continue; }
-      if (m.chests[i] || m.feat[i] || TL[m.tiles[i]].use || TL[m.tiles[i]].ore || TL[m.tiles[i]].crystal) (Gm.plainUse(x, y) ? first : rest).push({ x, y });
+      if (m.chests[i] || m.feat[i] || TL[m.tiles[i]].use || TL[m.tiles[i]].ore || TL[m.tiles[i]].crystal || (m.stalls && m.stalls[i])) (Gm.plainUse(x, y) ? first : rest).push({ x, y });
     }
     return first.concat(rest);
   };
@@ -231,6 +232,7 @@
     }
     if (t === T.CAMPFIRE || t === T.HEARTH) { Gm.cook(); return true; }
     if (t === T.WELL) { E.UI.fillMenu('well'); return true; }
+    if (TL[t].stall || (m.stalls && m.stalls[i])) { Gm.stall(x, y); return true; }
     if (t === T.OUTHOUSE) { Gm.relieve(); return true; }
     if (t === T.ANVIL) { Gm.msg('Наковальня. Без мастера толку мало.'); return true; }
     if (t === T.ALCHTABLE) { E.UI.alchemy(); return true; }
@@ -239,6 +241,24 @@
     if (TL[t].ore) { if (Gm.toolEq('pick')) { Gm.mine(x, y); return true; } Gm.msg('Рудная жила. Нужна кирка.'); return true; }
     if (TL[t].crystal) { if (Gm.toolEq('pick')) { Gm.setTile(x, y, T.ROCKFLOOR); Gm.give('crystal', 1); Gm.endTurn(6); return true; } Gm.msg('Кристалл. Без кирки не отколоть.'); return true; }
     return false;
+  };
+  // рыночный прилавок: днём за ним торгуют (чем — видно по товару), ночью он пуст
+  const STALL_KINDS = ['general', 'inn', 'bakery', 'fish', 'herbs', 'hunter', 'junk', 'tools'];
+  Gm.stallKind = function (m, x, y) {
+    const k = m.stalls && m.stalls[y * m.w + x];
+    if (k) return k;
+    return STALL_KINDS[(U.hash(m.key, x, y) >>> 0) % STALL_KINDS.length];
+  };
+  const STALL_NAME = { general: 'лавка всякой всячины', inn: 'съестной прилавок', bakery: 'хлебный прилавок', fish: 'рыбный прилавок', herbs: 'прилавок травницы', hunter: 'прилавок охотника', junk: 'барахолка', tools: 'прилавок с инструментами' };
+  Gm.stallName = (m, x, y) => STALL_NAME[Gm.stallKind(m, x, y)] || 'прилавок';
+  Gm.stall = function (x, y) {
+    const m = G.map, h = Math.floor(((G.S.time % 1440) + 1440) % 1440 / 60);
+    const kind0 = Gm.stallKind(m, x, y);
+    if (h < 7 || h >= (kind0 === 'inn' ? 24 : 20)) { Gm.msg(m.tiles[y * m.w + x] === T.COUNTER ? 'За стойкой никого. Приходи утром.' : 'Прилавок пуст: торговцы разошлись до утра.', '#a09080'); return; }
+    if (m.sett >= 0 && G.S.sett[m.sett] && G.S.sett[m.sett].destroyed) { Gm.msg('Прилавок разбит. Торговать некому.'); return; }
+    const kind = Gm.stallKind(m, x, y);
+    const e = { kind: 'npc', npc: null, ghostShop: 'st:' + m.key + ':' + x + ':' + y, n: U.cap(m.tiles[y * m.w + x] === T.COUNTER ? (kind === 'inn' ? 'стойка' : 'прилавок мастерской') : STALL_NAME[kind] || 'прилавок'), stall: 1 };
+    E.UI.trade(e, kind);
   };
   Gm.useLink = function (f, x, y) {
     const P = G.P, m = G.map;

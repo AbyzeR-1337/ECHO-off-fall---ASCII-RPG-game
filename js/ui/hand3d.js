@@ -582,25 +582,57 @@
   // ============================================================
   let HC = null, TC = null, shown = null;
   const MELEE_THRUST = new Set(['staff', 'spear', 'trident']), RANGED = new Set(['bow', 'crossbow', 'sling']);
+  // спрайты одной руки: покой и (для рубящего) замах и взмах
+  function handSet(kind, it, P, ppu, gk, keep, needSwing) {
+    const kb = kind + '|' + ((it && it.b) || '') + '|' + (P.skin || 0) + '|' + gk + '|' + ppu;
+    const idle = want(kb + '|idle', () => buildJob(kind, it, P, 'idle', ppu), keep);
+    const slash = !MELEE_THRUST.has(kind) && !RANGED.has(kind) && kind !== 'fist' && kind !== 'torch';
+    let wind = null, swing = null;
+    if (idle && slash && needSwing) { wind = want(kb + '|wind', () => buildJob(kind, it, P, 'wind', ppu), keep); swing = want(kb + '|swing', () => buildJob(kind, it, P, 'swing', ppu), keep); }
+    return { kind, kb, idle, wind, swing };
+  }
+  // где спрайт в момент удара: sw — 0…1 от начала удара
+  function strikePose(hs, sw, u) {
+    const r = { spr: hs.idle, dx: 0, dy: 0, smear: 0 };
+    if (!(sw >= 0 && sw < 1)) return r;
+    const k = Math.sin(sw * Math.PI), kind = hs.kind;
+    if (RANGED.has(kind)) r.dy = k * 8 * u;
+    else if (MELEE_THRUST.has(kind)) { r.dy = -k * 24 * u; r.dx = -k * 8 * u; }
+    else if (kind === 'fist' || kind === 'torch') { r.dx = -k * 30 * u; r.dy = -k * 16 * u; }
+    else if (hs.wind && hs.swing) {
+      // замах → взмах (со следом) → возврат; кисть поворачивается в запястье, а рука чуть подаётся, чтобы кулак не уходил за край
+      const lift = (sp, q) => [(sp.px - sp.grip[0]) * q, (sp.py - sp.grip[1]) * q];
+      if (sw < 0.2) { r.spr = hs.wind; const e = sw / 0.2, [lx, ly] = lift(hs.wind, 0.5); r.dx = lx + 4 * u * e; r.dy = ly - 4 * u * e; }
+      else if (sw < 0.6) { r.spr = hs.swing; const e = (sw - 0.2) / 0.4, [lx, ly] = lift(hs.swing, 0.75); r.dx = lx - 10 * u + 4 * u * e; r.dy = ly - 2 * u + 4 * u * e; r.smear = 1 - e; }
+      else { const e = (sw - 0.6) / 0.4; r.dx = -6 * u * (1 - e); r.dy = 4 * u * (1 - e); }
+    } else { r.dx = -k * 22 * u; r.dy = k * 12 * u; }
+    return r;
+  }
   UI.drawHand3D = function (ctx, v) {
     const P = G.P;
     if (!P || P.dead) return;
     const fw = v.fw, fh = v.fh;
     const base = Math.min(fh, fw * 1.15);
     const ppu = Math.max(10, Math.round(base * 0.122));
-    const kind = weaponKind(P.eq.hand), left = P.hand === 'L';
+    const left = P.hand === 'L';
     const gk = (P.eq.hands && P.eq.hands.b) || '';
-    const kbase = kind + '|' + ((P.eq.hand && P.eq.hand.b) || '') + '|' + (P.skin || 0) + '|' + gk + '|' + ppu;
     const keep = new Set();
-    let idle = want(kbase + '|idle', () => buildJob(kind, P.eq.hand, P, 'idle', ppu), keep);
-    const slash = !MELEE_THRUST.has(kind) && !RANGED.has(kind) && kind !== 'fist';
-    let wind = null, swing = null;
-    if (idle && slash) { wind = want(kbase + '|wind', () => buildJob(kind, P.eq.hand, P, 'wind', ppu), keep); swing = want(kbase + '|swing', () => buildJob(kind, P.eq.hand, P, 'swing', ppu), keep); }
-    const torch = P.light > 0 && idle ? want('torch|' + (P.skin || 0) + '|' + gk + '|' + ppu, () => buildJob('torch', null, P, 'idle', ppu), keep) : null;
+    const RT = E.RT;
+    const swM = UI.HAND_SW != null ? UI.HAND_SW : RT ? (v.now - (RT.swing || 0)) / 420 : 9;
+    const swO = UI.HAND_SW_OFF != null ? UI.HAND_SW_OFF : RT ? (v.now - (RT.swingOff || 0)) / 420 : 9;
+    // главная рука и вторая: оружие, горящий факел или пустой кулак (пустую вторую руку не показываем)
+    const main = handSet(weaponKind(P.eq.hand), P.eq.hand, P, ppu, gk, keep, true);
+    const offIt = P.eq.off;
+    let off = null;
+    if (main.idle) {
+      if (offIt) off = handSet(weaponKind(offIt), offIt, P, ppu, gk, keep, true);
+      else if (P.light > 0) off = handSet('torch', null, P, ppu, gk, keep, false);
+      else if (swO >= 0 && swO < 1 && !(E.Gm.twoHanded && E.Gm.twoHanded(P.eq.hand))) off = handSet('fist', null, P, ppu, gk, keep, false);
+    }
     // рисуем по кусочку за кадр; пока руки нет совсем — щедрее
-    pump(UI.HAND_BUDGET || (idle || shown ? 8 : 40), keep);
-    if (!idle) idle = done.get(kbase + '|idle');
-    if (idle) shown = idle; else if (shown) idle = shown; else return;
+    pump(UI.HAND_BUDGET || (main.idle || shown ? 8 : 40), keep);
+    let idle = main.idle || done.get(main.kb + '|idle');
+    if (idle) { shown = idle; main.idle = idle; } else if (shown) main.idle = idle = shown; else return;
     // свет вокруг: небо, солнце, огни
     const sk = v.sky;
     let L = [0.07, 0.065, 0.08];
@@ -608,27 +640,10 @@
     for (const l of v.lights.slice(0, 4)) { const d = Math.hypot(l.x - (v.cam ? v.cam.x : l.x), l.z - (v.cam ? v.cam.z : l.z)); const a = Math.max(0, 1 - d / l.r); for (let i = 0; i < 3; i++) L[i] += l.col[i] * l.i * a * a * 0.8; }
     if (P.light > 0) { L[0] += 0.5; L[1] += 0.33; L[2] += 0.16; }
     L = L.map((x) => Math.min(1.0, x));
-    // покачивание на ходу и удар
+    // покачивание на ходу
     const t = v.now / 1000, u = ppu / 12;
     let bx = Math.sin((v.walked || 0) * 2.6) * 2.5 * u, by = Math.abs(Math.cos((v.walked || 0) * 2.6)) * 3.2 * u;
     if (!v.moving) { bx = Math.sin(t * 1.1) * 0.8 * u; by = Math.sin(t * 1.7) * 1.1 * u; }
-    const RT = E.RT;
-    const sw = UI.HAND_SW != null ? UI.HAND_SW : RT ? (v.now - (RT.swing || 0)) / 420 : 9;
-    let spr = idle, dx = 0, dy = 0, smear = 0;
-    if (sw >= 0 && sw < 1) {
-      const k = Math.sin(sw * Math.PI);
-      if (RANGED.has(kind)) dy = k * 8 * u;
-      else if (MELEE_THRUST.has(kind)) { dy = -k * 24 * u; dx = -k * 8 * u; }
-      else if (kind === 'fist') { dx = -k * 30 * u; dy = -k * 16 * u; }
-      else if (wind && swing) {
-        // замах → взмах (со следом) → возврат
-        // кисть поворачивается в запястье, а рука чуть подаётся, чтобы кулак не уходил за край
-        const lift = (sp, k) => [(sp.px - sp.grip[0]) * k, (sp.py - sp.grip[1]) * k];
-        if (sw < 0.2) { spr = wind; const e = sw / 0.2, [lx, ly] = lift(wind, 0.5); dx = lx + 4 * u * e; dy = ly - 4 * u * e; }
-        else if (sw < 0.6) { spr = swing; const e = (sw - 0.2) / 0.4, [lx, ly] = lift(swing, 0.75); dx = lx - 10 * u + 4 * u * e; dy = ly - 2 * u + 4 * u * e; smear = 1 - e; }
-        else { const e = (sw - 0.6) / 0.4; dx = -6 * u * (1 - e); dy = 4 * u * (1 - e); }
-      } else { dx = -k * 22 * u; dy = k * 12 * u; }
-    }
     if (!HC) { HC = document.createElement('canvas'); TC = document.createElement('canvas'); }
     if (HC.width !== fw || HC.height !== fh) { HC.width = TC.width = fw; HC.height = TC.height = fh; }
     const hc = HC.getContext('2d'), tc = TC.getContext('2d');
@@ -651,25 +666,31 @@
       hc.drawImage(TC, 0, 0);
       place(hc, sp, sp.em, px, py, mirror);
     };
-    // точка спрайта → экран (с учётом зеркала для левши)
+    // точка спрайта → экран (с учётом зеркала)
     const at = (sp, pt, px, py, mirror) => [px + (mirror ? -1 : 1) * (pt[0] - sp.px), py + pt[1] - sp.py];
-    // где держишь: кулак у нижнего края, оружие тянется вверх
-    const hx = left ? fw * 0.28 : fw * 0.72, hy = fh - base * 0.25;
-    if (torch) {
-      const ox = left ? fw * 0.84 : fw * 0.16, oy = fh - base * 0.14 + by * 0.8;
-      const tx = ox - bx * 0.6;
-      lit(torch, tx, oy, !left);
-      if (torch.top) { const [fx, fy] = at(torch, torch.top, tx, oy, !left); drawFlame(hc, fx, fy + u, Math.max(1, Math.round(ppu / 11)), t); }
+    // одна рука: hs — спрайты, sw — фаза удара, (hx, hy) — где кулак, mirror — левая рука
+    const drawOne = (hs, sw, hx, hy, mirror, bobK) => {
+      const r = strikePose(hs, sw, u);
+      const spr = r.spr || hs.idle;
+      const px = hx + bx * bobK + (mirror ? -r.dx : r.dx), py = hy + by * bobK + r.dy;
+      if (r.smear > 0 && hs.idle.top && spr.top) {
+        // дуга от верхнего положения острия к нижнему вокруг запястья
+        const c0 = at(spr, spr.wrist, px, py, mirror), p0 = at(hs.idle, hs.idle.top, px, py, mirror), p1 = at(spr, spr.top, px, py, mirror);
+        const a0 = Math.atan2(p0[1] - c0[1], p0[0] - c0[0]), a1 = Math.atan2(p1[1] - c0[1], p1[0] - c0[0]);
+        let da = a1 - a0; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+        drawSmear(hc, c0[0], c0[1], a0, a0 + da, Math.hypot(p1[0] - c0[0], p1[1] - c0[1]), Math.max(1, u * 1.2), r.smear);
+      }
+      lit(spr, px, py, mirror);
+      if (hs.kind === 'torch' && spr.top) { const [fx, fy] = at(spr, spr.top, px, py, mirror); drawFlame(hc, fx, fy + u, Math.max(1, Math.round(ppu / 11)), t); }
+    };
+    // вторая рука — у другого края; факел держат ниже и ближе к краю
+    if (off && off.idle) {
+      const torch = off.kind === 'torch';
+      const ox = left ? fw * (torch ? 0.84 : 0.76) : fw * (torch ? 0.16 : 0.24), oy = fh - base * (torch ? 0.14 : 0.22);
+      drawOne(off, swO, ox, oy, !left, -0.6);
     }
-    const px = hx + bx + (left ? -dx : dx), py = hy + by + dy;
-    if (smear > 0 && idle.top && spr.top) {
-      // дуга от верхнего положения острия к нижнему вокруг запястья
-      const c0 = at(spr, spr.wrist, px, py, left), p0 = at(idle, idle.top, px, py, left), p1 = at(spr, spr.top, px, py, left);
-      const a0 = Math.atan2(p0[1] - c0[1], p0[0] - c0[0]), a1 = Math.atan2(p1[1] - c0[1], p1[0] - c0[0]);
-      let da = a1 - a0; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
-      drawSmear(hc, c0[0], c0[1], a0, a0 + da, Math.hypot(p1[0] - c0[0], p1[1] - c0[1]), Math.max(1, u * 1.2), smear);
-    }
-    lit(spr, px, py, left);
+    // главная: кулак у нижнего края, оружие тянется вверх
+    drawOne(main, swM, left ? fw * 0.28 : fw * 0.72, fh - base * 0.25, left, 1);
     ctx.save();
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(HC, v.vx0, v.vy0, fw * v.px, fh * v.px);

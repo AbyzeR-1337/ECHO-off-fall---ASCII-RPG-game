@@ -174,6 +174,30 @@
     const cols = ['#8a3028', '#2e5a3e', '#4a3a7a', '#a08030', '#30607a', '#6a4228'].map(hex);
     fill(d, (x, y) => { if (y % 11 === 0 || y % 11 === 10) return hex('#4a3018'); if (x === 0 || x === 31) return hex('#3a2410'); const b = Math.floor(x / 3) + Math.floor(y / 11) * 11; return mul(cols[(b * 7) % cols.length], 0.75 + ((b * 13) % 5) / 10); });
   };
+
+  // ---------- мебель и утварь ----------
+  const CLOTH = { r: '#8a2a24', b: '#2a4a7a', g: '#3a6a3a', y: '#a08030', p: '#5a3a6a', w: '#c8c0b0', o: '#a0582a', k: '#3a3430' };
+  T.wood = (d, name, r) => { const base = name.endsWith(':d') ? hex('#4a3020') : name.endsWith(':l') ? hex('#a07a50') : hex('#7a5634'); fill(d, (x, y) => { const g = Math.sin(x * 0.35 + Math.sin(y * 0.18 + x * 0.05) * 2.2) * 0.5 + 0.5; return mul(base, 0.78 + g * 0.3 + (r() - 0.5) * 0.06); }); for (let i = 0; i < 2; i++) { const x = Math.floor(r() * N), y = Math.floor(r() * N); put(d, x, y, mul(base, 0.45)); put(d, x + 1, y, mul(base, 0.55)); } };
+  T.cloth = (d, name, r) => { const c = hex(CLOTH[name.split(':')[1]] || CLOTH.r); fill(d, (x, y) => mul(c, 0.82 + ((x + y) % 4 === 0 ? 0.14 : 0) + (r() - 0.5) * 0.06)); for (let x = 0; x < N; x++) { put(d, x, 3, mul(c, 1.3)); put(d, x, 28, mul(c, 1.3)); } };
+  T.quilt = (d, name, r) => { const c = hex(CLOTH[name.split(':')[1]] || CLOTH.r), c2 = mix(c, hex('#e0d8c8'), 0.5); fill(d, (x, y) => { const sq = ((x >> 3) + (y >> 3)) % 2; if (x % 8 === 0 || y % 8 === 0) return mul(c, 0.6); return mul(sq ? c : c2, 0.9 + (r() - 0.5) * 0.08); }); };
+  T.linen = (d, name, r) => noisy(d, r, hex('#b8b0a0'), hex('#e8e4d8'), [[hex('#a8a090'), 0.03]], 3, 8);
+  T.straw = (d, name, r) => fill(d, (x, y) => mix(hex('#8a6a30'), hex('#d8b868'), (Math.sin(x * 1.7 + y * 0.4) * 0.5 + 0.5) * 0.6 + r() * 0.4));
+  T.gold = (d, name, r) => noisy(d, r, hex('#8a6420'), hex('#f0c860'), [[hex('#fff0b0'), 0.04]], 3, 8);
+  T.velvet = (d, name, r) => noisy(d, r, hex('#5a1018'), hex('#9a2430'), [], 3, 8);
+  T.gravestone = (d, name, r) => { noisy(d, r, hex('#5e5c58'), hex('#9a9890'), [[hex('#4a4a44'), 0.05], [hex('#5a7a3a'), 0.03]], 4, 12); for (let y = 8; y < 24; y += 4) for (let x = 10; x < 22; x++) if (r() < 0.55) put(d, x, y, hex('#3e3c38')); };
+  T.earth = (d, name, r) => noisy(d, r, hex('#3a2a1a'), hex('#6a5034'), [[hex('#2a1c10'), 0.05], [hex('#4a6a2a'), 0.04]], 4, 12);
+  T.canvas = (d, name, r) => { const c = hex(name.endsWith(':d') ? '#8a7a5a' : '#c8b890'); fill(d, (x, y) => mul(c, 0.85 + ((x % 3 === 0) ? 0.06 : 0) + ((y % 3 === 0) ? -0.05 : 0) + (r() - 0.5) * 0.06)); for (let i = 0; i < 4; i++) { const x = Math.floor(r() * N), y = Math.floor(r() * N); put(d, x, y, mul(c, 0.7)); } };
+  T.awning = (d, name, r) => { const c = hex(CLOTH[name.split(':')[1]] || CLOTH.r), w = hex('#e8dcc4'); fill(d, (x, y) => mul((x >> 2) % 2 ? c : w, 0.88 + (r() - 0.5) * 0.06 + (y > 28 ? -0.2 : 0))); };
+  T.barrel = (d, name, r) => { fill(d, (x, y) => { if (y === 5 || y === 6 || y === 25 || y === 26) return hex('#3a3a40'); if (x % 6 === 0) return hex('#3a2410'); return mul(hex('#8a5e34'), 0.82 + Math.sin((x % 6) / 6 * Math.PI) * 0.2 + (r() - 0.5) * 0.06); }); };
+  T.crate = (d, name, r) => { fill(d, (x, y) => { if (x < 3 || x > 28 || y < 3 || y > 28) return hex('#5a3a1c'); if (Math.abs(x - y) < 2 || Math.abs(x + y - 31) < 2) return hex('#6a4626'); if (y % 7 === 0) return hex('#4a2e14'); return mul(hex('#a07a48'), 0.85 + (r() - 0.5) * 0.08); }); };
+  T.hay = (d, name, r) => fill(d, (x, y) => mix(hex('#9a7a30'), hex('#e8cc78'), (Math.sin(x * 2.3 + y * 1.1) * 0.5 + 0.5) * 0.5 + r() * 0.5));
+  T.candle = (d, name, r) => fill(d, (x, y) => { const c = mix(hex('#fff4c8'), hex('#ffb040'), y / 32); c[3] = 128; return c; });
+  T.glass = (d, name, r) => { const c = hex({ g: '#40d080', b: '#4080e0', r: '#e04040', p: '#b060e0', y: '#e0c040' }[name.split(':')[1]] || '#40d080'); fill(d, (x, y) => { const k = mix(c, hex('#ffffff'), Math.max(0, 1 - Math.hypot(x - 11, y - 10) / 8) * 0.6); k[3] = 128; return k; }); };
+  T.ashes = (d, name, r) => noisy(d, r, hex('#1a1614'), hex('#3a3430'), [[hex('#ff7a2a'), 0.03]], 3, 10);
+  T.pot = (d, name, r) => noisy(d, r, hex('#8a4a2a'), hex('#c07a4a'), [[hex('#5a2a14'), 0.04]], 3, 8);
+  T.mug = (d, name, r) => noisy(d, r, hex('#6a6a70'), hex('#a8a8b0'), [], 3, 8);
+  T.book = (d, name, r) => { const cs = ['#8a3028', '#2e5a3e', '#4a3a7a', '#a08030'].map(hex); fill(d, (x, y) => mul(cs[(x >> 3) % 4], y < 3 || y > 28 ? 1.3 : 0.85 + (r() - 0.5) * 0.06)); };
+  T.rope = (d, name, r) => fill(d, (x, y) => mul(hex('#a08050'), 0.7 + ((x + y * 2) % 6 < 3 ? 0.3 : 0) + (r() - 0.5) * 0.06));
   // ---------- крыши и потолки ----------
   T.roof_tiles = (d, name, r) => { fill(d, (x, y) => { const row = y >> 3, off = (row % 2) * 4, fx = (x + off) % 8, fy = y % 8; const edge = fy === 7 || (fy > 4 && (fx === 0 || fx === 7)); return mul(hex('#a83c2c'), edge ? 0.5 : 0.8 + (1 - fy / 8) * 0.35 + (r() - 0.5) * 0.06); }); };
   T.roof_palace = (d, name, r) => { fill(d, (x, y) => { const row = y >> 3, off = (row % 2) * 4, fx = (x + off) % 8, fy = y % 8; const edge = fy === 7 || (fy > 4 && (fx === 0 || fx === 7)); return mul(hex('#34509a'), edge ? 0.5 : 0.8 + (1 - fy / 8) * 0.4); }); };

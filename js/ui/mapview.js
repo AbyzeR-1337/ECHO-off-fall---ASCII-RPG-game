@@ -28,7 +28,9 @@
   o('mushroom', 'MUSHROOM'); o('bigshroom', 'BIGSHROOM'); o('portal', 'PORTAL'); o('whirlpool', 'WHIRLPOOL'); o('mine', 'MINE'); o('tent', 'TENT');
   o('coral', 'CORAL'); o('sign', 'SIGN'); o('lighthouse', 'LIGHTHOUSE'); o('fern', 'FERN'); o('sapling', 'SAPLING'); o('gate', 'GATE');
   o('chair', 'CHAIR'); o('bench', 'BENCH'); o('outhouse', 'OUTHOUSE');
-  FIX[T.CHAIR] = 'floor'; FIX[T.BENCH] = 'floor';
+  o('barrel', 'BARREL'); o('crate', 'CRATE'); o('stall', 'STALL'); o('hay', 'HAY'); o('lamppost', 'LAMPPOST'); o('boat', 'BOAT'); o('cart', 'CART');
+  o('rack', 'RACK'); o('workbench', 'WORKBENCH'); o('rug', 'RUG');
+  FIX[T.CHAIR] = 'floor'; FIX[T.BENCH] = 'floor'; FIX[T.RUG] = 'floor'; FIX[T.BOAT] = 'water';
   FIX[T.WHIRLPOOL] = 'water'; FIX[T.GATE] = 'road'; FIX[T.CORAL] = 'seafloor'; FIX[T.REEDS] = 'swamp';
   for (const k of ['WATER', 'SHALLOW', 'STREAM', 'BOG', 'LAVA', 'MIRRORWATER', 'WHIRLPOOL']) LOW[T[k]] = 1;
   LOW[T.VOID] = 2; LOW[T.CLOUD] = 2;
@@ -58,6 +60,7 @@
     healer: 'npc_healer', herbalist: 'npc_healer', alchemist: 'npc_healer', wanderer: 'npc_wander', shadow: 'npc_wander', elder: 'npc_elder', child: 'npc_child',
   };
   function entArt(e) {
+    if (e.kind === 'npc' && e.npc == null) return e.art || JOB[e.job] || (e.g === 'f' ? 'npc_f' : 'npc_m');
     if (e.kind === 'npc') {
       const n = E.Gm.npc(e.npc);
       const age = E.Sim.age(e.npc);
@@ -101,8 +104,14 @@
     m._roofs = out;
     return out;
   }
-  // крыша цела, пока стоят углы дома
-  const roofIntact = (m, r) => [[r.x, r.y], [r.x + r.w - 1, r.y], [r.x, r.y + r.h - 1], [r.x + r.w - 1, r.y + r.h - 1]].every(([x, y]) => TL[m.tiles[y * m.w + x]].auto);
+  // крыша цела, пока стоят углы и почти все стены (разбитый дом стоит без крыши)
+  const roofIntact = (m, r) => {
+    if (![[r.x, r.y], [r.x + r.w - 1, r.y], [r.x, r.y + r.h - 1], [r.x + r.w - 1, r.y + r.h - 1]].every(([x, y]) => TL[m.tiles[y * m.w + x]].auto)) return false;
+    let n = 0, ok = 0;
+    for (let x = r.x; x < r.x + r.w; x++) for (const y of [r.y, r.y + r.h - 1]) { n++; const t = TL[m.tiles[y * m.w + x]]; if (t.auto || t.conn) ok++; }
+    for (let y = r.y + 1; y < r.y + r.h - 1; y++) for (const x of [r.x, r.x + r.w - 1]) { n++; const t = TL[m.tiles[y * m.w + x]]; if (t.auto || t.conn) ok++; }
+    return ok >= n * 0.85;
+  };
 
   // ---------- соединения стен ----------
   function wallMask(m, x, y) {
@@ -171,6 +180,7 @@
     [T.CAMPFIRE]: [[1, 0.58, 0.24], 1.7, 6.5, 1], [T.HEARTH]: [[1, 0.55, 0.22], 1.4, 5, 1], [T.LAVA]: [[1, 0.35, 0.1], 0.7, 2.6, 0],
     [T.PORTAL]: [[0.75, 0.45, 1], 1.2, 4.5, 0], [T.CRYSTAL]: [[0.6, 0.45, 1], 0.8, 3, 0], [T.LIGHTHOUSE]: [[1, 0.95, 0.7], 2, 10, 0],
     [T.NIGHTFLOWER]: [[0.6, 0.7, 1], 0.45, 1.8, 0], [T.ALTAR]: [[1, 0.75, 0.4], 0.8, 2.8, 1], [T.SHRINE]: [[1, 0.9, 0.5], 0.8, 3.2, 0], [T.WHIRLPOOL]: [[0.4, 0.6, 1], 0.5, 2.5, 0],
+    [T.LAMPPOST]: [[1, 0.78, 0.45], 1.1, 5, 1],
   };
   const OBJH = Gfx.HF ? Gfx.HF.OBJH : {};
   UI.objHeight = (k) => OBJH[k] || 0.4;

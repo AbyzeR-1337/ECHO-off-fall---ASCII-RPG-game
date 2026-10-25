@@ -115,7 +115,7 @@
     const id = e.npc;
     const P = G.P;
     const opts = [];
-    if (e.ghostShop != null) { opts.push({ t: 'Посмотреть товар', f: () => E.UI.trade(e, 'fair') }); opts.push({ t: 'Уйти', f: () => 'close' }); return opts; }
+    if (e.ghostShop != null) { opts.push({ t: 'Посмотреть товар', f: () => E.UI.trade(e, e.shopKind || 'fair') }); opts.push({ t: 'Уйти', f: () => 'close' }); return opts; }
     if (e.ghost && id != null) { opts.push({ t: 'Спросить, как он(а) умер(ла)', f: () => { const st = G.S.npc[id] || {}; Gm.cnt('ghost_talks'); Gm.gain('spirit_talk'); Gm.cnt('spirit_talks'); return 'Я ' + Gm.npc(id).first + '. Я ' + String(st.dc || 'просто ушёл(ла)').replace(/\(ла\)/g, Gm.npc(id).sex === 'f' ? 'ла' : '').replace(/\(а\)/g, Gm.npc(id).sex === 'f' ? 'а' : '') + '. Здесь тихо.'; } }); }
     if (id == null) { opts.push({ t: 'Уйти', f: () => 'close' }); return opts; }
     const n = Gm.npc(id);
@@ -151,7 +151,7 @@
     }
     opts.push({ t: 'Подарить...', f: () => { E.UI.pickItem('Что подарить?', (it) => it.b !== 'gold', (it) => Dlg.gift(e, it)); return null; } });
     if (P.gold >= 5) opts.push({ t: 'Дать монет', f: () => Dlg.giveGold(e) });
-    opts.push({ t: 'Напасть', f: () => { E.UI.confirm('Напасть на ' + U.acc(n.first, n.sex) + '?', () => { e.wasPeaceful = 1; E.Combat.playerAttack(e, { force: 1 }); e.hostile = true; Gm.endTurn(1); }); return 'close'; } });
+    opts.push({ t: 'Напасть', f: () => { E.Combat.strikePeaceful(e, () => { e.hostile = true; }); return 'close'; } });
     opts.push({ t: 'Уйти', f: () => 'close' });
     return opts;
   };
@@ -352,7 +352,13 @@
     healer: ['p_heal', 'p_antidote', 'h_plantain', 'cure', 'stew'],
     fair: ['mask', 'compass', 'skull', 'holed_coin', 'mirror_shard', 'owl_feather', 'salt', 'star_jelly', 'broken_clock', 'bell', 'empty_bottle', 'seed', 'p_sleep'],
     deep: ['pearl', 'p_breath', 'shell', 'fish_raw', 'scale_mat'],
+    // барахолка: старьё, инструменты, всякая всячина
+    junk: ['rope', 'candle', 'empty_bottle', 'dice', 'knife', 'shovel', 'pickaxe', 'sickle', 'rod', 'lamp_oil', 'flint', 'hood', 'tunic', 'shoes_bast', 'mittens', 'salt', 'broken_clock', 'bell', 'holed_coin', 'compass', 'mirror_shard', 'axe', 'waterskin', 'bedroll', 'mortar', 'flute', 'lute'],
+    // мастерская: инструменты
+    tools: ['shovel', 'pickaxe', 'axe', 'sickle', 'rod', 'rope', 'flint', 'mortar', 'knife', 'torch', 'lamp_oil', 'waterskin'],
   };
+  for (const k in SHOP) SHOP[k] = SHOP[k].filter((b) => D.items[b]);
+  Dlg.SHOP = SHOP;
   Dlg.shopStock = function (e, kind) {
     const sid = e.npc != null ? E.Sim.settOf(e.npc) : -1;
     const ss = sid >= 0 ? G.S.sett[sid] : null;

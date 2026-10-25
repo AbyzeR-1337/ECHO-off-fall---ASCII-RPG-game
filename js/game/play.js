@@ -91,6 +91,7 @@
     dynamicTiles(m);
     const since = G.S.time - (m.dyn.v || -1e9);
     Ent.populate();
+    spawnMerchants(m);
     for (const pl of m.npcsPlaced) if (Gm.nalive(pl.id) && (!m.dimName || m.dimName === 'moon' || m.dimName === 'spirit' || m.dimName === 'sea')) { const n = Gm.npc(pl.id); if (n.special === 'forestchild' && Ent.place(pl.id, Gm.hour()) === 'gone') continue; Gm.addEnt(Ent.npc(pl.id, pl.x, pl.y)); }
     if (m.dimName === 'spirit') spawnGhosts(m);
     spawnLairs(m);
@@ -169,6 +170,36 @@
         e.ch = '☺'; e.c = '#a0e0d0'; e.n = ['Бледный торговец', 'Торговка без тени', 'Старик с фонарём'][i]; e.ghostShop = i; e.npc = null; e.ai = 'still'; e.immortal = 1; e.kind = 'npc'; e.ghost = 1;
         Gm.addEnt(e);
       }
+    }
+  }
+  // бродячие торговцы: днём — у своих телег за околицей и на площади
+  const WM_NAMES = {
+    junk: { m: ['Старьёвщик', 'Бродячий барахольщик'], f: ['Старьёвщица', 'Бродячая барахольщица'] },
+    tools: { m: ['Коробейник с инструментом', 'Бродячий мастер'], f: ['Коробейница', 'Бродячая мастерица'] },
+    herbs: { m: ['Бродячий травник', 'Знахарь с котомкой'], f: ['Бродячая травница', 'Знахарка с котомкой'] },
+    hunter: { m: ['Заезжий охотник', 'Скупщик шкур'], f: ['Заезжая охотница', 'Скупщица шкур'] },
+    general: { m: ['Бродячий торговец', 'Заезжий купец'], f: ['Бродячая торговка', 'Заезжая купчиха'] },
+  };
+  function spawnMerchants(m) {
+    if (!m.spots || !m.spots.merchants || !m.spots.merchants.length || m.sett < 0 || G.S.sett[m.sett].destroyed) return;
+    const h = Time.hour(G.S.time), day = Time.day(G.S.time);
+    for (const sp of m.spots.merchants) {
+      if (sp.night ? false : h < 7 || h >= 20) continue;
+      if (sp.night && (h >= 7 && h < 20)) continue;
+      // не каждый день: торговцы ходят от села к селу
+      if ((U.hash(m.key, sp.idx, day) >>> 0) % 10 < 3) continue;
+      const p = MG.findWalkNear(m, sp.x, sp.y);
+      if (m.occ.has(p.y * m.w + p.x)) continue;
+      const e = Ent.npc(G.W.special.ferryman, p.x, p.y);
+      const g = (U.hash(m.key, sp.idx, 'g') >>> 0) % 2 ? 'f' : 'm';
+      const names = (WM_NAMES[sp.kind] || WM_NAMES.general)[g];
+      e.npc = null; e.ghost = 0; e.immortal = 0; e.ai = 'still'; e.kind = 'npc'; e.g = g;
+      e.ghostShop = 'wm:' + m.key + ':' + sp.idx + ':' + Math.floor(day / 3);
+      e.shopKind = sp.kind || 'junk';
+      e.n = names[(U.hash(m.key, sp.idx, 'n') >>> 0) % names.length];
+      e.ch = '☺'; e.c = '#d0a060'; e.job = 'merchant'; e.merchant = 1;
+      e.greet = ['Подходи, смотри! Всё нужное — и немного ненужного.', 'С дороги, с дороги... Но для тебя найдётся кое-что.', 'Товар разный, цена честная. Почти.'][(U.hash(m.key, sp.idx, day) >>> 0) % 3];
+      Gm.addEnt(e);
     }
   }
   // Лунная лестница, ночные торговцы, следы событий

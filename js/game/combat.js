@@ -4,6 +4,19 @@
   const U = E.U, D = E.D, T = E.T, TL = E.TL, Time = E.Time;
   const G = E.G, Gm = E.Gm, Ent = E.Ent;
   const Cb = E.Combat = {};
+  // кого бьёшь — в винительном; незнакомого человека по имени не зовём
+  Cb.accOf = function (e) {
+    if (e.kind === 'npc') return E.Gm.knows(e.npc) ? E.U.acc(e.n, e.g) : e.g === 'f' ? 'незнакомку' : 'незнакомца';
+    return e.acc || E.U.acc(e.n, e.g);
+  };
+  // напасть на мирного: спросить один раз, дальше бить без вопросов
+  Cb.strikePeaceful = function (e, then) {
+    const P = E.G.P, ok = P.okHit || (P.okHit = {});
+    const go = () => { e.wasPeaceful = 1; if (e.npc != null) ok[e.npc] = 1; E.Combat.playerAttack(e, { force: 1 }); if (then) then(); E.Gm.endTurn(1); };
+    if (e.wasPeaceful || (e.npc != null && ok[e.npc])) { go(); return; }
+    E.UI.confirm('Напасть на ' + (E.Gm.knows(e.npc) ? E.U.acc(e.n, e.g) : e.g === 'f' ? 'эту женщину' : 'этого человека') + '?', go);
+  };
+  Cb.nameOf = (e) => (e.kind === 'npc' && !E.Gm.knows(e.npc) ? (e.g === 'f' ? 'незнакомка' : 'незнакомец') : e.n);
   const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
   // ---------- артефакты: у каждого своя логика ----------
@@ -108,7 +121,7 @@
     let dmg = Math.max(1, r.dmg - Math.floor(e.d * (opts.pierce ? 0.2 : 0.7)));
     if (sneak) { Gm.cnt('sneak'); Gm.gain('sneak'); }
     const verb = r.crit ? 'Ты наносишь сокрушительный удар' : 'Ты бьёшь';
-    Gm.msg(verb + ' — ' + e.acc + ' (' + dmg + ').', r.crit ? '#ffe080' : '#e0e0e0');
+    Gm.msg(verb + ' — ' + Cb.accOf(e) + ' (' + dmg + ').', r.crit ? '#ffe080' : '#e0e0e0');
     Cb.wear(w, 1);
     e.aware = true;
     if (e.kind === 'mon' && e.ai === 'passive') e.hostileToP = true;
@@ -153,7 +166,7 @@
     Gm.removeEnt(e);
     const byP = src === 'player' || src === 'ally';
     const deathWord = e.tags.includes('undead') ? 'рассыпается' : e.tags.includes('spirit') || e.ghost ? 'растворяется' : e.tags.includes('stone') ? 'разваливается на куски' : e.tags.includes('plant') ? 'увядает' : 'падает замертво';
-    Gm.msg(U.cap(e.n) + ' ' + deathWord + '.', '#ffb080');
+    Gm.msg(U.cap(Cb.nameOf(e)) + ' ' + deathWord + '.', '#ffb080');
     if (!byP) { if (e.npc != null) E.Sim.kill(e.npc, 'погиб(ла)'); return; }
     // опыт и пути
     Gm.xp(e.xp);
@@ -255,7 +268,7 @@
     if (Math.random() * 100 > U.clamp(acc, 10, 95)) return;
     const dmg = Math.max(1, rnd(a.a[0], a.a[1]) - Math.floor(b.d * 0.7));
     if (b.kind === 'npc' && !b.hostile) return;
-    Gm.msg(U.cap(a.n) + ' ' + a.v + ' — ' + b.acc + ' (' + dmg + ').', '#a0d0a0');
+    Gm.msg(U.cap(a.n) + ' ' + a.v + ' — ' + Cb.accOf(b) + ' (' + dmg + ').', '#a0d0a0');
     Cb.hurtEnt(b, dmg, a.ally ? 'ally' : 'mon');
   };
 
@@ -332,7 +345,7 @@
       for (let i = 0; i < (a.r || 8); i++) { x += dir[0]; y += dir[1]; if (x < 0 || y < 0 || x >= m.w || y >= m.h) break; if (!TL[m.tiles[y * m.w + x]].see && !TL[m.tiles[y * m.w + x]].walk) break; const e = Gm.entAt(x, y); if (e && e.kind !== 'ally') return e; }
       return null;
     };
-    const hurt = (e, dmg, el) => { if (e.kind === 'npc' && !e.hostile) Gm.crime(e, 'attack'); e.aware = true; Gm.msg(U.cap(a.n) + ' — ' + e.acc + ' (' + dmg + ').', '#ffd0a0'); const k = Cb.hurtEnt(e, dmg, 'player', el); if (!k) Cb.onHitFx(e, a.x || {}); return k; };
+    const hurt = (e, dmg, el) => { if (e.kind === 'npc' && !e.hostile) Gm.crime(e, 'attack'); e.aware = true; Gm.msg(U.cap(a.n) + ' — ' + Cb.accOf(e) + ' (' + dmg + ').', '#ffd0a0'); const k = Cb.hurtEnt(e, dmg, 'player', el); if (!k) Cb.onHitFx(e, a.x || {}); return k; };
     switch (a.k) {
       case 'strike': case 'execute': case 'drain': {
         const e = dir ? Gm.entAt(P.x + dir[0], P.y + dir[1]) : Cb.nearestEnemy(1);

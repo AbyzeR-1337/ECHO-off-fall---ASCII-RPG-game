@@ -181,7 +181,7 @@
     const bld = (k) => (S[k] && S[k].in ? pick(S[k].in) : null);
     switch (place) {
       case 'home': { const h = Ent.homeOf(id); return h ? pick(h.in) : pick(S.square); }
-      case 'tavern': return bld('tavern') || pick(S.square);
+      case 'tavern': return (S.pub && r.chance(0.4) ? bld('pub') : bld('tavern')) || bld('pub') || pick(S.square);
       case 'temple': return bld('temple') || pick(S.square);
       case 'palace': return bld('palace') || pick(S.square);
       case 'smithy': return bld('smithy') || pick(S.square);
