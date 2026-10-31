@@ -520,6 +520,7 @@
       col(cols[Math.floor(id * cols.length)], 0.7 + id * 0.5);
       o.cs = CS.book; o.t = id; if (shelfRow > 0.16 + id * 0.25 && id < 0.15) { col(C('#1a120a'), 1); o.cs = CS.dark; }
     } };
+  BL.boarded = Object.assign({}, BL.door);
   for (const k in BL) BL[k].key = k;
 
   // готовые клетки построек: кэш по месту, виду и времени (окна ночью светятся)

@@ -26,8 +26,11 @@
   // ---------- что чем рисовать ----------
   const GTEX = { grass: 'grass', grass_dry: 'grass_dry', grass_frost: 'grass_frost', tallgrass: 'tallgrass', flowers: 'flowers', roots: 'roots', sand: 'sand', dune: 'dune', stones: 'stones', snow: 'snow', drift: 'snow', ice: 'ice', hill: 'grass', rock: 'rockfloor', floor: 'planks', stonefloor: 'stonetiles', road: 'dirt', cobble: 'cobble', water: 'water', shallow: 'water:s', stream: 'water:r', swamp: 'swamp', bog: 'water:b', lava: 'lava', ash: 'ash', cloud: 'cloud', deck: 'deck', rubble: 'rubble', bones: 'bones', field: 'field', field_bare: 'soil', soil: 'soil', mirrorwater: 'water:m', blacksnow: 'blacksnow', flesh: 'flesh', moondust: 'moondust', crater: 'crater', dreamfloor: 'dream', voidfloor: 'voidfloor', timefloor: 'timefloor', seafloor: 'seafloor', spiritfloor: 'spirit', mist: 'mist', nightgrass: 'nightgrass', nightflower: 'nightgrass' };
   const WTEX = { townwall: 'townwall', treewall: 'treewall', coralwall: 'coral', cave: 'cave', crackwall: 'crack', mountain: 'mountain', peak: 'peak', icerock: 'icerock', basalt: 'basalt', ore: 'ore', bigtree: 'bark', fleshwall: 'fleshwall', dreamwall: 'dreamwall', clockwall: 'clockwall', shelf: 'shelf' };
-  const WH = { wall: WALL, window: WALL, door: WALL, townwall: 2.3, treewall: 2.4, coralwall: 1.6, cave: CAVE, crackwall: CAVE, ore: CAVE, mountain: 2.4, peak: 3.4, icerock: 2.0, basalt: 2.2, bigtree: 4.5, fleshwall: 2.0, dreamwall: 2.0, clockwall: 2.0, shelf: 1.25 };
-  const ROOFTEX = { thatch: 'roof_thatch', tiles: 'roof_tiles', slate: 'roof_slate', temple: 'roof_temple', palace: 'roof_palace', wood: 'roof_wood' };
+  const WH = { wall: WALL, window: WALL, door: WALL, boarded: WALL, townwall: 2.3, treewall: 2.4, coralwall: 1.6, cave: CAVE, crackwall: CAVE, ore: CAVE, mountain: 2.4, peak: 3.4, icerock: 2.0, basalt: 2.2, bigtree: 4.5, fleshwall: 2.0, dreamwall: 2.0, clockwall: 2.0, shelf: 1.25 };
+  const ROOFTEX = { thatch: 'roof_thatch', tiles: 'roof_tiles', slate: 'roof_slate', temple: 'roof_temple', palace: 'roof_palace', wood: 'roof_wood', shingle: 'roof_shingle', moss: 'roof_moss' };
+  // стены домов: фахверк, кирпич, камень, брёвна, бут, мазанка — и суффикс для окон и дверей
+  const MATWALL = { timber: ['timber', ':t'], brick: ['brick', ''], stone: ['brick:s', ':s'], log: ['log', ':l'], field: ['fieldstone', ':f'], daub: ['daub', ':d'], burnt: ['grime', ':f'] };
+  const TALL = 2.7; // двухэтажный дом
   // на поверхности камень — это рельеф: скалы и горы, а не кубы
   const ROCK = new Set(['mountain', 'peak', 'icerock', 'basalt']);
   const ROCKTEX = { mountain: 'mountain', peak: 'peak', icerock: 'icerock', basalt: 'basalt' };
@@ -266,12 +269,12 @@
   // Сборка куска
   // ============================================================
   function wallTex(roofs, bk, x, y) {
-    if (bk === 'wall' || bk === 'window' || bk === 'door') {
+    if (bk === 'wall' || bk === 'window' || bk === 'door' || bk === 'boarded') {
       const rf = roofs.find((r) => x >= r.rect.x && y >= r.rect.y && x < r.rect.x + r.rect.w && y < r.rect.y + r.rect.h);
-      const timber = rf && (rf.style === 'thatch' || rf.style === 'wood');
-      const stone = !rf || rf.style === 'temple' || rf.style === 'palace';
-      if (bk === 'wall') return timber ? 'timber' : stone ? 'brick:s' : 'brick';
-      return bk + (timber ? ':t' : '');
+      const mw = rf ? MATWALL[rf.mat] || MATWALL.brick : MATWALL.stone;
+      if (bk === 'wall') return mw[0];
+      if (bk === 'boarded') return 'door' + mw[1] + ':b';
+      return bk + mw[1];
     }
     return WTEX[bk] || 'cave';
   }
@@ -321,8 +324,10 @@
     };
     // затенение у подножия стен
     const ao = (x, y) => { let k = 0; for (const [dx, dy] of [[-1, -1], [0, -1], [-1, 0], [0, 0]]) if (clsAt(x + dx, y + dy) === CL.BLOCK) k++; return 1 - Math.min(2, k) * 0.16; };
-    const insideRoof = new Uint8Array(W * H);
-    for (const rf of roofs) for (let y = rf.rect.y; y < rf.rect.y + rf.rect.h; y++) for (let x = rf.rect.x; x < rf.rect.x + rf.rect.w; x++) if (x >= 0 && y >= 0 && x < W && y < H) insideRoof[y * W + x] = 1;
+    const insideRoof = new Uint8Array(W * H), tallAt = new Uint8Array(W * H);
+    for (const rf of roofs) for (let y = rf.rect.y; y < rf.rect.y + rf.rect.h; y++) for (let x = rf.rect.x; x < rf.rect.x + rf.rect.w; x++) if (x >= 0 && y >= 0 && x < W && y < H) { insideRoof[y * W + x] = 1; if (rf.tall) tallAt[y * W + x] = 1; }
+    // высота стены: двухэтажные дома выше
+    const wallH = (x, y, bk) => { let hh = WH[bk] || WALL; if (dungeon && hh < CAVE && bk !== 'shelf') hh = CAVE; if ((bk === 'wall' || bk === 'window' || bk === 'door' || bk === 'boarded') && x >= 0 && y >= 0 && x < W && y < H && tallAt[y * W + x]) hh = TALL; return hh; };
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = y * W + x, tid = m.tiles[i];
       if (dungeon && !m.ex[i] && !(G.map === m && G.vis[i])) continue; // подземелья — только увиденное
@@ -334,12 +339,12 @@
       if (c === CL.BLOCK && bk !== 'door') {
         const cs = corners(CL.LAND, x, y);
         const bot = Math.min(...cs) - 0.35;
-        let hh = WH[bk] || WALL; if (dungeon && hh < CAVE && bk !== 'shelf') hh = CAVE;
+        const hh = wallH(x, y, bk);
         const top = hb + hh, tex = wallTex(roofs, bk, x, y);
         P3.quad(M, [x, top, y + 1], [x + 1, top, y + 1], [x + 1, top, y], [x, top, y], [0, 0], [1, 1], bk === 'cave' || dungeon ? tex : 'roof_slate', [0, 1, 0], dungeon ? 0 : 1);
         for (const [dx, dy, nx, nz] of [[0, -1, 0, -1], [1, 0, 1, 0], [0, 1, 0, 1], [-1, 0, -1, 0]]) {
           const nc = clsAt(x + dx, y + dy), nb = bkAt(x + dx, y + dy);
-          if (nc === CL.BLOCK && nb !== 'door') { let nh = WH[nb] || WALL; if (dungeon && nh < CAVE && nb !== 'shelf') nh = CAVE; if (hAt(x + dx, y + dy) + nh >= top - 0.01) continue; }
+          if (nc === CL.BLOCK && nb !== 'door') { const nh = wallH(x + dx, y + dy, nb); if (hAt(x + dx, y + dy) + nh >= top - 0.01) continue; }
           let p0, p1;
           if (dy === -1) { p0 = [x + 1, 0, y]; p1 = [x, 0, y]; } else if (dx === 1) { p0 = [x + 1, 0, y + 1]; p1 = [x + 1, 0, y]; } else if (dy === 1) { p0 = [x, 0, y + 1]; p1 = [x + 1, 0, y + 1]; } else { p0 = [x, 0, y]; p1 = [x, 0, y + 1]; }
           const b0 = nc === CL.WATER ? Math.min(bot, hAt(x + dx, y + dy) - 0.3) : bot;
@@ -399,7 +404,7 @@
       }
       // ---- дверной проём: перемычка над проходом ----
       if (bk === 'door') {
-        const tex = wallTex(roofs, 'wall', x, y), top = hb + (dungeon ? CAVE : WALL), lo = hb + 1.12;
+        const tex = wallTex(roofs, 'wall', x, y), top = hb + (dungeon ? CAVE : wallH(x, y, 'door')), lo = hb + 1.12;
         const ew = clsAt(x - 1, y) === CL.BLOCK && clsAt(x + 1, y) === CL.BLOCK;
         if (ew) { P3.quad(M, [x, lo, y + 1], [x + 1, lo, y + 1], [x + 1, top, y + 1], [x, top, y + 1], [0, 0], [1, top - lo], tex, [0, 0, 1], sky); P3.quad(M, [x + 1, lo, y], [x, lo, y], [x, top, y], [x + 1, top, y], [0, 0], [1, top - lo], tex, [0, 0, -1], sky); }
         else { P3.quad(M, [x, lo, y], [x, lo, y + 1], [x, top, y + 1], [x, top, y], [0, 0], [1, top - lo], tex, [-1, 0, 0], sky); P3.quad(M, [x + 1, lo, y + 1], [x + 1, lo, y], [x + 1, top, y], [x + 1, top, y + 1], [0, 0], [1, top - lo], tex, [1, 0, 0], sky); }
@@ -438,10 +443,10 @@
       const r = rf.rect;
       if (!X.roofIntact(m, r)) continue;
       const lvl = cd.h[U.clamp(r.y, 0, H - 1) * W + U.clamp(r.x, 0, W - 1)];
-      const tex = ROOFTEX[rf.style] || 'roof_thatch', wtex = rf.style === 'thatch' || rf.style === 'wood' ? 'timber' : rf.style === 'temple' || rf.style === 'palace' ? 'brick:s' : 'brick';
-      const o = 0.16, x0 = r.x - o, x1 = r.x + r.w + o, z0 = r.y - o, z1 = r.y + r.h + o, b = lvl + WALL;
+      const tex = ROOFTEX[rf.style] || 'roof_thatch', wtex = (MATWALL[rf.mat] || MATWALL.brick)[0];
+      const o = 0.2, x0 = r.x - o, x1 = r.x + r.w + o, z0 = r.y - o, z1 = r.y + r.h + o, b = lvl + (rf.tall ? TALL : WALL), pk = rf.pitch || 0.42;
       if (r.w >= r.h) {
-        const zm = r.y + r.h / 2, top = b + r.h * 0.42, sl = Math.hypot(r.h / 2 + o, top - b);
+        const zm = r.y + r.h / 2, top = b + r.h * pk, sl = Math.hypot(r.h / 2 + o, top - b);
         const n1 = [0, (r.h / 2 + o) / sl, -(top - b) / sl], n2 = [0, n1[1], -n1[2]];
         P3.quad(M, [x0, b, z0], [x1, b, z0], [x1, top, zm], [x0, top, zm], [0, sl], [x1 - x0, 0], tex, n1, 1, K.ROOF);
         P3.quad(M, [x1, b, z1], [x0, b, z1], [x0, top, zm], [x1, top, zm], [0, sl], [x1 - x0, 0], tex, n2, 1, K.ROOF);
@@ -449,7 +454,7 @@
         P3.tri(M, [r.x + r.w, b, r.y + r.h], [r.x + r.w, b, r.y], [r.x + r.w, top, zm], [0, top - b], [r.h, top - b], [r.h / 2, 0], wtex, [1, 0, 0], 1, K.ROOF);
         if (rf.chim) chimney(M, rf.chim.x + 0.5, top - 0.1, zm - 0.6, K.ROOF);
       } else {
-        const xm = r.x + r.w / 2, top = b + r.w * 0.42, sl = Math.hypot(r.w / 2 + o, top - b);
+        const xm = r.x + r.w / 2, top = b + r.w * pk, sl = Math.hypot(r.w / 2 + o, top - b);
         const n1 = [-(top - b) / sl, (r.w / 2 + o) / sl, 0], n2 = [-n1[0], n1[1], 0];
         P3.quad(M, [x0, b, z1], [x0, b, z0], [xm, top, z0], [xm, top, z1], [0, sl], [z1 - z0, 0], tex, n1, 1, K.ROOF);
         P3.quad(M, [x1, b, z0], [x1, b, z1], [xm, top, z1], [xm, top, z0], [0, sl], [z1 - z0, 0], tex, n2, 1, K.ROOF);
@@ -693,24 +698,25 @@
     const sunReal = [Math.cos(ang) / sl, el / sl, 0.42 / sl];
     const day = sm(-0.12, 0.25, el);           // 0 ночь … 1 день
     const gold = sm(-0.1, 0.05, el) * (1 - sm(0.12, 0.42, el)); // золотой час
-    let zen = mix3([0.015, 0.025, 0.075], [0.16, 0.34, 0.72], day);
-    let hor = mix3([0.05, 0.07, 0.15], [0.66, 0.79, 0.93], day);
-    zen = mix3(zen, [0.24, 0.24, 0.52], gold * 0.6);
-    hor = mix3(hor, [1.0, 0.6, 0.34], gold * 0.85);
-    let glow = mix3([0.1, 0.1, 0.16], [1.0, 0.86, 0.6], day);
-    glow = mix3(glow, [1.25, 0.55, 0.22], gold);
-    let cloudLit = mix3([0.18, 0.2, 0.3], [1.0, 0.98, 0.95], day), cloudSh = mix3([0.05, 0.06, 0.1], [0.56, 0.62, 0.76], day);
-    cloudLit = mix3(cloudLit, [1.05, 0.66, 0.42], gold); cloudSh = mix3(cloudSh, [0.42, 0.3, 0.46], gold);
-    const grey = mix3([0.07, 0.07, 0.09], [0.55, 0.57, 0.61], day);
+    // тёмное фэнтези: небо низкое и серое, синевы мало, закаты — ржавые, ночи — чёрные
+    let zen = mix3([0.008, 0.01, 0.028], [0.27, 0.34, 0.46], day);
+    let hor = mix3([0.03, 0.035, 0.06], [0.6, 0.63, 0.64], day);
+    zen = mix3(zen, [0.22, 0.18, 0.3], gold * 0.6);
+    hor = mix3(hor, [0.86, 0.48, 0.3], gold * 0.8);
+    let glow = mix3([0.08, 0.08, 0.12], [0.9, 0.8, 0.62], day);
+    glow = mix3(glow, [1.1, 0.48, 0.2], gold);
+    let cloudLit = mix3([0.12, 0.13, 0.18], [0.84, 0.84, 0.85], day), cloudSh = mix3([0.03, 0.035, 0.06], [0.36, 0.38, 0.43], day);
+    cloudLit = mix3(cloudLit, [0.95, 0.58, 0.38], gold); cloudSh = mix3(cloudSh, [0.32, 0.24, 0.32], gold);
+    const grey = mix3([0.05, 0.05, 0.065], [0.5, 0.52, 0.54], day);
     zen = mix3(zen, grey, over * 0.8); hor = mix3(hor, mix3(grey, [0.7, 0.72, 0.76], day * 0.5), over * 0.75);
     cloudLit = mix3(cloudLit, mix3(grey, [0.8, 0.8, 0.82], day), over * 0.6); cloudSh = mix3(cloudSh, mix3(grey, [0.42, 0.44, 0.48], day), over * 0.6);
     glow = glow.map((v) => v * (1 - over * 0.7));
-    let fogD = 0.0058 + over * 0.003 + (1 - day) * 0.002;
+    let fogD = 0.0078 + over * 0.003 + (1 - day) * 0.003;
     const w = hs.weather;
     if (w === 'fog') fogD = 0.06; else if (w === 'blizzard' || w === 'sandstorm') fogD = 0.04; else if (w === 'rain' || w === 'storm' || w === 'snow') fogD = 0.012;
     if (w === 'sandstorm') { hor = [0.7, 0.55, 0.35]; zen = [0.6, 0.48, 0.32]; }
     if (m.dimName && DIMC[m.dimName]) { zen = DIMC[m.dimName][0]; hor = DIMC[m.dimName][1]; fogD = 0.02; glow = [0.2, 0.2, 0.2]; }
-    const sunK = s.sun.map((v) => v * 1.05);
+    const sunK = s.sun.map((v, i) => v * [0.92, 0.9, 0.86][i]);
     // в золотой час небо подсвечивает всё тёплым — тени не проваливаются в черноту
     s.amb = s.amb.map((v, i) => v + gold * [0.2, 0.12, 0.13][i] * (1 - over * 0.5) + (1 - day) * [0.015, 0.02, 0.045][i]);
     const out = {
@@ -718,7 +724,7 @@
       sunDir: [s.S[0], s.S[2], s.S[1]], sunSky: sunReal, sun: sunK, amb: s.amb.map((v) => v * 1.0),
       sunDisc: el > -0.06 ? mix3([1.3, 1.15, 0.9], [1.4, 0.75, 0.4], gold).map((v) => v * (1 - over * 0.85) * Math.min(1, (el + 0.06) * 12)) : [0, 0, 0],
       moonDir: s.M ? [s.M[0], s.M[2], s.M[1]] : [0, -1, 0], stars: Math.max(0, 1 - day * 1.5) * (1 - over * 0.9),
-      cloud: Math.min(1, 0.42 + over * 0.8), cloudLit, cloudSh, cloudC: cloudLit,
+      cloud: Math.min(1, 0.62 + over * 0.6), cloudLit, cloudSh, cloudC: cloudLit,
       night: day < 0.3 ? 1 : 0, indoor: false, seed: (seed % 97) * 3.1,
     };
     // ночью светит луна: её направление вместо солнечного
@@ -1020,6 +1026,10 @@
       ctx.beginPath(); ctx.rect(vx0, vy0, vw, vh); ctx.clip();
       ctx.imageSmoothingEnabled = false;
       if (gcv) ctx.drawImage(gcv, vx0, vy0, fw * KP / dpr, fh * KP / dpr);
+      // тёмные края кадра — как на старой гравюре
+      const vg = ctx.createRadialGradient(vx0 + vw / 2, vy0 + vh * 0.48, Math.min(vw, vh) * 0.38, vx0 + vw / 2, vy0 + vh * 0.48, Math.hypot(vw, vh) * 0.62);
+      vg.addColorStop(0, 'rgba(8,6,10,0)'); vg.addColorStop(1, 'rgba(8,6,10,0.55)');
+      ctx.fillStyle = vg; ctx.fillRect(vx0, vy0, vw, vh);
       // рука с оружием
       if (UI.drawHand3D) UI.drawHand3D(ctx, { vx0, vy0, vw, vh, px: KP / dpr, fw, fh, now, moving: pmov, walked, sky, lights, cam, inside: !m.outdoor || !!inside });
       if (UI.drawHUD3D) UI.drawHUD3D(ctx, t, { vx0, vy0, vw, vh, now, cam, RO, gox, goz, fw, fh });

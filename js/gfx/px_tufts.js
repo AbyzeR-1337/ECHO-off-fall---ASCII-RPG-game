@@ -8,12 +8,12 @@
   const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
   function rng(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return ((h >>> 0) % 100000) / 100000; }; }
   const SEASON = [
-    { lo: '#2e5a1e', mid: '#5a8c2e', hi: '#9ac850' }, // весна
-    { lo: '#24481a', mid: '#4a7a28', hi: '#82b040' }, // лето
-    { lo: '#5a4a1e', mid: '#9a7a30', hi: '#d0a84a' }, // осень
-    { lo: '#4a5a5a', mid: '#8a9a9a', hi: '#d0dcdc' }, // зима
+    { lo: '#26401c', mid: '#4a6a2c', hi: '#7a9244' }, // весна
+    { lo: '#20361a', mid: '#3e5a26', hi: '#687e3a' }, // лето
+    { lo: '#4a3e1e', mid: '#7a6230', hi: '#a48444' }, // осень
+    { lo: '#404a4a', mid: '#7a8484', hi: '#b4bcbc' }, // зима
   ];
-  const FLOWER = ['#f0d040', '#f4f0e8', '#e870a0', '#a070e0', '#5a90f0', '#e04a3a', '#f0a030'];
+  const FLOWER = ['#c8a838', '#d8d0c4', '#a84868', '#6e4a98', '#4a6aa8', '#9a2a24', '#b87a2a'];
   function canvas(w, h, draw) {
     const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
     const c = cv.getContext('2d'), img = c.createImageData(w, h), d = img.data;

@@ -1220,6 +1220,7 @@ d d  d d`);
 
   // низкие грани (в полряда): стены домов и пещер, чтобы не закрывать пол
   for (const k of ['wall', 'window', 'door', 'treewall', 'coralwall', 'shelf', 'cave', 'crackwall', 'ore', 'basalt', 'fleshwall', 'dreamwall', 'clockwall', 'bank']) Gfx.blocks[k].faceRows = 1;
+  Gfx.blocks.boarded = Object.assign({}, Gfx.blocks.door, { key: 'boarded', name: 'Заколоченная дверь' });
 
   // ============================================================
   // ЗНАКИ И ЭФФЕКТЫ

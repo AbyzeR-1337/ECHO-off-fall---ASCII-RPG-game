@@ -21,7 +21,10 @@
     if (ft && ft.k === 'inscr') return ['Прочесть', 'надпись'];
     if (ft && ft.k === 'grave') return ['Осмотреть', 'могила'];
     if (t === T.WELL) return ['Набрать воды', 'колодец'];
-    if (t === T.CAMPFIRE || t === T.HEARTH) return ['Готовить', TL[t].name];
+    if (t === T.CAMPFIRE || t === T.HEARTH || t === T.OVEN || t === T.KILN) return ['Готовить', TL[t].name];
+    if (t === T.BELFRY) return ['Ударить в колокол', 'колокольня'];
+    if (t === T.WAYCROSS) return ['Постоять', 'придорожный знак'];
+    if ([T.GALLOWS, T.PILLORY, T.GIBBET, T.PIKE, T.WINDMILL, T.WOODPILE].includes(t)) return ['Осмотреть', TL[t].name];
     if (t === T.OUTHOUSE) return ['Зайти', 'нужник'];
     if (t === T.SIGN) return ['Прочесть', 'вывеска'];
     if (TL[t].stall || (m.stalls && m.stalls[i])) return ['Торговать', t === T.COUNTER ? 'стойка' : E.Gm.stallName(m, f.x, f.y)];

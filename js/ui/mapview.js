@@ -30,6 +30,9 @@
   o('chair', 'CHAIR'); o('bench', 'BENCH'); o('outhouse', 'OUTHOUSE');
   o('barrel', 'BARREL'); o('crate', 'CRATE'); o('stall', 'STALL'); o('hay', 'HAY'); o('lamppost', 'LAMPPOST'); o('boat', 'BOAT'); o('cart', 'CART');
   o('rack', 'RACK'); o('workbench', 'WORKBENCH'); o('rug', 'RUG');
+  o('belfry', 'BELFRY'); o('watchtower', 'WATCHTOWER'); o('gallows', 'GALLOWS'); o('pillory', 'PILLORY'); o('gibbet', 'GIBBET'); o('pike', 'PIKE'); o('banner', 'BANNER');
+  o('waycross', 'WAYCROSS'); o('woodpile', 'WOODPILE'); o('trough', 'TROUGH'); o('kiln', 'KILN'); o('windmill', 'WINDMILL'); o('oven', 'OVEN'); o('vat', 'VAT'); o('sack', 'SACK'); o('palisade', 'PALISADE');
+  b('boarded', 'BOARDED');
   FIX[T.CHAIR] = 'floor'; FIX[T.BENCH] = 'floor'; FIX[T.RUG] = 'floor'; FIX[T.BOAT] = 'water';
   FIX[T.WHIRLPOOL] = 'water'; FIX[T.GATE] = 'road'; FIX[T.CORAL] = 'seafloor'; FIX[T.REEDS] = 'swamp';
   for (const k of ['WATER', 'SHALLOW', 'STREAM', 'BOG', 'LAVA', 'MIRRORWATER', 'WHIRLPOOL']) LOW[T[k]] = 1;
@@ -99,7 +102,10 @@
       if (!style) style = m.biome === 'mountain' || m.biome === 'tundra' || m.biome === 'ice' ? 'slate' : m.biome === 'forest' || m.biome === 'ancient' ? 'wood' : HOMEROOF[(r.x * 7 + r.y * 13) % HOMEROOF.length];
       let chim = null;
       for (let y = r.y + 1; y < r.y + r.h - 1 && !chim; y++) for (let x = r.x + 1; x < r.x + r.w - 1; x++) if (m.tiles[y * m.w + x] === T.HEARTH) { chim = { x, y: r.y + ((r.h - 1) >> 1) }; break; }
-      out.push({ rect: r, style, chim, door: bd.door });
+      if (bd.roof) style = bd.roof;
+      // из чего стены: из построения посёлка или по крыше
+      const mat = bd.mat || (style === 'thatch' || style === 'wood' || style === 'moss' ? 'timber' : style === 'temple' || style === 'palace' ? 'stone' : 'brick');
+      out.push({ rect: r, style, chim, door: bd.door, mat, tall: !!bd.tall, pitch: bd.pitch || 0.42 });
     }
     m._roofs = out;
     return out;
@@ -180,7 +186,7 @@
     [T.CAMPFIRE]: [[1, 0.58, 0.24], 1.7, 6.5, 1], [T.HEARTH]: [[1, 0.55, 0.22], 1.4, 5, 1], [T.LAVA]: [[1, 0.35, 0.1], 0.7, 2.6, 0],
     [T.PORTAL]: [[0.75, 0.45, 1], 1.2, 4.5, 0], [T.CRYSTAL]: [[0.6, 0.45, 1], 0.8, 3, 0], [T.LIGHTHOUSE]: [[1, 0.95, 0.7], 2, 10, 0],
     [T.NIGHTFLOWER]: [[0.6, 0.7, 1], 0.45, 1.8, 0], [T.ALTAR]: [[1, 0.75, 0.4], 0.8, 2.8, 1], [T.SHRINE]: [[1, 0.9, 0.5], 0.8, 3.2, 0], [T.WHIRLPOOL]: [[0.4, 0.6, 1], 0.5, 2.5, 0],
-    [T.LAMPPOST]: [[1, 0.78, 0.45], 1.1, 5, 1],
+    [T.LAMPPOST]: [[1, 0.78, 0.45], 1.1, 5, 1], [T.OVEN]: [[1, 0.5, 0.2], 1.2, 4, 1], [T.KILN]: [[1, 0.4, 0.15], 0.9, 3.5, 1],
   };
   const OBJH = Gfx.HF ? Gfx.HF.OBJH : {};
   UI.objHeight = (k) => OBJH[k] || 0.4;

@@ -11,7 +11,8 @@
   const FU = UI.V3furn = {};
   const WALL = 1.5;
   const SET = new Set(['BED', 'TABLE', 'CHAIR', 'BENCH', 'COUNTER', 'HEARTH', 'ANVIL', 'ALCHTABLE', 'THRONE', 'CHEST', 'ALTAR', 'PILLAR', 'GRAVE', 'WELL', 'OUTHOUSE', 'SIGN', 'TENT', 'INSCRIPTION', 'SHRINE',
-    'BARREL', 'CRATE', 'STALL', 'HAY', 'LAMPPOST', 'BOAT', 'CART', 'RACK', 'WORKBENCH', 'RUG'].map((k) => T[k]).filter((v) => v != null));
+    'BARREL', 'CRATE', 'STALL', 'HAY', 'LAMPPOST', 'BOAT', 'CART', 'RACK', 'WORKBENCH', 'RUG',
+    'BELFRY', 'WATCHTOWER', 'GALLOWS', 'PILLORY', 'GIBBET', 'PIKE', 'BANNER', 'WAYCROSS', 'WOODPILE', 'TROUGH', 'KILN', 'WINDMILL', 'OVEN', 'VAT', 'SACK', 'PALISADE'].map((k) => T[k]).filter((v) => v != null));
   FU.has = (tid) => SET.has(tid);
   const hsh = (x, y, k) => (U.hash(x, y, k) >>> 0) % 1000 / 1000;
 
@@ -315,6 +316,175 @@
     P3.quad(M, F.P(-0.46, 0.012, 0.42), F.P(0.46, 0.012, 0.42), F.P(0.46, 0.012, -0.42), F.P(-0.46, 0.012, -0.42), [0, 1], [1.5, 0], 'quilt:' + col, F.N(0, 1, 0), c.sky);
   };
 
+  // ---------- средневековье: башни, казни, знаки, мельницы, печи, частокол ----------
+  // четырёхскатный шатёр (крыша башни, навес)
+  function spire(M, F, hw, y0, y1, tex, sky) {
+    const P3 = Gfx.P3, A = F.P(0, y1, 0);
+    for (const [ax, az, bx, bz, nx, nz] of [[-hw, hw, hw, hw, 0, 1], [hw, hw, hw, -hw, 1, 0], [hw, -hw, -hw, -hw, 0, -1], [-hw, -hw, -hw, hw, -1, 0]]) P3.tri(M, F.P(ax, y0, az), F.P(bx, y0, bz), A, [0, 1], [1, 1], [0.5, 0], tex, F.N(nx * 0.8, 0.6, nz * 0.8), sky);
+  }
+  // череп: коробочка цвета кости с пустыми глазницами
+  function skull(B, x, y, z, k) {
+    k = k || 1;
+    B(x - 0.07 * k, y, z - 0.07 * k, x + 0.07 * k, y + 0.12 * k, z + 0.07 * k, 'linen');
+    B(x - 0.05 * k, y - 0.04 * k, z - 0.04 * k, x + 0.05 * k, y, z + 0.06 * k, 'linen');
+    B(x - 0.045 * k, y + 0.04 * k, z + 0.066 * k, x - 0.01 * k, y + 0.075 * k, z + 0.075 * k, 'ashes'); B(x + 0.01 * k, y + 0.04 * k, z + 0.066 * k, x + 0.045 * k, y + 0.075 * k, z + 0.075 * k, 'ashes');
+  }
+  MODELS.BELFRY = (M, F, c) => {
+    const B = c.box, P3 = Gfx.P3;
+    B(-0.47, 0, -0.47, 0.47, 0.25, 0.47, 'fieldstone');
+    B(-0.42, 0.25, -0.42, 0.42, 2.6, 0.42, 'fieldstone');
+    for (const [x0, z0] of [[-0.06, 0.42], [-0.06, -0.43]]) B(x0, 1.4, z0, x0 + 0.12, 1.85, z0 + 0.01, 'tunnel');      // бойницы
+    B(-0.46, 2.6, -0.46, 0.46, 2.7, 0.46, 'arch');
+    for (const [x, z] of [[-0.38, -0.38], [0.38, -0.38], [-0.38, 0.38], [0.38, 0.38]]) B(x - 0.07, 2.7, z - 0.07, x + 0.07, 3.3, z + 0.07, 'fieldstone');
+    B(-0.46, 3.3, -0.46, 0.46, 3.4, 0.46, 'arch');
+    // колокол на перекладине
+    B(-0.38, 3.18, -0.03, 0.38, 3.24, 0.03, 'beam');
+    prism(M, F, 0.17, 2.82, 3.08, 'iron', c.sky, null, 8); prism(M, F, 0.11, 3.08, 3.18, 'iron', c.sky, 'iron', 8);
+    spire(M, F, 0.5, 3.4, 4.7, 'roof_slate', c.sky);
+    B(-0.015, 4.65, -0.015, 0.015, 5.0, 0.015, 'iron'); B(-0.09, 4.85, -0.015, 0.09, 4.88, 0.015, 'iron');
+  };
+  MODELS.WATCHTOWER = (M, F, c) => {
+    const B = c.box;
+    for (const [x, z] of [[-0.4, -0.4], [0.4, -0.4], [-0.4, 0.4], [0.4, 0.4]]) B(x - 0.06, 0, z - 0.06, x * 0.88 + 0.06, 2.6, z * 0.88 + 0.06, 'beam');
+    for (const y of [0.9, 1.8]) { B(-0.4, y, -0.42, 0.4, y + 0.06, -0.38, 'beam'); B(-0.4, y, 0.38, 0.4, y + 0.06, 0.42, 'beam'); B(-0.42, y, -0.4, -0.38, y + 0.06, 0.4, 'beam'); B(0.38, y, -0.4, 0.42, y + 0.06, 0.4, 'beam'); }
+    B(-0.5, 2.6, -0.5, 0.5, 2.68, 0.5, 'planks');
+    B(-0.5, 2.68, -0.5, 0.5, 2.98, -0.46, 'planks'); B(-0.5, 2.68, 0.46, 0.5, 2.98, 0.5, 'planks'); B(-0.5, 2.68, -0.46, -0.46, 2.98, 0.46, 'planks'); B(0.46, 2.68, -0.46, 0.5, 2.98, 0.46, 'planks');
+    for (const [x, z] of [[-0.45, -0.45], [0.45, -0.45], [-0.45, 0.45], [0.45, 0.45]]) B(x - 0.04, 2.68, z - 0.04, x + 0.04, 3.45, z + 0.04, 'beam');
+    spire(M, F, 0.62, 3.42, 4.05, 'roof_shingle', c.sky);
+    // жаровня с огнём и лестница
+    B(-0.12, 2.68, -0.12, 0.12, 2.86, 0.12, 'iron'); B(-0.08, 2.86, -0.08, 0.08, 3.05, 0.08, 'flame'); c.light(0, 3.0, 0, [1, 0.6, 0.28], 6.5, 1.2);
+    for (const x of [-0.16, 0.16]) B(x - 0.025, 0, 0.5, x + 0.025, 2.65, 0.54, 'beam');
+    for (let k = 0; k < 8; k++) B(-0.16, 0.25 + k * 0.32, 0.5, 0.16, 0.28 + k * 0.32, 0.53, 'beam');
+  };
+  MODELS.GALLOWS = (M, F, c) => {
+    const B = c.box;
+    B(-0.5, 0, -0.5, 0.5, 0.32, 0.5, 'planks');                 // помост
+    B(-0.12, 0.32, -0.12, 0.12, 0.34, 0.12, 'ashes');            // люк
+    B(-0.42, 0.32, -0.07, -0.3, 2.2, 0.07, 'beam');               // столб
+    B(-0.46, 2.08, -0.07, 0.18, 2.2, 0.07, 'beam');                // перекладина
+    Gfx.P3.quad(M, F.P(-0.36, 1.65, 0.03), F.P(-0.3, 1.65, 0.03), F.P(-0.02, 2.08, 0.03), F.P(-0.08, 2.08, 0.03), [0, 1], [1, 0], 'beam', F.N(0, 0, 1), c.sky);
+    B(-0.01, 1.62, -0.01, 0.01, 2.08, 0.01, 'rope');              // верёвка с петлёй
+    B(-0.06, 1.48, -0.01, 0.06, 1.51, 0.01, 'rope'); B(-0.06, 1.48, -0.01, -0.04, 1.62, 0.01, 'rope'); B(0.04, 1.48, -0.01, 0.06, 1.62, 0.01, 'rope');
+    for (let k = 0; k < 3; k++) B(0.5, k * 0.1, -0.2, 0.62 - k * 0.04, (k + 1) * 0.1, 0.2, 'wood:d'); // ступени
+  };
+  MODELS.PILLORY = (M, F, c) => {
+    const B = c.box;
+    B(-0.3, 0, -0.3, 0.3, 0.1, 0.3, 'planks');
+    B(-0.05, 0.1, -0.05, 0.05, 1.15, 0.05, 'beam');
+    B(-0.36, 0.86, -0.05, 0.36, 1.04, 0.05, 'wood:d');
+    for (const x of [-0.22, 0, 0.22]) B(x - 0.04, 0.92, 0.05, x + 0.04, 0.98, 0.055, 'ashes');
+  };
+  MODELS.GIBBET = (M, F, c) => {
+    const B = c.box;
+    B(-0.2, 0, -0.2, 0.2, 0.08, 0.2, 'fieldstone');
+    B(-0.42, 0, -0.06, -0.3, 2.4, 0.06, 'beam'); B(-0.42, 2.3, -0.05, 0.08, 2.4, 0.05, 'beam');
+    B(-0.01, 1.75, -0.01, 0.01, 2.3, 0.01, 'iron');
+    // клетка из прутьев
+    const cy0 = 0.95, cy1 = 1.75, cx = 0;
+    for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2, x = cx + Math.cos(a) * 0.17, z = Math.sin(a) * 0.17; B(x - 0.012, cy0, z - 0.012, x + 0.012, cy1, z + 0.012, 'iron'); }
+    for (const y of [cy0, (cy0 + cy1) / 2, cy1]) prism(M, F, 0.18, y - 0.015, y + 0.015, 'iron', c.sky, null, 8, 0);
+    skull(B, cx, 1.0, 0.0, 1.1);
+    B(cx - 0.1, cy0 - 0.02, -0.12, cx + 0.1, cy0 + 0.02, 0.12, 'iron');
+  };
+  MODELS.PIKE = (M, F, c) => {
+    const B = c.box;
+    const n = 1 + Math.floor(c.r(30) * 3);
+    for (let k = 0; k < n; k++) { const x = (k - (n - 1) / 2) * 0.28, z = (c.r(31 + k) - 0.5) * 0.3, h = 1.1 + c.r(34 + k) * 0.35; B(x - 0.025, 0, z - 0.025, x + 0.025, h, z + 0.025, 'wood:d'); skull(B, x, h - 0.02, z, 1); }
+  };
+  MODELS.BANNER = (M, F, c) => {
+    const B = c.box, P3 = Gfx.P3, col = ['r', 'k', 'p', 'g'][Math.floor(c.r(40) * 4)];
+    B(-0.035, 0, -0.035, 0.035, 2.2, 0.035, 'beam'); B(-0.32, 2.0, -0.025, 0.32, 2.05, 0.025, 'beam');
+    B(-0.025, 2.2, -0.025, 0.025, 2.32, 0.025, 'iron');
+    // полотнище с рваным краем
+    for (const sd of [1, -1]) P3.quad(M, F.P(-0.3, 1.1, sd * 0.03), F.P(0.3, 1.1, sd * 0.03), F.P(0.3, 2.0, sd * 0.03), F.P(-0.3, 2.0, sd * 0.03), [0, 1], [1, 0], 'cloth:' + col, F.N(0, 0, sd), c.sky);
+    for (let k = 0; k < 3; k++) P3.tri(M, F.P(-0.3 + k * 0.2, 1.1, 0.031), F.P(-0.1 + k * 0.2, 1.1, 0.031), F.P(-0.2 + k * 0.2, 0.96, 0.031), [0, 0], [1, 0], [0.5, 1], 'cloth:' + col, F.N(0, 0, 1), c.sky);
+  };
+  MODELS.WAYCROSS = (M, F, c) => {
+    const B = c.box, P3 = Gfx.P3;
+    B(-0.22, 0, -0.22, 0.22, 0.14, 0.22, 'fieldstone');
+    B(-0.05, 0.14, -0.05, 0.05, 1.2, 0.05, 'beam');
+    B(-0.2, 1.0, -0.12, 0.2, 1.3, 0.12, 'wood:d');       // ящичек-киот
+    B(-0.14, 1.04, 0.12, 0.14, 1.26, 0.125, 'tunnel');
+    B(-0.025, 1.06, 0.06, 0.025, 1.14, 0.11, 'candle'); c.light(0, 1.15, 0.2, [1, 0.72, 0.4], 2.2, 0.45);
+    P3.quad(M, F.P(-0.26, 1.3, -0.18), F.P(0.26, 1.3, -0.18), F.P(0.26, 1.46, 0), F.P(-0.26, 1.46, 0), [0, 1], [1, 0], 'roof_shingle', F.N(0, 0.7, -0.7), c.sky);
+    P3.quad(M, F.P(0.26, 1.3, 0.18), F.P(-0.26, 1.3, 0.18), F.P(-0.26, 1.46, 0), F.P(0.26, 1.46, 0), [0, 1], [1, 0], 'roof_shingle', F.N(0, 0.7, 0.7), c.sky);
+    B(-0.12, 0.14, 0.22, -0.04, 0.2, 0.3, 'pot'); B(0.04, 0.14, 0.24, 0.12, 0.17, 0.3, 'straw');   // подношения
+  };
+  MODELS.WOODPILE = (M, F, c) => {
+    const B = c.box;
+    for (let r = 0; r < 4; r++) for (let k = 0; k < 4 - (r >> 1); k++) { const z = -0.32 + k * 0.17 + (r % 2) * 0.08, y = r * 0.14; B(-0.44, y, z, 0.3, y + 0.14, z + 0.15, 'bark'); }
+    B(0.34, 0, 0.1, 0.5, 0.3, 0.3, 'bark'); B(0.4, 0.3, 0.17, 0.43, 0.48, 0.2, 'wood:d'); B(0.38, 0.44, 0.15, 0.48, 0.5, 0.22, 'iron'); // колода с топором
+  };
+  MODELS.TROUGH = (M, F, c) => {
+    const B = c.box, P3 = Gfx.P3;
+    B(-0.44, 0, -0.2, 0.44, 0.06, 0.2, 'wood:d');
+    B(-0.44, 0.06, -0.2, 0.44, 0.34, -0.16, 'wood:d'); B(-0.44, 0.06, 0.16, 0.44, 0.34, 0.2, 'wood:d'); B(-0.44, 0.06, -0.16, -0.4, 0.34, 0.16, 'wood:d'); B(0.4, 0.06, -0.16, 0.44, 0.34, 0.16, 'wood:d');
+    P3.quad(M, F.P(-0.4, 0.28, 0.16), F.P(0.4, 0.28, 0.16), F.P(0.4, 0.28, -0.16), F.P(-0.4, 0.28, -0.16), [0, 0], [1, 1], 'water', F.N(0, 1, 0), c.sky * 0.6, 1);
+  };
+  MODELS.KILN = (M, F, c) => {
+    const P3 = Gfx.P3, B = c.box;
+    prism(M, F, 0.46, 0, 0.25, 'earth', c.sky, null, 10); prism(M, F, 0.36, 0.25, 0.48, 'earth', c.sky, null, 10); prism(M, F, 0.22, 0.48, 0.62, 'earth', c.sky, 'ashes', 10);
+    B(-0.08, 0.6, -0.08, 0.08, 0.64, 0.08, 'flame'); c.light(0, 0.7, 0, [1, 0.42, 0.15], 3.2, 0.8);
+    for (let k = 0; k < 3; k++) B(0.3 + k * 0.05, 0, -0.4 + k * 0.1, 0.5, 0.08, -0.32 + k * 0.1, 'bark');
+  };
+  MODELS.WINDMILL = (M, F, c) => {
+    const B = c.box, P3 = Gfx.P3;
+    prism(M, F, 0.48, 0, 2.5, 'fieldstone', c.sky, null, 10);
+    B(-0.14, 0, 0.44, 0.14, 0.6, 0.5, 'wood:d');                         // дверь
+    B(-0.08, 1.4, 0.45, 0.08, 1.62, 0.49, 'tunnel');                      // окошко
+    // шатровая крыша
+    for (let k = 0; k < 10; k++) { const a0 = k / 10 * Math.PI * 2, a1 = (k + 1) / 10 * Math.PI * 2; P3.tri(M, F.P(Math.cos(a0) * 0.58, 2.5, Math.sin(a0) * 0.58), F.P(Math.cos(a1) * 0.58, 2.5, Math.sin(a1) * 0.58), F.P(0, 3.25, 0), [0, 1], [1, 1], [0.5, 0], 'roof_shingle', F.N(Math.cos((a0 + a1) / 2) * 0.7, 0.7, Math.sin((a0 + a1) / 2) * 0.7), c.sky); }
+    // ось и четыре крыла с парусиной
+    const hy = 2.3, hz = 0.62;
+    B(-0.08, hy - 0.08, 0.4, 0.08, hy + 0.08, hz + 0.06, 'beam');
+    const ang = 0.35;
+    for (let k = 0; k < 4; k++) {
+      const a = ang + k * Math.PI / 2, ux = Math.cos(a), uy = Math.sin(a), vx = -uy, vy = ux;
+      const p = (t, w) => F.P(ux * t + vx * w, hy + uy * t + vy * w, hz + 0.02);
+      P3.quad(M, p(0.1, -0.03), p(1.75, -0.03), p(1.75, 0.03), p(0.1, 0.03), [0, 1], [1, 0], 'beam', F.N(0, 0, 1), c.sky);
+      P3.quad(M, p(0.45, 0.04), p(1.7, 0.04), p(1.7, 0.34), p(0.45, 0.34), [0, 1], [2, 0], 'canvas', F.N(0, 0, 1), c.sky);
+      P3.quad(M, p(1.7, 0.04), p(0.45, 0.04), p(0.45, 0.34), p(1.7, 0.34), [0, 1], [2, 0], 'canvas:d', F.N(0, 0, -1), c.sky * 0.7);
+    }
+  };
+  MODELS.OVEN = (M, F, c) => {
+    const B = c.box, P3 = Gfx.P3;
+    B(-0.46, 0, -0.46, 0.46, 0.3, 0.42, 'arch');
+    prism(M, F, 0.42, 0.3, 0.5, 'brick', c.sky, null, 10, -0.04); prism(M, F, 0.34, 0.5, 0.66, 'brick', c.sky, null, 10, -0.04); prism(M, F, 0.22, 0.66, 0.76, 'brick', c.sky, 'brick', 10, -0.04);
+    B(-0.15, 0.3, 0.3, 0.15, 0.55, 0.4, 'tunnel');
+    P3.quad(M, F.P(-0.12, 0.31, 0.39), F.P(0.12, 0.31, 0.39), F.P(0.04, 0.48, 0.39), F.P(-0.04, 0.48, 0.39), [0, 1], [1, 0], 'flame', F.N(0, 0, 1), c.sky);
+    B(-0.1, 0.7, -0.35, 0.1, c.ceil, -0.15, 'brick');                    // труба до потолка
+    B(0.22, 0.3, 0.3, 0.46, 0.33, 0.6, 'wood:d'); B(0.28, 0.33, 0.36, 0.4, 0.38, 0.5, 'straw');   // лопата с хлебом
+  };
+  MODELS.VAT = (M, F, c) => {
+    const B = c.box, P3 = Gfx.P3;
+    prism(M, F, 0.42, 0, 0.6, 'barrel', c.sky, null, 12);
+    P3.quad(M, F.P(-0.32, 0.54, 0.32), F.P(0.32, 0.54, 0.32), F.P(0.32, 0.54, -0.32), F.P(-0.32, 0.54, -0.32), [0, 0], [1, 1], 'pot', F.N(0, 1, 0), c.sky);
+    B(0.05, 0.4, -0.02, 0.09, 1.0, 0.02, 'wood:d');                       // весло-мешалка
+  };
+  MODELS.SACK = (M, F, c) => {
+    const B = c.box;
+    for (const [x, z, h] of [[-0.18, -0.12, 0.42], [0.16, -0.08, 0.36], [0, 0.2, 0.3]]) { B(x - 0.15, 0, z - 0.13, x + 0.15, h, z + 0.13, 'canvas'); B(x - 0.08, h, z - 0.07, x + 0.08, h + 0.07, z + 0.07, 'canvas:d'); }
+  };
+  MODELS.PALISADE = (M, F, c, m, x, y) => {
+    const B = c.box, P3 = Gfx.P3;
+    const isWall = (a, b) => a >= 0 && b >= 0 && a < m.w && b < m.h && [T.PALISADE, T.GATE, T.TOWNWALL].includes(m.tiles[b * m.w + a]);
+    // направление ряда — в мировых осях (рамка смотрит на юг)
+    const ew = isWall(x - 1, y) || isWall(x + 1, y), ns = isWall(x, y - 1) || isWall(x, y + 1);
+    const rows = [];
+    if (ew || !ns) rows.push('x');
+    if (ns) rows.push('z');
+    for (const ax of rows) for (let k = 0; k < 4; k++) {
+      const t = -0.375 + k * 0.25, h = 1.55 + c.r(50 + k + (ax === 'z' ? 7 : 0)) * 0.35, w = 0.1;
+      const lx = ax === 'x' ? t : 0, lz = ax === 'z' ? t : 0;
+      B(lx - w, 0, lz - w, lx + w, h, lz + w, 'bark');
+      const A = F.P(lx, h + 0.28, lz);
+      for (const [ax0, az0, bx0, bz0, nx, nz] of [[-w, w, w, w, 0, 1], [w, w, w, -w, 1, 0], [w, -w, -w, -w, 0, -1], [-w, -w, -w, w, -1, 0]]) P3.tri(M, F.P(lx + ax0, h, lz + az0), F.P(lx + bx0, h, lz + bz0), A, [0, 1], [1, 1], [0.5, 0], 'wood', F.N(nx * 0.8, 0.5, nz * 0.8), c.sky);
+    }
+    // поперечина
+    if (rows.includes('x')) B(-0.5, 0.95, -0.14, 0.5, 1.05, -0.1, 'beam');
+    if (rows.includes('z')) B(-0.14, 0.95, -0.5, -0.1, 1.05, 0.5, 'beam');
+  };
+
   // ---------- сборка ----------
   FU.build = function (M, cd, ctx) {
     const m = cd.m, W = m.w, H = m.h, P3 = Gfx.P3, PR = UI.V3props;
@@ -328,7 +498,7 @@
       // куда смотрит
       let dir;
       if (key === 'CHAIR' || key === 'BENCH') dir = toward(m, x, y, [T.TABLE, T.COUNTER]) || awayFromWall(m, x, y);
-      else if (key === 'TABLE' || key === 'RUG' || key === 'BARREL' || key === 'WELL' || key === 'PILLAR' || key === 'LAMPPOST') dir = [0, 1];
+      else if (['TABLE', 'RUG', 'BARREL', 'WELL', 'PILLAR', 'LAMPPOST', 'PALISADE', 'BELFRY', 'VAT', 'KILN', 'PIKE'].includes(key)) dir = [0, 1];
       else if (key === 'COUNTER' || key === 'STALL') {
         // прилавок стоит рядом с такими же — вдоль ряда; лицом — к проходу
         const row = toward(m, x, y, [tid]);
@@ -348,7 +518,7 @@
         light: (lx, ly, lz, col, rr, inten) => { const p = F.P(lx, ly, lz); ctx.lights.push({ x: p[0], y: p[1], z: p[2], r: rr, col, i: inten, fl: 1 }); },
       };
       const fn = MODELS[key];
-      if (fn) fn(M, F, c);
+      if (fn) fn(M, F, c, m, x, y);
     }
     // причалы: сваи в воду и брус по краю
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {

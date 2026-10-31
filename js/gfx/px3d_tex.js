@@ -33,7 +33,7 @@
   T.noise = (d, name, r) => noisy(d, r, [60, 60, 60], [120, 120, 120]);
 
   // ---------- земля ----------
-  const GR = { grass: ['#2c5422', '#5c8c34', '#7aa848'], grass_dry: ['#5a5a2a', '#9a9050', '#b0a060'], grass_frost: ['#5a6a6a', '#a8b8b8', '#d8e4e4'], nightgrass: ['#22284a', '#4a5a98', '#7a8ad0'], tallgrass: ['#24461a', '#4e7e2e', '#80b04c'] };
+  const GR = { grass: ['#26361c', '#4a5e2e', '#6a7a42'], grass_dry: ['#4a4628', '#7a7044', '#948656'], grass_frost: ['#4e5a5a', '#929e9e', '#c4ccca'], nightgrass: ['#1a2036', '#3a4670', '#5e6a9a'], tallgrass: ['#22321a', '#46592c', '#6e7c44'] };
   function grass(d, name, r) {
     const key = name.split(':')[0], p = (GR[key] || GR.grass).map(hex);
     noisy(d, r, p[0], p[1], [], 3, 12);
@@ -53,7 +53,7 @@
       let b1 = 1e9, b2 = 1e9, k = 0;
       for (const p of pts) for (const [ox, oy] of [[0, 0], [N, 0], [-N, 0], [0, N], [0, -N]]) { const dd = Math.hypot(x - p[0] - ox, y - p[1] - oy); if (dd < b1) { b2 = b1; b1 = dd; k = p[2]; } else if (dd < b2) b2 = dd; }
       if (b2 - b1 < 1.4) return hex('#4a4640');
-      return mul(hex('#8a867c'), (0.75 + k * 0.3) * (1 - b1 / 12 * 0.3));
+      return mul(hex('#716d66'), (0.75 + k * 0.3) * (1 - b1 / 12 * 0.3));
     });
   };
   T.stonetiles = (d, name, r) => { fill(d, (x, y) => { if (x % 16 === 0 || y % 16 === 0) return hex('#2a2a30'); const id = (x >> 4) + (y >> 4) * 2; return mul(hex('#6a6a72'), 0.85 + ((id * 37) % 7) / 28 + (r() - 0.5) * 0.08); }); };
@@ -124,21 +124,23 @@
 
   // ---------- стены ----------
   T.brick = (d, name, r) => {
-    const base = name.endsWith(':s') ? hex('#8a8478') : hex('#8a5a3c'), mort = name.endsWith(':s') ? hex('#3a3834') : hex('#c8b8a0');
+    const base = name.endsWith(':s') ? hex('#77726a') : hex('#6c4836'), mort = name.endsWith(':s') ? hex('#2e2c2a') : hex('#8a8074');
     const ks = []; for (let i = 0; i < 32; i++) ks.push(0.8 + r() * 0.35);
     fill(d, (x, y) => { const row = y >> 2; const off = (row % 2) * 4; if (y % 4 === 3) return mort; const bx = ((x + off) >> 3); if ((x + off) % 8 === 7) return mort; return mul(base, ks[(row * 5 + bx) % 32] * (0.94 + r() * 0.08)); });
   };
   T.timber = (d, name, r) => {
     // фахверк: светлая штукатурка в тёмных балках
-    noisy(d, r, hex('#c8bca0'), hex('#e4dac4'), [[hex('#b0a488'), 0.04]], 3, 10);
-    const beam = hex('#4a3018');
+    noisy(d, r, hex('#958c78'), hex('#b3aa94'), [[hex('#7a705e'), 0.06], [hex('#5a5446'), 0.02]], 3, 10);
+    const beam = hex('#2e2016');
     for (let x = 0; x < N; x++) { put(d, x, 0, beam); put(d, x, 1, beam); put(d, x, 30, beam); put(d, x, 31, beam); }
     for (let y = 0; y < N; y++) { put(d, 0, y, beam); put(d, 1, y, beam); put(d, 15, y, beam); put(d, 16, y, beam); }
     for (let k = 2; k < 30; k++) { put(d, 2 + Math.round((k - 2) * 12 / 28), k, beam); put(d, 3 + Math.round((k - 2) * 12 / 28), k, beam); }
   };
   T.townwall = (d, name, r) => { const ks = []; for (let i = 0; i < 16; i++) ks.push(0.8 + r() * 0.3); fill(d, (x, y) => { const row = y >> 3; const off = (row % 2) * 8; if (y % 8 === 7 || (x + off) % 16 === 15) return hex('#3a3a36'); return mul(hex('#9a9a90'), ks[(row * 3 + ((x + off) >> 4)) % 16] * (0.92 + r() * 0.1)); }); };
+  // стена под окном и дверью — из того же, из чего дом: :t фахверк, :l брёвна, :f бут, :d мазанка, :s камень
+  const WBASE = (name) => (name.includes(':t') ? 'timber' : name.includes(':l') ? 'log' : name.includes(':f') ? 'fieldstone' : name.includes(':d') ? 'daub' : name.includes(':s') ? 'brick:s' : 'brick');
   T.window = (d, name, r) => {
-    T[name.includes(':t') ? 'timber' : 'brick'](d, name.includes(':t') ? 'timber' : 'brick', r);
+    T[WBASE(name).split(':')[0]](d, WBASE(name), r);
     const fr = hex('#3a2410');
     for (let y = 6; y < 26; y++) for (let x = 8; x < 24; x++) {
       const edge = x === 8 || x === 23 || y === 6 || y === 25 || x === 15 || x === 16 || y === 15 || y === 16;
@@ -148,7 +150,7 @@
     for (let x = 6; x < 26; x++) put(d, x, 26, hex('#5a4028'));
   };
   T.door = (d, name, r) => {
-    T[name.includes(':t') ? 'timber' : 'brick'](d, name.includes(':t') ? 'timber' : 'brick', r);
+    T[WBASE(name).split(':')[0]](d, WBASE(name), r);
     for (let y = 4; y < N; y++) for (let x = 7; x < 25; x++) {
       if (x === 7 || x === 24 || y === 4) { put(d, x, y, hex('#2a1a0a')); continue; }
       const plank = (x - 8) % 4 === 3;
@@ -156,6 +158,7 @@
     }
     for (const yy of [9, 24]) for (let x = 8; x < 24; x++) put(d, x, yy, hex('#4a4a50'));
     put(d, 21, 17, hex('#e0c060')); put(d, 21, 18, hex('#a08030'));
+    if (name.includes(':b')) for (let k = 0; k < 20; k++) for (let w = -1; w <= 1; w++) { const t = k / 19; put(d, 7 + Math.round(t * 17), 6 + Math.round(t * 22) + w, hex('#8a6a42')); put(d, 24 - Math.round(t * 17), 6 + Math.round(t * 22) + w, hex('#7a5a36')); }
   };
   T.cave = (d, name, r) => { noisy(d, r, hex('#2e2824'), hex('#5e5650'), [[hex('#22201c'), 0.06], [hex('#6e6660'), 0.03]], 4, 12); for (let i = 0; i < 4; i++) { let x = r() * N, y = r() * N; for (let k = 0; k < 9; k++) { put(d, Math.round(x), Math.round(y), hex('#1a1614')); x += r() - 0.3; y += 1; } } };
   T.crack = (d, name, r) => { T.cave(d, name, r); for (let y = 0; y < N; y++) put(d, 16 + Math.round(Math.sin(y * 0.4) * 2), y, hex('#0e0c0a')); };
@@ -175,6 +178,26 @@
     fill(d, (x, y) => { if (y % 11 === 0 || y % 11 === 10) return hex('#4a3018'); if (x === 0 || x === 31) return hex('#3a2410'); const b = Math.floor(x / 3) + Math.floor(y / 11) * 11; return mul(cols[(b * 7) % cols.length], 0.75 + ((b * 13) % 5) / 10); });
   };
 
+
+  // ---------- стены разных домов и частокол ----------
+  // брёвна: горизонтальные венцы, торцы в углах темнее
+  T.log = (d, name, r) => { const ks = []; for (let i = 0; i < 6; i++) ks.push(0.78 + r() * 0.3); fill(d, (x, y) => { const row = Math.floor(y / 6), fy = (y % 6) / 6; if (y % 6 === 5) return hex('#1e140c'); const g = Math.sin(x * 0.45 + row * 2.1) * 0.06; return mul(hex('#5a3e26'), ks[row % 6] * (0.7 + Math.sin(fy * Math.PI) * 0.4 + g + (r() - 0.5) * 0.06)); }); for (let i = 0; i < 6; i++) { const x = Math.floor(r() * N), y = Math.floor(r() * N); put(d, x, y, hex('#3a4a2a')); } };
+  // бутовый камень: неровные тёмные валуны на сером растворе
+  T.fieldstone = (d, name, r) => {
+    const pts = []; for (let j = 0; j < 5; j++) for (let i = 0; i < 4; i++) pts.push([i * 8 + 1 + r() * 6, j * 6.4 + 1 + r() * 4, 0.65 + r() * 0.45]);
+    fill(d, (x, y) => { let b1 = 1e9, b2 = 1e9, k = 0; for (const p of pts) for (const [ox, oy] of [[0, 0], [N, 0], [-N, 0], [0, N], [0, -N]]) { const dd = Math.hypot((x - p[0] - ox) * 0.9, y - p[1] - oy); if (dd < b1) { b2 = b1; b1 = dd; k = p[2]; } else if (dd < b2) b2 = dd; } if (b2 - b1 < 1.3) return hex('#2a2826'); return mul(hex('#6a665e'), k * (1 - b1 / 10 * 0.35) * (0.92 + (r() - 0.5) * 0.1)); });
+    for (let i = 0; i < 14; i++) put(d, Math.floor(r() * N), Math.floor(r() * N), mix(hex('#3a4a2a'), hex('#4e5a34'), r()));
+  };
+  // мазанка: глина на плетне, местами плетень проступает
+  T.daub = (d, name, r) => { noisy(d, r, hex('#6e604a'), hex('#8e7e62'), [[hex('#544836'), 0.06]], 3, 9); for (let i = 0; i < 3; i++) { const cx = r() * N, cy = r() * N; for (let y = -4; y <= 4; y++) for (let x = -5; x <= 5; x++) { if (Math.hypot(x / 1.3, y) > 4 || r() < 0.2) continue; const v = ((x + 40) + (y % 2 ? 2 : 0)) % 4 < 2; put(d, Math.round(cx + x), Math.round(cy + y), v ? hex('#4a3420') : hex('#3a2818')); } } const beam = hex('#261a10'); for (let x = 0; x < N; x++) { put(d, x, 0, beam); put(d, x, 31, beam); } for (let y = 0; y < N; y++) { put(d, 0, y, beam); put(d, 31, y, beam); } };
+  // гонт: тёмные деревянные плашки внахлёст
+  T.roof_shingle = (d, name, r) => { fill(d, (x, y) => { const row = y >> 2, off = (row % 2) * 3, fx = (x + off) % 6; if (y % 4 === 3) return hex('#140e0a'); if (fx === 0) return hex('#22180e'); return mul(hex('#4a3a2a'), 0.8 + (1 - (y % 4) / 4) * 0.25 + (r() - 0.5) * 0.12); }); for (let i = 0; i < 16; i++) put(d, Math.floor(r() * N), Math.floor(r() * N), hex('#3e4a2a')); };
+  // мшистая солома — старая, почерневшая
+  T.roof_moss = (d, name, r) => { T.roof_thatch(d, name, r); for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) put(d, x, y, mul(get(d, x, y), 0.78)); for (let i = 0; i < 6; i++) { const cx = r() * N, cy = r() * N, rr = 3 + r() * 5; for (let y = -8; y < 9; y++) for (let x = -8; x < 9; x++) if (Math.hypot(x, y) < rr && r() < 0.8) put(d, Math.round(cx + x), Math.round(cy + y), mix(hex('#2a3620'), hex('#46522c'), r())); } };
+  // частокол: заострённые брёвна вертикально
+  T.palisade = (d, name, r) => { fill(d, (x, y) => { const c = x % 8; if (c === 0) return hex('#140e08'); const v = Math.sin(c / 8 * Math.PI); return mul(hex('#4e3822'), 0.55 + v * 0.55 + Math.sin(y * 0.7 + x) * 0.04 + (r() - 0.5) * 0.06); }); for (let x = 0; x < N; x++) if (x % 8 > 1 && x % 8 < 7) put(d, x, 13 + (x % 3), hex('#2a1c10')); };
+  // клеймо копоти и мха на камне
+  T.grime = (d, name, r) => noisy(d, r, hex('#1a1816'), hex('#3a3632'), [[hex('#2e3a22'), 0.08]], 3, 10);
   // ---------- мебель и утварь ----------
   const CLOTH = { r: '#8a2a24', b: '#2a4a7a', g: '#3a6a3a', y: '#a08030', p: '#5a3a6a', w: '#c8c0b0', o: '#a0582a', k: '#3a3430' };
   T.wood = (d, name, r) => { const base = name.endsWith(':d') ? hex('#4a3020') : name.endsWith(':l') ? hex('#a07a50') : hex('#7a5634'); fill(d, (x, y) => { const g = Math.sin(x * 0.35 + Math.sin(y * 0.18 + x * 0.05) * 2.2) * 0.5 + 0.5; return mul(base, 0.78 + g * 0.3 + (r() - 0.5) * 0.06); }); for (let i = 0; i < 2; i++) { const x = Math.floor(r() * N), y = Math.floor(r() * N); put(d, x, y, mul(base, 0.45)); put(d, x + 1, y, mul(base, 0.55)); } };
@@ -199,10 +222,10 @@
   T.book = (d, name, r) => { const cs = ['#8a3028', '#2e5a3e', '#4a3a7a', '#a08030'].map(hex); fill(d, (x, y) => mul(cs[(x >> 3) % 4], y < 3 || y > 28 ? 1.3 : 0.85 + (r() - 0.5) * 0.06)); };
   T.rope = (d, name, r) => fill(d, (x, y) => mul(hex('#a08050'), 0.7 + ((x + y * 2) % 6 < 3 ? 0.3 : 0) + (r() - 0.5) * 0.06));
   // ---------- крыши и потолки ----------
-  T.roof_tiles = (d, name, r) => { fill(d, (x, y) => { const row = y >> 3, off = (row % 2) * 4, fx = (x + off) % 8, fy = y % 8; const edge = fy === 7 || (fy > 4 && (fx === 0 || fx === 7)); return mul(hex('#a83c2c'), edge ? 0.5 : 0.8 + (1 - fy / 8) * 0.35 + (r() - 0.5) * 0.06); }); };
+  T.roof_tiles = (d, name, r) => { fill(d, (x, y) => { const row = y >> 3, off = (row % 2) * 4, fx = (x + off) % 8, fy = y % 8; const edge = fy === 7 || (fy > 4 && (fx === 0 || fx === 7)); return mul(hex('#74382a'), edge ? 0.45 : 0.8 + (1 - fy / 8) * 0.3 + (r() - 0.5) * 0.08); }); for (let i = 0; i < 26; i++) { const x = Math.floor(r() * N), y = Math.floor(r() * N); put(d, x, y, mix(hex('#3a4a26'), hex('#56603a'), r())); put(d, x + 1, y, hex('#3a4426')); } };
   T.roof_palace = (d, name, r) => { fill(d, (x, y) => { const row = y >> 3, off = (row % 2) * 4, fx = (x + off) % 8, fy = y % 8; const edge = fy === 7 || (fy > 4 && (fx === 0 || fx === 7)); return mul(hex('#34509a'), edge ? 0.5 : 0.8 + (1 - fy / 8) * 0.4); }); };
   T.roof_slate = (d, name, r) => { fill(d, (x, y) => { const row = y >> 2, off = (row % 2) * 3, fx = (x + off) % 6; if (y % 4 === 3) return hex('#1e2630'); return mul(hex('#4e5e70'), (fx === 0 ? 0.7 : 0.9) + (r() - 0.5) * 0.15); }); };
-  T.roof_thatch = (d, name, r) => { fill(d, (x, y) => { const s = Math.sin(x * 2.1 + Math.floor(y / 6) * 1.7) * 0.5 + 0.5; const band = y % 6 === 5 ? 0.6 : 1; return mul(mix(hex('#8a6a30'), hex('#d8b468'), s * 0.7 + r() * 0.3), band); }); };
+  T.roof_thatch = (d, name, r) => { fill(d, (x, y) => { const s = Math.sin(x * 2.1 + Math.floor(y / 6) * 1.7) * 0.5 + 0.5; const band = y % 6 === 5 ? 0.55 : 1; return mul(mix(hex('#4e4030'), hex('#8e7a52'), s * 0.7 + r() * 0.3), band); }); for (let i = 0; i < 4; i++) { const cx = r() * N, cy = r() * N, rr = 2 + r() * 4; for (let y = -6; y < 7; y++) for (let x = -6; x < 7; x++) if (Math.hypot(x, y) < rr && r() < 0.7) put(d, Math.round(cx + x), Math.round(cy + y), mix(hex('#38462a'), hex('#5a6436'), r())); } };
   T.roof_wood = (d, name, r) => { fill(d, (x, y) => { const row = y >> 3, off = (row % 2) * 5; if (y % 8 === 7 || (x + off) % 10 === 0) return hex('#2a1a0c'); return mul(hex('#7a5634'), 0.8 + (1 - (y % 8) / 8) * 0.3 + (r() - 0.5) * 0.08); }); };
   T.roof_temple = (d, name, r) => { fill(d, (x, y) => { if (y % 8 === 7) return hex('#5a544a'); return mul(hex('#b0a898'), 0.85 + (r() - 0.5) * 0.12); }); for (let x = 0; x < N; x++) put(d, x, 0, hex('#e0c050')); };
   T.ceiling_wood = (d, name, r) => { T.planks(d, name, r); for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) put(d, x, y, mul(get(d, x, y), 0.75)); };

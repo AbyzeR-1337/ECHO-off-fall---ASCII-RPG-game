@@ -71,13 +71,15 @@ vec3 lightAt(vec3 w, vec3 n, float sky, float fl, float sh){
   }
   return L;
 }
-// живописный свет: в тени — холодно и сине, на свету — тепло; цвета чуть сочнее
+// мрачный живописный свет: тени — холодные, серо-зелёные; свет — тусклое золото; краски приглушены, контраст глубже
 vec3 grade(vec3 c, vec3 L){
   float lum = dot(L, vec3(0.3,0.55,0.15));
-  vec3 tint = mix(vec3(0.6,0.66,1.05), vec3(1.07,1.0,0.88), smoothstep(0.1, 0.9, lum));
+  vec3 tint = mix(vec3(0.58,0.68,0.74), vec3(1.05,0.97,0.84), smoothstep(0.12, 0.95, lum));
   vec3 o = c*L*tint;
   float g = dot(o, vec3(0.3,0.55,0.15));
-  return max(mix(vec3(g), o, 1.2), 0.0);
+  o = max(mix(vec3(g), o, 0.8), 0.0);
+  vec3 s = clamp(o, 0.0, 1.0);
+  return mix(o, s*s*(3.0 - 2.0*s), 0.32);
 }
 // воздушная перспектива: даль голубеет, у солнца — золотится; низины туманнее
 vec3 fogIt(vec3 c, vec3 w){

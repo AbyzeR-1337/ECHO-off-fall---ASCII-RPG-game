@@ -161,7 +161,7 @@
   // Очевидное дело в клетке — то, что видно глазом: дверь вниз, сундук, очаг, алтарь.
   // Тайное, разрушение и ремёсла по наитию (руда, деревья, трещины, останки) не подсказываются.
   const PLAIN_FEAT = { shrine: 1, altar: 1, inscr: 1, grave: 1, throne: 1, lighthouse: 1, archive: 1, forge: 1 };
-  const PLAIN_TILE = new Set([T.CAMPFIRE, T.HEARTH, T.WELL, T.ANVIL, T.ALCHTABLE, T.SHELF, T.SIGN, T.OUTHOUSE, T.STALL, T.WORKBENCH]);
+  const PLAIN_TILE = new Set([T.CAMPFIRE, T.HEARTH, T.WELL, T.ANVIL, T.ALCHTABLE, T.SHELF, T.SIGN, T.OUTHOUSE, T.STALL, T.WORKBENCH, T.OVEN, T.BELFRY, T.WAYCROSS]);
   Gm.plainUse = function (x, y) {
     const m = G.map, i = y * m.w + x, t = m.tiles[i], f = m.feat[i];
     if (m.chests[i]) return true;
@@ -230,7 +230,22 @@
           return true;
       }
     }
-    if (t === T.CAMPFIRE || t === T.HEARTH) { Gm.cook(); return true; }
+    if (t === T.CAMPFIRE || t === T.HEARTH || t === T.OVEN || t === T.KILN) { Gm.cook(); return true; }
+    if (t === T.BELFRY) {
+      const h = Time.hour(G.S.time);
+      if (G.S.bellRung && G.S.time - G.S.bellRung < 60) { Gm.msg('Колокол ещё гудит. Звонить снова — накликать беду.'); return true; }
+      G.S.bellRung = G.S.time;
+      Gm.msg(h >= 22 || h < 5 ? 'Ты бьёшь в колокол среди ночи. Где-то хлопают ставни, кто-то зло кричит из темноты.' : 'Колокол гудит низко и долго. Вороны срываются с крыш.', '#c0b8a0');
+      for (const e of G.map.ents) if (e.npc != null && !e.asleep && U.dist(e.x, e.y, P.x, P.y) < 14) E.Sim.mem(e.npc, { k: 'bell' });
+      Gm.endTurn(2); return true;
+    }
+    if (t === T.GALLOWS) { Gm.msg(['Верёвка покачивается, хотя ветра нет.', 'Под помостом — тёмные пятна. Доски давно не мыли.', 'Здесь вешают воров и тех, кого назвали ведьмами. Иногда это одни и те же люди.'][(G.S.time >> 4) % 3], '#a09888'); return true; }
+    if (t === T.PILLORY) { Gm.msg('Позорный столб. Дерево отполировано шеями и запястьями. Под ним — гнилые овощи.', '#a09888'); return true; }
+    if (t === T.GIBBET) { Gm.msg('В клетке — то, что осталось от человека. Табличка на столбе сгнила, имени не прочесть.', '#a09888'); return true; }
+    if (t === T.PIKE) { Gm.msg('Черепа на кольях — чтобы чужие знали: здесь не любят чужих.', '#a09888'); return true; }
+    if (t === T.WAYCROSS) { Gm.msg('Под навесом — огарок свечи и вырезанные ножом имена. Ты стоишь молча, пока не догорит мысль.', '#c8b890'); if (!G.S.crossDay || Time.day(G.S.time) !== G.S.crossDay) { G.S.crossDay = Time.day(G.S.time); P.mp = Math.min(P.mmp, P.mp + 2); } Gm.endTurn(2); return true; }
+    if (t === T.WINDMILL) { Gm.msg('Крылья скрипят над головой. Внутри стучат жернова и пахнет мукой.', '#c8b890'); return true; }
+    if (t === T.WOODPILE) { Gm.msg('Чужая поленница. Возьмёшь полено — хозяин запомнит.', '#a09888'); return true; }
     if (t === T.WELL) { E.UI.fillMenu('well'); return true; }
     if (TL[t].stall || (m.stalls && m.stalls[i])) { Gm.stall(x, y); return true; }
     if (t === T.OUTHOUSE) { Gm.relieve(); return true; }
