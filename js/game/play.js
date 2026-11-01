@@ -371,7 +371,7 @@
     } else r = m.dark ? 3 : 8;
     if (m.indoorLit) r = 8;
     let light = 0;
-    if (P.light > 0) light = 4;
+    if (P.light > 0 || (Gm.lanternHeld && Gm.lanternHeld())) light = 4;
     for (const s in P.eq) { const it = P.eq[s]; if (it && it.light && s === 'trinket') light = Math.max(light, it.light > 10 ? 4 : it.light); if (it && it.hx) for (const h of it.hx) if (h.k === 'light') light += h.v; }
     for (const it of P.inv) if (it.lit && it.light) light = Math.max(light, it.light);
     if (P.eq.trinket && P.eq.trinket.b === 'a_voidlantern') light += m.ents.some((e) => e.npc != null && U.dist(e.x, e.y, P.x, P.y) < 6) ? 1 : 6;

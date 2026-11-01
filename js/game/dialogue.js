@@ -338,15 +338,15 @@
 
   // ---------- торговля ----------
   const SHOP = {
-    general: ['bread', 'rusk', 'torch', 'rope', 'flint', 'bedroll', 'salt', 'empty_bottle', 'lamp_oil', 'mortar', 'rod', 'shovel', 'pickaxe', 'cloak', 'hood', 'tunic', 'charm', 'cheese', 'apple', 'axe', 'sickle', 'dice', 'candle', 'flute', 'under_linen', 'under_wool', 'trousers', 'pants_wool', 'skirt', 'shoes_bast', 'boots', 'mittens', 'shirt_wool', 'waterskin'],
-    smith: ['knife', 'dagger', 'shortsword', 'sword', 'longsword', 'axe', 'waraxe', 'mace', 'spear', 'warhammer', 'flail', 'bow', 'sling', 'crossbow', 'helm', 'greathelm', 'leather', 'chain', 'scale', 'plate', 'pickaxe', 'shovel'],
+    general: ['bread', 'rusk', 'torch', 'lantern', 'rope', 'flint', 'bedroll', 'salt', 'empty_bottle', 'lamp_oil', 'mortar', 'rod', 'shovel', 'pickaxe', 'cloak', 'hood', 'tunic', 'charm', 'cheese', 'apple', 'axe', 'sickle', 'dice', 'candle', 'flute', 'under_linen', 'under_wool', 'trousers', 'pants_wool', 'skirt', 'shoes_bast', 'boots', 'mittens', 'shirt_wool', 'waterskin'],
+    smith: ['shield', 'shield', 'knife', 'dagger', 'shortsword', 'sword', 'longsword', 'axe', 'waraxe', 'mace', 'spear', 'warhammer', 'flail', 'bow', 'sling', 'crossbow', 'helm', 'greathelm', 'leather', 'chain', 'scale', 'plate', 'pickaxe', 'shovel', 'arrow_bodkin', 'bolt_heavy', 'bolt_barbed', 'shot_lead', 'staff'],
     inn: ['ale', 'stew', 'bread', 'pie', 'cheese', 'meat_cooked', 'fish_cooked', 'honey', 'milk', 'kvass'],
     bakery: ['bread', 'pie', 'rusk', 'honey'],
     fish: ['fish_raw', 'fish_cooked', 'rod', 'shell'],
-    hunter: ['meat_raw', 'meat_cooked', 'hide', 'bow', 'sling', 'furcoat', 'furhat', 'knife', 'feather'],
+    hunter: ['meat_raw', 'meat_cooked', 'hide', 'bow', 'sling', 'furcoat', 'furhat', 'knife', 'feather', 'arrow_broad', 'arrow_bodkin', 'arrow_poison', 'shot_lead'],
     herbs: ['h_plantain', 'h_wormwood', 'h_sage', 'h_bloodroot', 'h_moonwort', 'h_mandrake', 'h_frost', 'h_saltmoss', 'h_sundew', 'p_heal', 'mushrooms', 'berries'],
-    alch: ['p_heal', 'p_spirit', 'p_antidote', 'p_night', 'p_breath', 'p_str', 'p_warm', 'p_sleep', 'p_fire', 'p_acid', 'powder', 'mortar', 'h_mandrake', 'h_moonwort', 'empty_bottle', 'salt'],
-    temple: ['holy_water', 'beads', 'robe', 'candle', 'charm', 'lamp_oil'],
+    alch: ['p_heal', 'p_spirit', 'p_antidote', 'p_night', 'p_breath', 'p_str', 'p_warm', 'p_sleep', 'p_fire', 'p_acid', 'powder', 'mortar', 'h_mandrake', 'h_moonwort', 'empty_bottle', 'salt', 'arrow_fire', 'arrow_frost', 'bolt_fire', 'shot_clay', 'staff'],
+    temple: ['holy_water', 'beads', 'robe', 'candle', 'charm', 'lamp_oil', 'arrow_silver'],
     books: ['book', 'book', 'book', 'book', 'book', 'blank_book', 'candle'],
     boats: ['boat', 'rod', 'lamp_oil', 'rope'],
     healer: ['p_heal', 'p_antidote', 'h_plantain', 'cure', 'stew'],
@@ -355,7 +355,7 @@
     // барахолка: старьё, инструменты, всякая всячина
     junk: ['rope', 'candle', 'empty_bottle', 'dice', 'knife', 'shovel', 'pickaxe', 'sickle', 'rod', 'lamp_oil', 'flint', 'hood', 'tunic', 'shoes_bast', 'mittens', 'salt', 'broken_clock', 'bell', 'holed_coin', 'compass', 'mirror_shard', 'axe', 'waterskin', 'bedroll', 'mortar', 'flute', 'lute'],
     // мастерская: инструменты
-    tools: ['shovel', 'pickaxe', 'axe', 'sickle', 'rod', 'rope', 'flint', 'mortar', 'knife', 'torch', 'lamp_oil', 'waterskin'],
+    tools: ['shovel', 'pickaxe', 'axe', 'sickle', 'rod', 'rope', 'flint', 'mortar', 'knife', 'torch', 'lantern', 'lamp_oil', 'waterskin'],
   };
   for (const k in SHOP) SHOP[k] = SHOP[k].filter((b) => D.items[b]);
   Dlg.SHOP = SHOP;
@@ -381,7 +381,7 @@
         }
         const it = Items.make(b);
         if (b === 'book') Items.fillBook(it);
-        if (it.q) it.q = D.items[b].t === 'food' || D.items[b].herb ? r.int(1, 4) : 1;
+        if (it.q) it.q = D.items[b].t === 'food' || D.items[b].herb ? r.int(1, 4) : D.items[b].t === 'ammo' ? r.int(8, 20) : 1;
         items.push(it);
       }
       if (sid >= 0 && kind === 'general' && G.W.uqShop[sid]) for (const u of G.W.uqShop[sid]) if (!G.S.taken['uq' + u] && r.chance(0.5)) items.push(Items.realize({ uq: u }));

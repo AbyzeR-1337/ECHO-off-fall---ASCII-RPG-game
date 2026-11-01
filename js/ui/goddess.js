@@ -22,6 +22,14 @@
     wanderer: 'У тебя не будет дома, кроме дороги. Возьми плащ, бурдюк и сапоги.',
     none: 'Пусть мир решит сам. Это тоже путь — самый длинный.',
   };
+  // род героя: облик (рука, кожа), чуть-чуть силы, ловкости или разума
+  const RACES = [
+    { id: 'human', n: ['Человеком', 'Человеком'], d: 'Люди есть везде. Им рады чаще других.', st: { luck: 1 } },
+    { id: 'elf', n: ['Эльфом', 'Эльфийкой'], d: 'Тонкие пальцы, острые уши, долгая память.', st: { dex: 1, int: 1, con: -1 } },
+    { id: 'dwarf', n: ['Гномом', 'Гномкой'], d: 'Невысок, широк в кости, руки как клещи.', st: { con: 2, str: 1, dex: -1 } },
+    { id: 'orc', n: ['Орком', 'Орчанкой'], d: 'Зеленоватая кожа, клыки, тяжёлый кулак.', st: { str: 2, con: 1, int: -1 } },
+    { id: 'halfling', n: ['Полуросликом', 'Полурослицей'], d: 'Маленький, ловкий, везучий, всегда голодный.', st: { dex: 1, luck: 2, str: -1 } },
+  ];
   const GIFTS = [
     { id: 'body', n: 'Крепкое тело', d: 'Стойкость +2.', f: (P) => { P.base.con += 2; } },
     { id: 'mind', n: 'Ясный ум', d: 'Разум +2.', f: (P) => { P.base.int += 2; } },
@@ -34,9 +42,12 @@
   UI.goddess = function (seed) {
     const [gn, ge] = UI.goddessName(seed);
     const r = new E.RNG((seed * 7 + 13) >>> 0);
+    // имя по роду: у эльфов, гномов, орков и полуросликов свои
+    const SY = { elf: [['Аэ', 'Ла', 'Ри', 'Эль', 'Та', 'Фи', 'Ил', 'Си'], ['рин', 'ланд', 'дир', 'рион', 'лас', 'фин'], ['иэль', 'венн', 'ниа', 'риэн', 'ира']], dwarf: [['Бор', 'Дур', 'Тра', 'Гим', 'Бал', 'Тор', 'Гро'], ['ин', 'гар', 'ак', 'ли', 'дин', 'грим'], ['да', 'ра', 'дис', 'рун', 'ги']], orc: [['Гро', 'Ур', 'Зуг', 'Мог', 'Гар', 'Шак', 'Кра'], ['маш', 'гак', 'рах', 'нак', 'гул', 'тар'], ['ша', 'ра', 'гха', 'зи']], halfling: [['Пип', 'Бил', 'Ро', 'Мер', 'Тод', 'Фро', 'Мил'], ['пин', 'бо', 'ри', 'ди', 'вин'], ['ли', 'са', 'ра', 'нна']] };
+    const nameFor = () => { const q = SY[s.race]; if (!q) return r.pick(s.sex === 'f' ? E.N.female : E.N.male); return r.pick(q[0]) + (s.sex === 'f' ? r.pick(q[2]) : r.pick(q[1])); };
     const inp = () => document.getElementById('nameInput');
     const s = {
-      name: 'create', full: true, anim: true, step: 0, sel: 0, cls: null, sex: null, name0: '', gift: null,
+      name: 'create', full: true, anim: true, step: 0, sel: 0, cls: null, sex: null, race: 'human', name0: '', gift: null,
       open() { s.setStep(0); },
       close() { const i = inp(); if (i) { i.style.display = 'none'; i.blur(); i.onkeydown = null; } },
       setStep(n) {
@@ -44,7 +55,7 @@
         const i = inp();
         if (!i) return;
         if (n === 3) {
-          if (!s.name0) s.name0 = r.pick(s.sex === 'f' ? E.N.female : E.N.male);
+          if (!s.name0) s.name0 = nameFor();
           i.value = s.name0; i.style.display = 'block';
           i.oninput = () => { s.name0 = i.value.slice(0, 18); UI.render(); };
           i.onkeydown = (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); i.blur(); s.choose(0); UI.render(); } };
@@ -56,9 +67,10 @@
         switch (s.step) {
           case 0: return { say: ['Тьма. Потом — тёплый свет, как от костра, у которого никто не сидит.', '«Ещё одна душа. Здравствуй. Я — ' + gn + ', ' + ge.toLowerCase() + '. Этот мир — мой. Он стар, он жив, и он ничего тебе не объяснит.', 'Но прежде чем ты войдёшь в него, я спрошу. Немногое. Ответь честно.»'], opts: [{ t: 'Слушаю.', f: () => s.setStep(1) }] };
           case 1: return { say: ['«Кем ты войдёшь в мой мир?»'], opts: D.baseClasses.map((cid) => { const c = D.classes[cid]; return { t: c.n, d: c.d + ' ' + Object.keys(c.grow).map((k) => E.STATN[k] + ' +' + c.grow[k]).join(', ') + '. ' + CLASS_SAY[cid], f: () => { s.cls = cid; s.setStep(2); } }; }).concat([{ t: 'Никем', d: 'Без пути. ' + CLASS_SAY.none + ' (Скрытые пути откроются сами — когда-нибудь.)', f: () => { s.cls = null; s.setStep(2); } }]) };
-          case 2: return { say: ['«' + (s.cls ? CLASS_SAY[s.cls] : CLASS_SAY.none) + '', 'А каким тебя сделать?»'], opts: [{ t: 'Мужчиной', f: () => { s.sex = 'm'; s.name0 = ''; s.setStep(2.5); } }, { t: 'Женщиной', f: () => { s.sex = 'f'; s.name0 = ''; s.setStep(2.5); } }] };
+          case 2: return { say: ['«' + (s.cls ? CLASS_SAY[s.cls] : CLASS_SAY.none) + '', 'А каким тебя сделать?»'], opts: [{ t: 'Мужчиной', f: () => { s.sex = 'm'; s.name0 = ''; s.setStep(2.2); } }, { t: 'Женщиной', f: () => { s.sex = 'f'; s.name0 = ''; s.setStep(2.2); } }] };
+          case 2.2: return { say: ['«Из какого рода ты придёшь?»'], opts: RACES.map((rc) => ({ t: rc.n[s.sex === 'f' ? 1 : 0], d: rc.d + ' ' + Object.keys(rc.st).map((k) => E.STATN[k] + ' ' + (rc.st[k] > 0 ? '+' : '') + rc.st[k]).join(', ') + '.', f: () => { s.race = rc.id; s.name0 = ''; s.setStep(2.5); } })) };
           case 2.5: return { say: ['«Протяни руку. Какой ты будешь держать меч?»'], opts: [{ t: 'Правой', d: 'Оружие — в правой руке, факел — в левой.', f: () => { s.hand = 'R'; s.setStep(3); } }, { t: 'Левой', d: 'Ты — левша. Оружие — в левой руке, факел — в правой.', f: () => { s.hand = 'L'; s.setStep(3); } }] };
-          case 3: return { say: ['«Как тебя будут звать? Я шепну имя — можешь взять его или назвать своё.»', 'Имя: ' + (s.name0 || '…')], opts: [{ t: 'Это имя — моё', f: () => { if (!s.name0.trim()) s.name0 = r.pick(s.sex === 'f' ? E.N.female : E.N.male); s.setStep(4); } }, { t: 'Шепни другое', f: () => { s.name0 = r.pick(s.sex === 'f' ? E.N.female : E.N.male); const i = inp(); if (i) i.value = s.name0; } }] };
+          case 3: return { say: ['«Как тебя будут звать? Я шепну имя — можешь взять его или назвать своё.»', 'Имя: ' + (s.name0 || '…')], opts: [{ t: 'Это имя — моё', f: () => { if (!s.name0.trim()) s.name0 = nameFor(); s.setStep(4); } }, { t: 'Шепни другое', f: () => { s.name0 = nameFor(); const i = inp(); if (i) i.value = s.name0; } }] };
           case 4: return { say: ['«' + s.name0 + '. Хорошее имя. Иди с ним, ' + he + ' мой.', 'И возьми мой дар — один. Больше я ничего не дам.»'], opts: GIFTS.map((g) => ({ t: g.n, d: g.d, f: () => { s.gift = g; s.setStep(5); } })) };
           default: return { say: ['«' + s.gift.n + '. Пусть так.', 'Теперь иди. Ты проснёшься у дороги. Я буду смотреть — но вмешиваться не стану. Мир не будет ждать тебя, ' + s.name0 + '.»'], opts: [{ t: 'Открыть глаза', f: () => s.finish() }, { t: 'Подожди, я передумал' + (s.sex === 'f' ? 'а' : ''), f: () => s.setStep(1) }] };
         }
@@ -71,6 +83,10 @@
         UI.push(UI.loading('Ты открываешь глаза', () => {
           Gm.startLife(name, s.sex || 'm', false);
           if (s.hand) G.P.hand = s.hand;
+          // род: облик руки, кожа, немного силы или ловкости
+          const rc = RACES.find((x) => x.id === s.race) || RACES[0];
+          G.P.race = rc.id;
+          for (const k in rc.st) G.P.base[k] = Math.max(1, (G.P.base[k] || 5) + rc.st[k]);
           const P = G.P;
           P.goddess = { n: gn, e: ge, cls: s.cls || null, gift: s.gift ? s.gift.id : null };
           if (s.cls) {

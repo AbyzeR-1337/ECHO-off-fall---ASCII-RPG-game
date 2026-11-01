@@ -984,7 +984,8 @@
     lights.sort((a, b) => a.d - b.d);
     lights.length = Math.min(lights.length, 7);
     const dark = !m.outdoor || m.dimName ? 1 : Math.max(0, 1 - Time.light(G.S.time) * 1.4);
-    if (P.light > 0) lights.unshift({ x: cam.x + fx * 0.3 + Math.cos(V3.yaw) * 0.25, y: cam.y + 0.1, z: cam.z + fz * 0.3 + Math.sin(V3.yaw) * 0.25, r: 7.5, col: [1, 0.66, 0.36], i: 1.4 * (0.9 + 0.1 * Math.sin(now / 70)) });
+    if (E.Gm.lanternHeld && E.Gm.lanternHeld() && !(P.light > 0)) lights.unshift({ x: cam.x + fx * 0.3 + Math.cos(V3.yaw) * 0.25, y: cam.y + 0.05, z: cam.z + fz * 0.3 + Math.sin(V3.yaw) * 0.25, r: 7, col: [1, 0.82, 0.55], i: 1.25 });
+    else if (P.light > 0) lights.unshift({ x: cam.x + fx * 0.3 + Math.cos(V3.yaw) * 0.25, y: cam.y + 0.1, z: cam.z + fz * 0.3 + Math.sin(V3.yaw) * 0.25, r: 7.5, col: [1, 0.66, 0.36], i: 1.4 * (0.9 + 0.1 * Math.sin(now / 70)) });
     else if (dark > 0.15) lights.unshift({ x: cam.x, y: cam.y + 0.3, z: cam.z, r: 4, col: [0.5, 0.55, 0.78], i: 0.5 * dark });
     // спрайты этого кадра
     const PX = Gfx.PX, dyn = P3.bmesh();
@@ -1150,7 +1151,7 @@
       const sp = Math.hypot(s.vx, s.vy, s.vz) || 1, d = [s.vx / sp, s.vy / sp, s.vz / sp];
       const gy = s.y;
       if (s.k === 'spell') {
-        const col = s.el === 'ice' ? [0.6, 0.85, 1] : s.el === 'storm' ? [0.75, 0.8, 1] : s.el === 'acid' ? [0.55, 1, 0.4] : s.el === 'holy' ? [1, 0.95, 0.7] : s.el === 'dark' || s.el === 'void' ? [0.6, 0.4, 1] : [1, 0.55, 0.2];
+        const col = s.el === 'ice' ? [0.6, 0.85, 1] : s.el === 'storm' ? [0.75, 0.8, 1] : s.el === 'acid' ? [0.55, 1, 0.4] : s.el === 'holy' ? [1, 0.95, 0.7] : s.el === 'dark' || s.el === 'void' || s.el === 'arcane' ? [0.6, 0.4, 1] : [1, 0.55, 0.2];
         // сгусток — звезда из трёх лучей, крутится на лету
         const r = 0.05 + 0.015 * Math.sin(now / 40), a = now / 90;
         const ax = [[Math.cos(a), 0, Math.sin(a)], [0, 1, 0], [-Math.sin(a), 0, Math.cos(a)]];
@@ -1159,10 +1160,13 @@
         lights.unshift({ x: ox + s.x, y: gy, z: oz + s.z, r: 4.5, col, i: 1.5 });
         continue;
       }
-      if (s.k === 'stone') { prism(s.x, gy, s.z, d, 0.07, 0.04, 'rockfloor', 0.5); continue; }
+      // особый снаряд: наконечник своего цвета, огненный — горит и светит
+      const fx = s.fx, glow = fx && fx.glow;
+      if (glow) lights.unshift({ x: ox + s.x, y: gy, z: oz + s.z, r: 3.5, col: fx.el === 'ice' ? [0.6, 0.85, 1] : [1, 0.6, 0.25], i: 1.2 });
+      if (s.k === 'stone') { if (fx && fx.blast) prism(s.x, gy, s.z, d, 0.12, 0.07, 'flame', 0.5); else prism(s.x, gy, s.z, d, 0.07, 0.04, 'rockfloor', 0.5); continue; }
       const shaft = s.k === 'bolt' ? 'wood:d' : 'wood:l';
       prism(s.x, gy, s.z, d, s.len, 0.013, shaft, 0.92);
-      prism(s.x, gy, s.z, d, 0.06, 0.022, 'iron', 0.1);
+      prism(s.x, gy, s.z, d, glow ? 0.09 : 0.06, glow ? 0.035 : 0.022, glow ? 'flame' : 'iron', 0.1);
       // оперение: два тонких пера крест-накрест
       const fx0 = s.x - d[0] * s.len * 0.8, fy0 = gy - d[1] * s.len * 0.8, fz0 = s.z - d[2] * s.len * 0.8;
       let ux = -d[2], uz = d[0]; const ul = Math.hypot(ux, uz) || 1; ux /= ul; uz /= ul;

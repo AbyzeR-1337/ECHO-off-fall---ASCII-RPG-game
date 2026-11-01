@@ -80,6 +80,35 @@
     return true;
   };
 
+  // ---------- держать в руке не оружие: зелье, книгу, хлеб, ключ, компас, кружку… ----------
+  Gm.holdable = (it) => { const d = D.items[it.b] || {}; return !!it && it.b !== 'gold' && !(it.s || d.s) && ['potion', 'food', 'book', 'misc', 'tool', 'trinket', 'mat'].includes(it.t || d.t); };
+  Gm.hold = function (it, slot) {
+    const P = G.P;
+    Gm.ensureSlots(P);
+    slot = slot || 'off';
+    const other = slot === 'hand' ? 'off' : 'hand';
+    if (P.eq[slot] === it) { P.eq[slot] = null; Gm.msg('Ты убираешь в сумку: ' + Items.name(it).toLowerCase() + '.'); Gm.calc(); return; }
+    if (slot === 'off' && Gm.twoHanded(P.eq.hand)) { Gm.msg(U.cap(Items.name(P.eq.hand)) + ' держат двумя руками — вторая рука занята.'); return; }
+    if (slot === 'off') dropTorch(P);
+    if (P.eq[other] === it) P.eq[other] = null;
+    P.eq[slot] = it;
+    Gm.msg('Ты берёшь в ' + (SIDE(P, slot === 'hand') === 'левая' ? 'левую' : 'правую') + ' руку: ' + Items.name(it).toLowerCase() + '.');
+    Gm.calc();
+  };
+  // фонарь в руке — свет без огня
+  Gm.lanternHeld = () => { const P = G.P; return !!P && ((P.eq.hand && P.eq.hand.b === 'lantern') || (P.eq.off && P.eq.off.b === 'lantern')); };
+  // удар рукой, в которой не оружие: применить вещь (выпить, съесть, прочесть); щитом и фонарём — толкнуть
+  Gm.handUse = function (hand) {
+    const P = G.P, it = P.eq[hand];
+    if (!it || it.dmg || it.range) return false;
+    if (it.b === 'shield' || it.b === 'lantern' || it.b === 'torch') return false;
+    if (!Gm.holdable(it) && !it.cont) return false;
+    Gm.use(it);
+    // съеденное и выпитое из руки уходит; остаток стопки — остаётся в руке
+    if (!P.inv.includes(it)) P.eq[hand] = null;
+    return true;
+  };
+
   // в строке «В руке» — обе руки
   Gm.handsLine = function (P) {
     Gm.ensureSlots(P);

@@ -355,6 +355,17 @@
     const off = hand === 'off';
     if (off && Gm.twoHanded && Gm.twoHanded(P.eq.hand)) { RT.attack(); return; }
     const w = off ? P.eq.off : P.eq.hand;
+    // в руке не оружие (зелье, книга, хлеб…) — удар этой рукой применяет вещь
+    if (w && !w.dmg && !w.range && Gm.handUse && Gm.handUse(off ? 'off' : 'hand')) { if (off) RT.swingOff = performance.now(); else RT.swing = performance.now(); return; }
+    // посох: удар этой рукой выпускает выбранное заклинание (не хватает духа — бьёт посохом)
+    if (E.Loadout && E.Loadout.kind(w) === 'staff') {
+      if (off) RT.swingOff = performance.now(); else RT.swing = performance.now();
+      if (E.Loadout.cast(off ? 'off' : 'hand')) { P.stillTurns = 0; Gm.endTurn(1); return; }
+      const e0 = G.aim;
+      if (e0 && !needAsk(e0)) { if (off) Gm.offStrike(e0); else E.Combat.playerAttack(e0, { force: 1 }); }
+      Gm.endTurn(1);
+      return;
+    }
     if (w && w.range && RT.is3D() && RT.shoot) {
       // первый, кто на линии выстрела, — мирный? спросить один раз
       const h = RT.rayHit(Math.min(40, w.range * 3));

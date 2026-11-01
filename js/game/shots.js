@@ -78,8 +78,10 @@
     const tx = h.x - o[0], ty = h.y - o[1], tz = h.z - o[2], d = Math.hypot(tx, ty, tz) || 1;
     const T = d / K.spd;
     const vy = ty / d * K.spd + K.g * T / 2;
-    SHOTS.push({ k, w, hand, x: o[0], y: o[1], z: o[2], vx: tx / d * K.spd, vy, vz: tz / d * K.spd, g: K.g, left: range, len: K.len, born: performance.now() });
-    Gm.msg(k === 'stone' ? 'Камень со свистом уходит вперёд.' : k === 'bolt' ? 'Щёлк — болт уходит вперёд.' : 'Тетива поёт.', '#a0a0a0');
+    // что заряжено: особая стрела, болт, пуля — тратится; обычные — без счёта
+    const fx = E.Loadout ? E.Loadout.take(w) : null;
+    SHOTS.push({ k, w, hand, fx, x: o[0], y: o[1], z: o[2], vx: tx / d * K.spd, vy, vz: tz / d * K.spd, g: K.g, left: range, len: K.len, born: performance.now() });
+    Gm.msg(fx && fx.blast ? 'Горшочек с огнём летит вперёд.' : k === 'stone' ? 'Камень со свистом уходит вперёд.' : k === 'bolt' ? 'Щёлк — болт уходит вперёд.' : fx && fx.el === 'fire' ? 'Горящая стрела срывается с тетивы.' : 'Тетива поёт.', '#a0a0a0');
     return true;
   };
   // заклинание по линии взгляда: видимый сгусток, удар — сразу по тому, что на линии
@@ -95,8 +97,10 @@
     if (e.kind === 'npc' && !e.hostile) { e.wasPeaceful = 1; if (e.npc != null) (P.okHit = P.okHit || {})[e.npc] = 1; }
     const main = P.eq.hand;
     P.eq.hand = s.w || null;
-    try { E.Combat.playerAttack(e, { force: 1, mult: s.hand === 'off' ? 0.8 : 1 }); }
+    const o = E.Loadout ? E.Loadout.hitOpts(s.fx, { force: 1, mult: s.hand === 'off' ? 0.8 : 1 }) : { force: 1 };
+    try { E.Combat.playerAttack(e, o); }
     finally { P.eq.hand = main; }
+    if (s.fx && s.fx.blast) E.Loadout.blast(s.fx, e.x, e.y);
     G.hitEnt = e.id; G.hitEntT = performance.now();
   }
   // полёт: мелкими шагами, чтобы не проскочить сквозь тонкое
@@ -115,7 +119,12 @@
         const d = Math.hypot(nx - s.x, ny - s.y, nz - s.z);
         s.left -= d;
         if (!s.cos) { const e = entAt(nx, nz, ny); if (e) { hit(s, e); s.done = true; break; } }
-        if (s.left <= 0 || stopsAt(nx, nz, ny)) { s.done = true; if (!s.cos && s.k !== 'stone' && s.left > 0) { s.stuck = performance.now(); s.x = nx; s.y = ny; s.z = nz; } break; }
+        if (s.left <= 0 || stopsAt(nx, nz, ny)) {
+          s.done = true;
+          if (s.fx && s.fx.blast) E.Loadout.blast(s.fx, Math.floor(s.x), Math.floor(s.z));
+          else if (!s.cos && s.k !== 'stone' && s.left > 0) { s.stuck = performance.now(); s.x = nx; s.y = ny; s.z = nz; }
+          break;
+        }
         s.x = nx; s.y = ny; s.z = nz;
       }
       if (s.done && !s.stuck) SHOTS.splice(i, 1);

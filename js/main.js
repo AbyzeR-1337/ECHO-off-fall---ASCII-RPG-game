@@ -41,7 +41,8 @@
     }
     if (liveGame()) {
       const RT = E.RT, hk = HOLD[ev.code];
-      if (hk) { ev.preventDefault(); if (!ev.repeat) { RT.held.add(hk); RT.path = null; UI.auto = null; } return; }
+      // держишь клавишу — идёшь (и после закрытого окна, без повторного нажатия)
+      if (hk) { ev.preventDefault(); if (!RT.held.has(hk)) { RT.held.add(hk); RT.path = null; UI.auto = null; } relockNow(); return; }
       if (ev.key === 'Shift') { RT.run = true; return; }
       if (ev.code === 'KeyF' && UI.is3D && UI.is3D()) { ev.preventDefault(); RT.attack(); return; }
       if (ev.code === 'Space') { ev.preventDefault(); if (!ev.repeat) RT.jump(); return; }
@@ -50,8 +51,20 @@
     const c = cmdFromEvent(ev);
     if (!c.k && !c.n && !(top && top.name === 'create')) return;
     if (['Tab', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Slash', 'F1', 'Backspace'].includes(ev.code) || c.k) ev.preventDefault();
+    const fromUI = top && top.name !== 'game';
     UI.key(c);
+    // окно закрылось — сразу назад в игру: мышь снова смотрит, ничего лишнего нажимать не надо
+    if (fromUI && ev.code !== 'Escape') relockNow();
   }
+  // мышь отпускается, когда открывается окно (разговор, сумка, сундук), и берётся обратно, как только окно закрыто
+  let relock = false;
+  function relockNow() {
+    const cv = term && term.cv;
+    if (!relock || !cv || !liveGame() || !(UI.is3D && UI.is3D()) || document.pointerLockElement === cv || !cv.requestPointerLock) return;
+    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) { relock = false; return; }
+    try { const p = cv.requestPointerLock(); if (p && p.catch) p.catch(() => { relock = true; }); } catch (e) { /* без захвата — до щелчка */ }
+  }
+  UI.relockNow = relockNow;
   function layout() {
     const touch = document.getElementById('touch');
     const coarse = window.matchMedia('(pointer: coarse)').matches;
@@ -86,7 +99,13 @@
       V3.yaw += ev.movementX * SENS; V3.yawT = V3.yaw;
       V3.pitch = U.clamp((V3.pitch || 0) - ev.movementY * SENS, -0.62, 0.5);
     });
-    document.addEventListener('pointerlockchange', () => { UI.locked = document.pointerLockElement === cv; UI.render(); });
+    document.addEventListener('pointerlockchange', () => {
+      const was = UI.locked;
+      UI.locked = document.pointerLockElement === cv;
+      if (UI.locked) relock = false;
+      else if (was) relock = true; // мышь отпустили (окно или Esc) — вернём, как только снова в игре
+      UI.render();
+    });
     // мышь и касания
     const pos = (ev) => { const r = cv.getBoundingClientRect(); return term.cellAt(ev.clientX - r.left, ev.clientY - r.top); };
     cv.addEventListener('contextmenu', (ev) => ev.preventDefault());
@@ -94,6 +113,7 @@
     let pend = null;
     cv.addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
+      const top0 = UI.top(), fromUI = top0 && top0.name !== 'game';
       // мышь уже «взята»: левая кнопка — удар правой рукой, правая — левой (действие — только E)
       if (document.pointerLockElement === cv) {
         if (liveGame()) { if (ev.button === 2) E.RT.attack('off'); else if (ev.button === 0) E.RT.attack(); UI.render(); }
@@ -115,6 +135,7 @@
       }
       if (h) { h.fn(h, cx, cy, ev.button, ev.clientX - r.left, ev.clientY - r.top); UI.render(); }
       else if (UI.top() && UI.top().name === 'popup') { UI.pop(); }
+      if (ev.pointerType === 'mouse' && fromUI) relockNow();
     });
     cv.addEventListener('pointermove', (ev) => { if (pend && UI.V3) UI.V3.dragMove(ev.clientX, ev.clientY); });
     const release = () => {

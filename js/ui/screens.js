@@ -133,12 +133,16 @@
   UI.fireCmd = function () {
     const P = G.P;
     const w = P.eq.hand;
+    // посох: выбранное заклинание — по направлению
+    if (E.Loadout && E.Loadout.kind(w) === 'staff') { const x = E.Loadout.cur(w); if (x) UI.useAbility(x.id); return; }
     if (w && w.range) {
       UI.askDir('Стрелять', (d) => {
         const e = (() => { let x = P.x, y = P.y; for (let i = 0; i < w.range * 2; i++) { x += d[0]; y += d[1]; if (x < 0 || y < 0 || x >= G.map.w || y >= G.map.h) return null; const tl = TL[G.map.tiles[y * G.map.w + x]]; if (!tl.see && !(E.RT && E.RT.colliderAt(x, y) && E.RT.colliderAt(x, y).r < 0.25)) return null; const o = Gm.entAt(x, y); if (o && o.kind !== 'ally') return o; } return null; })();
         if (!e) { Gm.msg(/sling/.test(w.b) ? 'Камень улетает вдаль.' : 'Стрела уходит в пустоту.'); Gm.endTurn(1); return; }
         if (e.kind === 'npc' && !e.hostile) { E.Combat.strikePeaceful(e); return; }
-        E.Combat.playerAttack(e, { force: 1 });
+        const fx = E.Loadout ? E.Loadout.take(w) : null;
+        E.Combat.playerAttack(e, E.Loadout ? E.Loadout.hitOpts(fx, { force: 1 }) : { force: 1 });
+        if (fx && fx.blast) E.Loadout.blast(fx, e.x, e.y);
         Gm.endTurn(1);
         UI.render();
       });
@@ -176,6 +180,7 @@
     if (t === 'food') opts.push({ t: 'Съесть', f: () => Gm.use(it) });
     else if (t === 'potion') opts.push({ t: 'Выпить', f: () => Gm.use(it) });
     else if (t === 'book' || it.b === 'book') opts.push({ t: 'Прочитать', f: () => Gm.use(it) });
+    else if (t === 'ammo') opts.push({ t: 'Зарядить', f: () => Gm.use(it) });
     else if (it.cont) { opts.push({ t: it.water ? 'Выпить воду' : 'Наполнить водой', f: () => Gm.use(it) }); if (it.water && Gm.nearWater(P.x, P.y, 1)) opts.push({ t: 'Набрать заново', f: () => Gm.fill(it) }); }
     else if (!it.s && !b.s) opts.push({ t: 'Использовать', f: () => Gm.use(it) });
     if ((it.s || b.s) === 'hand') {
@@ -184,6 +189,12 @@
       if (Gm.holds(P, it)) opts.push({ t: 'Убрать из руки', f: () => Gm.equip(it, P.eq.hand === it ? 'hand' : 'off') });
       if (P.eq.hand !== it) opts.push({ t: Gm.twoHanded(it) ? 'Взять в обе руки' : 'Взять в ' + mainSide + ' руку (главную)', f: () => Gm.equip(it, 'hand') });
       if (P.eq.off !== it && !Gm.twoHanded(it)) opts.push({ t: 'Взять в ' + offSide + ' руку', f: () => Gm.equip(it, 'off') });
+    } else if (Gm.holdable && Gm.holdable(it)) {
+      // мелочь можно держать в руке: удар этой рукой её применит
+      Gm.ensureSlots(P);
+      const mainSide = P.hand === 'L' ? 'левую' : 'правую', offSide = P.hand === 'L' ? 'правую' : 'левую';
+      if (Gm.holds(P, it)) opts.push({ t: 'Убрать из руки', f: () => Gm.hold(it, P.eq.hand === it ? 'hand' : 'off') });
+      else { opts.push({ t: 'Держать в ' + offSide + ' руке', f: () => Gm.hold(it, 'off') }); opts.push({ t: 'Держать в ' + mainSide + ' руке (главной)', f: () => Gm.hold(it, 'hand') }); }
     } else if (it.s || b.s) { const on = P.eq[it.s || b.s] === it; opts.push({ t: on ? 'Снять' : 'Надеть', f: () => Gm.equip(it) }); if (b.music || it.music || it.b === 'mask' || it.art || it.b === 'signet') opts.push({ t: 'Использовать', f: () => Gm.use(it) }); }
     if (b.light && it.b === 'torch') { /* в «Использовать» */ }
     let lava = false; for (const [dx, dy] of U.DIR8) { const x = P.x + dx, y = P.y + dy; if (x >= 0 && y >= 0 && x < G.map.w && y < G.map.h && TL[G.map.tiles[y * G.map.w + x]].lava) lava = true; }
@@ -476,6 +487,7 @@
 
   // ---------- сундук ----------
   UI.chest = function (c) {
+    if (!c.items.length) { Gm.msg('Пусто.'); return; }
     UI.list({
       title: 'Внутри', keep: true,
       items: () => c.items.map((it) => ({ t: Items.name(it), g: UI.itemGlyph(it), it })).concat(c.items.length ? [{ t: '— Взять всё —', c: COL.accent, all: 1 }] : []),

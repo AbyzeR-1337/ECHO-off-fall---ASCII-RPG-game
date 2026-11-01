@@ -400,7 +400,7 @@
         break;
       }
       case 'chain': {
-        const tg = m.ents.filter((e) => (e.hostile || e.hostileToP) && e.kind !== 'ally' && U.dist(e.x, e.y, P.x, P.y) <= (a.r || 8) && E.FOV.los(m, P.x, P.y, e.x, e.y)).slice(0, a.n || 3);
+        const tg = m.ents.filter((e) => (e.hostile || e.hostileToP) && e.kind !== 'ally' && U.dist(e.x, e.y, P.x, P.y) <= (a.r || 8) && E.FOV.los(m, P.x, P.y, e.x, e.y)).slice(0, a.cnt || 3);
         if (!tg.length) { Gm.msg('Молния уходит в землю.'); break; }
         for (const e of tg) hurt(e, powerDmg(a.p), a.el);
         break;

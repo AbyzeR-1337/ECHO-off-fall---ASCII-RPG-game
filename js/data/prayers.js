@@ -32,7 +32,7 @@
     regen: (p) => ({ k: 'buff', e: 'regenbuff', dur: Math.round(100 * p), d: 'раны затягиваются' }),
     bolt: (p) => ({ k: 'bolt', p: 1.6 * p, r: 8, stat: 'fai', el: 'holy', d: 'поражает врага' }),
     blast: (p) => ({ k: 'blast', p: 1.5 * p, r: 2, self: 1, stat: 'fai', el: 'holy', d: 'опаляет всё вокруг' }),
-    chain: (p) => ({ k: 'chain', p: 1.3 * p, r: 8, n: 3, stat: 'fai', el: 'storm', d: 'гром бьёт по врагам' }),
+    chain: (p) => ({ k: 'chain', p: 1.3 * p, r: 8, cnt: 3, stat: 'fai', el: 'storm', d: 'гром бьёт по врагам' }),
     drain: (p) => ({ k: 'drain', p: 1.5 * p, stat: 'fai', d: 'забирает жизнь' }),
     shield: (p) => ({ k: 'shield', p: 3 * p, stat: 'fai', d: 'ограждает' }),
     stealth: (p) => ({ k: 'stealth', dur: Math.round(15 * p), d: 'скрывает' }),

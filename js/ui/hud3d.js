@@ -75,6 +75,26 @@
       else lines.push('WASD — идти, Shift — бегом, Пробел — прыжок', 'Мышь — смотреть, ЛКМ или F — удар', 'ПКМ — удар второй рукой, E — действие');
     }
     if (!touch && !UI.locked) lines.push('Щёлкни по картинке, чтобы смотреть мышью');
+    // обойма: посох — заклинания, лук — стрелы; цифры выбирают, удар этой рукой выпускает
+    const LO = E.Loadout, lh0 = LO && LO.hand();
+    if (lh0) {
+      const w = P.eq[lh0], list = LO.list(w), cur = LO.cur(w), staff = LO.kind(w) === 'staff';
+      ctx.font = fpx * 0.85 + 'px ' + t.family; ctx.textAlign = 'left';
+      const lh = fpx * 1.2, x0 = v.vx0 + 8, y0 = v.vy0 + fpx * 2.4;
+      const rows = list.map((x, i) => {
+        const a = x.a, cd = staff && P.cd[x.id] > 0, poor = staff && P.mp < a.cost;
+        return { t: (i + 1) + ' ' + x.n + (staff ? '  ' + a.cost : x.cnt ? ' ×' + x.cnt : x.inf ? '  ∞' : ''), on: cur && x.id === cur.id, dim: cd || poor };
+      });
+      const w2 = Math.max(...rows.map((r) => ctx.measureText(r.t).width)) + fpx;
+      ctx.fillStyle = 'rgba(10,8,6,0.55)'; ctx.fillRect(x0 - 4, y0 - 2, w2, rows.length * lh + fpx * 1.3);
+      ctx.fillStyle = '#a89878'; ctx.fillText(staff ? 'Посох' + (lh0 === 'off' ? ' (ПКМ)' : '') : ({ bow: 'Колчан', crossbow: 'Болты', sling: 'Сумка с камнями' })[LO.kind(w)] + (lh0 === 'off' ? ' (ПКМ)' : ''), x0 + 2, y0 + fpx * 0.55);
+      rows.forEach((r, i) => {
+        const y = y0 + fpx * 1.2 + lh * (i + 0.5);
+        if (r.on) { ctx.fillStyle = 'rgba(200,170,90,0.35)'; ctx.fillRect(x0 - 2, y - lh / 2, w2 - 4, lh); }
+        ctx.fillStyle = r.on ? '#ffe6a0' : r.dim ? '#7a7068' : '#d8cca8';
+        ctx.fillText(r.t, x0 + 2, y);
+      });
+    }
     if (lines.length) {
       ctx.font = fpx * 0.9 + 'px ' + t.family; ctx.textAlign = 'left';
       const lh = fpx * 1.25, w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + fpx;

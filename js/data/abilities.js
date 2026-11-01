@@ -33,7 +33,7 @@
   mk('m_frost', 'Ледяная стрела', 'bolt', { p: 1.6, r: 8, stat: 'int', el: 'ice', x: { slow: 4 }, cost: 5, cd: 3, d: 'Замедляет.' });
   mk('m_blink', 'Мерцание', 'blink', { r: 6, cost: 6, cd: 10, d: 'Мгновенный перенос.' });
   mk('m_fireball', 'Огненный шар', 'blast', { p: 2.0, r: 2, range: 8, stat: 'int', el: 'fire', cost: 12, cd: 8, d: 'Взрыв пламени.' });
-  mk('m_chain', 'Цепная молния', 'chain', { p: 1.5, r: 8, n: 4, stat: 'int', el: 'storm', cost: 15, cd: 10, d: 'Молния прыгает от врага к врагу.' });
+  mk('m_chain', 'Цепная молния', 'chain', { p: 1.5, r: 8, cnt: 4, stat: 'int', el: 'storm', cost: 15, cd: 10, d: 'Молния прыгает от врага к врагу.' });
   // Жрец
   mk('p_heal', 'Исцеление', 'heal', { p: 3, stat: 'fai', flat: 10, cost: 6, cd: 5, d: 'Затягивает раны.' });
   mk('p_light', 'Свет', 'blast', { p: 1.5, r: 3, self: 1, stat: 'fai', el: 'holy', cost: 8, cd: 8, d: 'Жжёт нежить.' });

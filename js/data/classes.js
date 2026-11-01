@@ -81,7 +81,7 @@
     [[1, 0, 'Корни', 'debuff', { e: 'webbed', r: 3, dur: 4, cost: 6, cd: 12 }], [3, 0, 'Зов леса', 'summon', { x: { mon: 'ally_wolf', n: 2 }, dur: 60, cost: 14, cd: 100 }], [6, 0, 'Сердце рощи', 'heal', { p: 0.6, pct: 1, cost: 20, cd: 200 }]]);
   H('soul_gatherer', 'Собиратель Душ', 'Каждая смерть оставляет что-то. Ты научился это подбирать.',
     (P) => c(P, 'souls') >= 30, 'Души', { kill: 1 }, { int: 1, fai: 1 },
-    [[1, 0, 'Жатва', 'drain', { p: 1.8, stat: 'fai', cost: 5, cd: 4 }], [3, 0, 'Рой душ', 'chain', { p: 1.6, r: 8, n: 5, stat: 'fai', el: 'void', cost: 14, cd: 12 }], [6, 0, 'Последний вздох', 'execute', { p: 4, cost: 20, cd: 30 }]]);
+    [[1, 0, 'Жатва', 'drain', { p: 1.8, stat: 'fai', cost: 5, cd: 4 }], [3, 0, 'Рой душ', 'chain', { p: 1.6, r: 8, cnt: 5, stat: 'fai', el: 'void', cost: 14, cd: 12 }], [6, 0, 'Последний вздох', 'execute', { p: 4, cost: 20, cd: 30 }]]);
   H('void_judge', 'Судья Пустоты', 'Пустота судила тебя и сочла достойным судить других.',
     (P) => !!P.flags.voidJudged, 'Приговор Пустоты', { void: 2, 'kill:other': 3 }, { int: 1, fai: 1, con: 1 },
     [[1, 0, 'Обвинение', 'bolt', { p: 2.2, r: 8, stat: 'int', el: 'void', cost: 6, cd: 3 }], [3, 0, 'Приговор', 'execute', { p: 3, cost: 12, cd: 15 }], [6, 0, 'Стирание', 'blast', { p: 5, r: 2, range: 8, el: 'void', cost: 35, cd: 100 }]]);
@@ -93,7 +93,7 @@
     ['hungry_ascetic', 'Голодный Аскет', 'Голод стал твоим учителем.', (P) => c(P, 'hunger_days') >= 15, 'Пост', { hunger_hour: 1 }, { str: 1, con: 1 },
       [[1, 'Сухой кулак', 'strike', { p: 2.2 }], [3, 'Пустое брюхо', 'buff', { e: 'might', dur: 60 }], [6, 'Ни крошки', 'shield', { p: 6, stat: 'con' }]]],
     ['storm_walker', 'Грозовой Странник', 'Молния знает твоё имя.', (P) => c(P, 'storms') >= 400 || !!P.flags.lightning, 'Гром', { storm: 1 }, { dex: 1, int: 1 },
-      [[1, 'Разряд', 'bolt', { p: 2, r: 8, el: 'storm', stat: 'int' }], [3, 'Гроза', 'chain', { p: 1.6, r: 8, n: 4, el: 'storm', stat: 'int' }], [6, 'Небесный молот', 'blast', { p: 3.5, r: 2, range: 8, el: 'storm', stat: 'int' }]]],
+      [[1, 'Разряд', 'bolt', { p: 2, r: 8, el: 'storm', stat: 'int' }], [3, 'Гроза', 'chain', { p: 1.6, r: 8, cnt: 4, el: 'storm', stat: 'int' }], [6, 'Небесный молот', 'blast', { p: 3.5, r: 2, range: 8, el: 'storm', stat: 'int' }]]],
     ['ash_walker', 'Пепельный Ходок', 'Пепел оседает на тебе — и не жжёт.', (P) => c(P, 'steps_volcanic') + c(P, 'steps_ash') >= 2500, 'Пепел', { 'step:volcanic': 0.1, 'step:ash': 0.1 }, { con: 2 },
       [[1, 'Горсть пепла', 'debuff', { e: 'blind', r: 2, dur: 4 }], [3, 'Жар', 'blast', { p: 2, r: 2, self: 1, el: 'fire' }], [6, 'Пепельная кожа', 'buff', { e: 'ash', dur: 600 }]]],
     ['ice_hermit', 'Ледяной Отшельник', 'Холод больше не враг. Он — дом.', (P) => c(P, 'nights_ice') >= 10, 'Стужа', { 'step:ice': 0.1, rest_out: 1 }, { con: 2 },
@@ -181,7 +181,7 @@
     ['exorcist', 'Изгоняющий', 'Нечисть узнаёт тебя по шагам.', (P) => c(P, 'k_other') >= 40, 'Изгнание', { 'kill:other': 3, 'kill:spirit': 3 }, { fai: 2 },
       [[1, 'Знамение', 'bolt', { p: 2, r: 7, el: 'holy', stat: 'fai' }], [3, 'Круг соли', 'debuff', { e: 'webbed', r: 3, dur: 6 }], [6, 'Изгнание', 'fear', { r: 8, x: { undeadDie: 1 } }]]],
     ['storm_child', 'Дитя Бури', 'В тебя ударила молния. Ты ударил в ответ.', (P) => !!P.flags.lightning, 'Буря', { storm: 2 }, { str: 1, dex: 1 },
-      [[1, 'Удар грома', 'strike', { p: 2.2, x: { stun: 1 } }], [3, 'Молниеносность', 'buff', { e: 'haste', dur: 40 }], [6, 'Гнев неба', 'chain', { p: 2.2, r: 8, n: 6, el: 'storm' }]]],
+      [[1, 'Удар грома', 'strike', { p: 2.2, x: { stun: 1 } }], [3, 'Молниеносность', 'buff', { e: 'haste', dur: 40 }], [6, 'Гнев неба', 'chain', { p: 2.2, r: 8, cnt: 6, el: 'storm' }]]],
     ['stone_reader', 'Чтец Камней', 'Камни рассказали тебе то, что люди забыли.', (P) => c(P, 'inscr') >= 12, 'Письмена', { inscr: 10 }, { int: 2 },
       [[1, 'Слово камня', 'bolt', { p: 1.8, r: 7, stat: 'int' }], [3, 'Руна защиты', 'shield', { p: 5, stat: 'int' }], [6, 'Слово силы', 'blast', { p: 3, r: 3, self: 1 }]]],
     ['polyglot', 'Знаток Мёртвых Языков', 'Ты говоришь на языках тех, кого больше нет.', (P) => Object.keys(P.langs || {}).filter((k) => P.langs[k] >= 3).length >= 3, 'Языки', { inscr: 8, read: 8 }, { int: 2 },

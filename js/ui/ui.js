@@ -507,7 +507,8 @@
         case 'zin': if (UI.view3d) UI.zoom(1); break;
         case 'zout': if (UI.view3d) UI.zoom(-1); break;
         default:
-          if (c.n >= 1 && c.n <= 9) { const id = P.abil[c.n - 1]; if (id) UI.useAbility(id); }
+          // посох или лук в руке — цифры выбирают заклинание или снаряд; иначе — быстрые умения
+          if (c.n >= 1 && c.n <= 9) { if (E.Loadout && E.Loadout.active()) E.Loadout.select(c.n); else { const id = P.abil[c.n - 1]; if (id) UI.useAbility(id); } }
       }
     },
   };
