@@ -150,8 +150,12 @@
   };
   Items.name = function (it) {
     if (!it) return '';
-    if (it.b === 'gold') return it.q + ' ' + U.plural(it.q, 'монета', 'монеты', 'монет');
+    if (it.b === 'gold') return (it.q || 1) + ' ' + U.plural(it.q || 1, 'монета', 'монеты', 'монет');
     let n = it.n;
+    // заготовка на земле или в сундуке (ещё не настоящая вещь): имя — из описания
+    if (!n && it.uq != null && G.W && G.W.uniques[it.uq]) n = G.W.uniques[it.uq].n;
+    if (!n && it.b && D.items[it.b]) n = D.items[it.b].n;
+    if (!n) n = 'вещь';
     if (it.q > 1) n += ' ×' + it.q;
     if (it.water) n += it.water === 'holy' ? ' (святая вода)' : ' (вода)';
     if (it.mw && it.wr <= 0) n += ' (сломан' + U.gr(it.g, '', 'а', 'о', 'ы') + ')';
