@@ -197,6 +197,7 @@
   // частокол: заострённые брёвна вертикально
   T.palisade = (d, name, r) => { fill(d, (x, y) => { const c = x % 8; if (c === 0) return hex('#140e08'); const v = Math.sin(c / 8 * Math.PI); return mul(hex('#4e3822'), 0.55 + v * 0.55 + Math.sin(y * 0.7 + x) * 0.04 + (r() - 0.5) * 0.06); }); for (let x = 0; x < N; x++) if (x % 8 > 1 && x % 8 < 7) put(d, x, 13 + (x % 3), hex('#2a1c10')); };
   // клеймо копоти и мха на камне
+  T.moss = (d, name, r) => noisy(d, r, hex('#2a3a1e'), hex('#5a7a3a'), [[hex('#7a9a4a'), 0.05], [hex('#1e2a14'), 0.05]], 3, 9);
   T.grime = (d, name, r) => noisy(d, r, hex('#1a1816'), hex('#3a3632'), [[hex('#2e3a22'), 0.08]], 3, 10);
   // ---------- мебель и утварь ----------
   const CLOTH = { r: '#8a2a24', b: '#2a4a7a', g: '#3a6a3a', y: '#a08030', p: '#5a3a6a', w: '#c8c0b0', o: '#a0582a', k: '#3a3430' };

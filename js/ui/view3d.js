@@ -277,6 +277,15 @@
     return WTEX[bk] || 'cave';
   }
   const season = () => E.Gm.season();
+  // коробка в мировых координатах куска (зубцы, створки)
+  function cube(M, x0, y0, z0, x1, y1, z1, tex, sky) {
+    const P3 = Gfx.P3;
+    P3.quad(M, [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], [0, 0], [x1 - x0, z1 - z0], tex, [0, 1, 0], sky);
+    P3.quad(M, [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, y1 - y0], [x1 - x0, 0], tex, [0, 0, 1], sky);
+    P3.quad(M, [x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [0, y1 - y0], [x1 - x0, 0], tex, [0, 0, -1], sky);
+    P3.quad(M, [x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [0, y1 - y0], [z1 - z0, 0], tex, [-1, 0, 0], sky);
+    P3.quad(M, [x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [0, y1 - y0], [z1 - z0, 0], tex, [1, 0, 0], sky);
+  }
   function buildChunk(cd) {
     const P3 = Gfx.P3, M = P3.mesh(), X = UI.mvTiles;
     const { GK, BK, OK, FIX } = X;
@@ -339,7 +348,9 @@
         const bot = Math.min(...cs) - 0.35;
         const hh = wallH(x, y, bk);
         const top = hb + hh, tex = wallTex(roofs, bk, x, y);
-        P3.quad(M, [x, top, y + 1], [x + 1, top, y + 1], [x + 1, top, y], [x, top, y], [0, 0], [1, 1], bk === 'cave' || dungeon ? tex : 'roof_slate', [0, 1, 0], dungeon ? 0 : 1);
+        P3.quad(M, [x, top, y + 1], [x + 1, top, y + 1], [x + 1, top, y], [x, top, y], [0, 0], [1, 1], bk === 'cave' || dungeon ? tex : bk === 'townwall' ? 'arch' : 'roof_slate', [0, 1, 0], dungeon ? 0 : 1);
+        // городская стена: зубцы поверху (шахматкой — с любой стороны видно)
+        if (bk === 'townwall' && !dungeon) for (const [ax, az] of [[0.04, 0.04], [0.56, 0.56]]) cube(M, x + ax, top, y + az, x + ax + 0.4, top + 0.32, y + az + 0.4, tex, 1);
         for (const [dx, dy, nx, nz] of [[0, -1, 0, -1], [1, 0, 1, 0], [0, 1, 0, 1], [-1, 0, -1, 0]]) {
           const nc = clsAt(x + dx, y + dy), nb = bkAt(x + dx, y + dy);
           if (nc === CL.BLOCK && nb !== 'door') { const nh = wallH(x + dx, y + dy, nb); if (hAt(x + dx, y + dy) + nh >= top - 0.01) continue; }
@@ -407,6 +418,8 @@
         if (ew) { P3.quad(M, [x, lo, y + 1], [x + 1, lo, y + 1], [x + 1, top, y + 1], [x, top, y + 1], [0, 0], [1, top - lo], tex, [0, 0, 1], sky); P3.quad(M, [x + 1, lo, y], [x, lo, y], [x, top, y], [x + 1, top, y], [0, 0], [1, top - lo], tex, [0, 0, -1], sky); }
         else { P3.quad(M, [x, lo, y], [x, lo, y + 1], [x, top, y + 1], [x, top, y], [0, 0], [1, top - lo], tex, [-1, 0, 0], sky); P3.quad(M, [x + 1, lo, y + 1], [x + 1, lo, y], [x + 1, top, y], [x + 1, top, y + 1], [0, 0], [1, top - lo], tex, [1, 0, 0], sky); }
         P3.quad(M, [x, lo, y], [x + 1, lo, y], [x + 1, lo, y + 1], [x, lo, y + 1], [0, 0], [1, 1], 'ceiling_wood', [0, -1, 0], sky);
+        // створка распахнута к косяку
+        if (!dungeon) { if (ew) cube(M, x + 0.08, hb, y + 0.12, x + 0.13, lo - 0.03, y + 0.88, 'planks', sky); else cube(M, x + 0.12, hb, y + 0.08, x + 0.88, lo - 0.03, y + 0.13, 'planks', sky); }
       }
       // ---- потолки: в подземельях всегда, в доме — только когда ты внутри ----
       if (dungeon) P3.quad(M, [x, CAVE, y], [x + 1, CAVE, y], [x + 1, CAVE, y + 1], [x, CAVE, y + 1], [0, 0], [1, 1], 'ceiling_rock', [0, -1, 0], 0);
@@ -435,7 +448,7 @@
     // ---- входы в подземелья, шахты, лестницы — настоящие постройки ----
     if (UI.V3props) UI.V3props.build(M, cd, { tileAt, corner, CL, hAt, clsAt, lights, dungeon, over });
     // ---- мебель и утварь — объёмные ----
-    if (UI.V3furn) UI.V3furn.build(M, cd, { lights, dungeon, over, insideRoof });
+    if (UI.V3furn) UI.V3furn.build(M, cd, { lights, dungeon, over, insideRoof, objs });
     // ---- двускатные крыши ----
     for (const rf of roofs) {
       const r = rf.rect;
@@ -1022,7 +1035,7 @@
     for (const ms of meshes) for (const ob of ms.objs) {
       const wx = ms.cd.ox + ob.x + 0.5 - RO[0], wz = ms.cd.oz + ob.y + 0.5 - RO[1];
       if (Math.abs(wx - cam.x) > FARSPR || Math.abs(wz - cam.z) > FARSPR) continue;
-      add(ob.k, { c: ob.c, seed: ob.seed % 3, f: ob.k === 'campfire' || ob.k === 'hearth' ? Math.floor(now / 160) % 4 : 0, season: season() }, wx, wz, Math.PI / 2, K_ENT, ob.sky);
+      add(ob.k, { c: ob.c, seed: ob.seed % 3, f: ob.k === 'campfire' || ob.k === 'hearth' || ob.k === 'flame3d' ? Math.floor(now / 160 + ob.x * 3) % 4 : 0, season: season() }, wx, wz, Math.PI / 2, K_ENT, ob.sky);
     }
     // вещи на земле
     for (const it of m.items) { if (!G.vis[it.y * m.w + it.x]) continue; add(X.itemArt(it.it), {}, gox + it.x + 0.5 - RO[0], goz + it.y + 0.5 - RO[1], Math.PI / 2, K_ENT, skyKAt(it.x, it.y)); }

@@ -55,10 +55,10 @@
     const P = G.P, h = LO.hand();
     if (!h) return false;
     const w = P.eq[h], list = LO.list(w), x = list[n - 1];
-    if (!x) { Gm.msg('В ' + (LO.kind(w) === 'staff' ? 'посохе' : 'колчане') + ' нет ' + n + '-го заряда.', '#909090'); return true; }
+    if (!x) return true;
     load()[LO.kind(w)] = x.id;
-    const extra = x.spell ? ' (дух ' + x.a.cost + ')' : x.cnt ? ' ×' + x.cnt : '';
-    Gm.msg((x.spell ? 'Заклинание: ' : 'Заряжено: ') + x.n + extra + '.', '#c8d8f0');
+    // выбранное видно в списке слева вверху; в ASCII-видах — коротко в журнале
+    if (!(E.UI.is3D && E.UI.is3D())) Gm.msg((x.spell ? 'Заклинание: ' : 'Заряжено: ') + x.n + (x.cnt ? ' ×' + x.cnt : '') + '.', '#c8d8f0');
     return true;
   };
   // строка для панели
@@ -107,8 +107,10 @@
     const P = G.P, w = P.eq[hand], x = LO.cur(w);
     if (!x) return false;
     const a = D.ab[x.id];
-    if ((P.cd[x.id] || 0) > 0) { Gm.msg(a.n + ' ещё не готов' + (a.n.endsWith('а') ? 'а' : '') + '.', '#909090'); return false; }
-    if (P.mp < a.cost) { Gm.msg('Не хватает духа на «' + a.n + '».', '#9090c0'); return false; }
+    // без лишних строк в журнале: готовность и дух видны в списке слева вверху
+    const once = (k, t) => { const now = performance.now(); LO.said = LO.said || {}; if (now - (LO.said[k] || 0) > 4000) { LO.said[k] = now; Gm.msg(t, '#9090a8'); } };
+    if ((P.cd[x.id] || 0) > 0) return false;
+    if (P.mp < a.cost) { once('mp', 'Не хватает духа на «' + a.n + '».'); return false; }
     // посох во второй руке: на миг он «главный», чтобы его сила усилила чары
     const main = P.eq.hand;
     if (hand === 'off') P.eq.hand = w;
@@ -123,7 +125,7 @@
   Gm.handsLine = function (P) {
     let s = hl0.apply(this, arguments);
     const h = LO.hand();
-    if (h) s += ' [' + LO.label(P.eq[h]) + ']';
+    if (h && !(E.UI.is3D && E.UI.is3D())) s += ' [' + LO.label(P.eq[h]) + ']';
     return s;
   };
   // «Использовать» снаряд — зарядить его

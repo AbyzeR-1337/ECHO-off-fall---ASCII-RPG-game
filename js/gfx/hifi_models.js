@@ -236,6 +236,8 @@
     const f = o.f % 4;
     return { key: 'campfire|' + f + '|' + P.level, prims: out.concat(flame(P, f, 0, 0, 0.04, 1.2)) };
   };
+  // одно пламя костра (камни и поленья — объёмные, в мире)
+  MD.flame3d = (o, P) => { const f = (o.f || 0) % 4; return { key: 'flame3d|' + f + '|' + P.level, prims: flame(P, f, 0, 0, 0.06, 1.6).concat(flame(P, (f + 2) % 4, 0.06, 0.03, 0.04, 1.1)) }; };
   MD.hearth = (o, P) => {
     const out = [box(-0.42, -0.3, 0, 0.42, 0.25, 0.75, STONE), box(-0.25, 0.25, 0, 0.25, 0.27, 0.42, mat('#1a120c', 'dark'))];
     const f = o.f % 4;
@@ -442,7 +444,10 @@
     out.push(el(0, yh + S(0.03), hz - S(0.052), S(0.074), S(0.075), S(0.06), head));
     out.push(el(0, yh + S(0.105), hz - S(0.01), S(0.018), S(0.024), S(0.028), head));
     // уши: круглые или острые, как у эльфов
-    if (o.ears === 'elf') for (const sd of [-1, 1]) { out.push(el(sd * S(0.108), yh, hz + S(0.01), S(0.03), S(0.014), S(0.026), head), el(sd * S(0.128), yh - S(0.008), hz + S(0.045), S(0.016), S(0.01), S(0.026), head), sph(sd * S(0.142), yh - S(0.012), hz + S(0.075), pmin(P, S(0.008)), head)); }
+    if (o.ears === 'gob') for (const sd of [-1, 1]) { out.push(el(sd * S(0.12), yh - S(0.01), hz + S(0.02), S(0.05), S(0.012), S(0.03), head), el(sd * S(0.17), yh - S(0.015), hz + S(0.04), S(0.04), S(0.01), S(0.02), head), sph(sd * S(0.205), yh - S(0.02), hz + S(0.05), pmin(P, S(0.01)), head)); }
+    else if (o.ears === 'cat') for (const sd of [-1, 1]) { out.push(cone(sd * S(0.06), yh - S(0.01), hz + S(0.09), pmin(P, S(0.034)), S(0.085), o.hair || head), cone(sd * S(0.06), yh + S(0.004), hz + S(0.1), pmin(P, S(0.018)), S(0.055), mat('#e8a8a8', 'skin'))); }
+    else if (o.ears === 'none') { /* у ящеролюдов — только дырочки */ }
+    else if (o.ears === 'elf') for (const sd of [-1, 1]) { out.push(el(sd * S(0.108), yh, hz + S(0.01), S(0.03), S(0.014), S(0.026), head), el(sd * S(0.128), yh - S(0.008), hz + S(0.045), S(0.016), S(0.01), S(0.026), head), sph(sd * S(0.142), yh - S(0.012), hz + S(0.075), pmin(P, S(0.008)), head)); }
     else for (const sd of [-1, 1]) out.push(sph(sd * S(0.098), yh, hz - S(0.005), S(0.024), head));
     face(out, P, o, S, yh, hz, head);
     if (o.hair) {
@@ -453,10 +458,15 @@
       if (o.braid) for (let q = 0; q < 4; q++) out.push(sph(0, yh - S(0.1) - S(q * 0.008), hz - S(0.06) - S(q * 0.06), S(0.03 - q * 0.003), o.hair));
       if (o.beard) { out.push(el(0, yh + S(0.06), hz - S(0.085), S(0.064), S(0.055), S(0.064), o.hair)); if (o.longBeard) out.push(el(0, yh + S(0.075), hz - S(0.17), S(0.05), S(0.04), S(0.08), o.hair)); }
     }
+    // ящеролюды: вытянутая морда, гребень, чешуйки на щеках
+    if (o.snout) { out.push(el(0, yh + S(0.1), hz - S(0.04), S(0.05), S(0.08), S(0.04), head), sph(0, yh + S(0.17), hz - S(0.03), pmin(P, S(0.022)), head)); for (let q = 0; q < 5; q++) out.push(cone(0, yh - S(0.03 + q * 0.04), hz + S(0.1 - q * 0.03), pmin(P, S(0.016)), S(0.05 - q * 0.006), o.snout)); }
+    if (o.whisk) for (const sd of [-1, 1]) for (const dz of [0, 0.012]) out.push(box(sd * S(0.03), yh + S(0.11), hz - S(0.03) + S(dz), sd * S(0.09), yh + S(0.112), hz - S(0.028) + S(dz) + S(0.004), mat('#f0f0e0', 'cloth')));
     // клыки, рожки, хвост, крылышки
     if (o.tusks) for (const sd of [-1, 1]) out.push(cone(sd * S(0.03), yh + S(0.1), hz - S(0.07), pmin(P, S(0.01)), S(0.035), mat('#e8e0c8', 'bone')));
     if (o.horns) for (const sd of [-1, 1]) { const hm = o.horns; out.push(sph(sd * S(0.055), yh + S(0.01), hz + S(0.1), pmin(P, S(0.022)), hm), sph(sd * S(0.075), yh - S(0.02), hz + S(0.14), pmin(P, S(0.018)), hm), sph(sd * S(0.085), yh - S(0.06), hz + S(0.165), pmin(P, S(0.013)), hm), sph(sd * S(0.085), yh - S(0.1), hz + S(0.17), pmin(P, S(0.009)), hm)); }
-    if (o.tail) { const tm = o.tail; for (let q = 0; q < 7; q++) { const a = q / 6; out.push(sph(S(0.05 + a * 0.16), -S(0.1 + Math.sin(a * 2.4) * 0.12), S(0.72 - a * 0.42), pmin(P, S(0.022 - a * 0.008)), tm)); } out.push(cone(S(0.21), -S(0.18), S(0.24), pmin(P, S(0.028)), S(0.05), tm)); }
+    if (o.tail && o.tailK === 'cat') { const tm = o.tail; for (let q = 0; q < 8; q++) { const a = q / 7; out.push(sph(-S(0.02) + S(Math.sin(a * 2) * 0.06), -S(0.1 + a * 0.18), S(0.7 - a * 0.25 + a * a * 0.5), pmin(P, S(0.026)), tm)); } }
+    else if (o.tail && o.tailK === 'liz') { const tm = o.tail; for (let q = 0; q < 8; q++) { const a = q / 7; out.push(sph(0, -S(0.1 + a * 0.32), S(0.66 - a * 0.56), pmin(P, S(0.06 - a * 0.045)), tm)); } }
+    else if (o.tail) { const tm = o.tail; for (let q = 0; q < 7; q++) { const a = q / 6; out.push(sph(S(0.05 + a * 0.16), -S(0.1 + Math.sin(a * 2.4) * 0.12), S(0.72 - a * 0.42), pmin(P, S(0.022 - a * 0.008)), tm)); } out.push(cone(S(0.21), -S(0.18), S(0.24), pmin(P, S(0.028)), S(0.05), tm)); }
     if (o.wings) for (const sd of [-1, 1]) out.push(el(sd * S(0.14), -S(0.13), S(1.02), S(0.12), S(0.018), S(0.17), o.wings), el(sd * S(0.24), -S(0.15), S(1.12), S(0.06), S(0.014), S(0.1), o.wings));
     return out;
   }
@@ -543,6 +553,12 @@
     d: { h: 0.8, b: 1.24, skin: ['#e0a080', '#d09070', '#c08068'], hair: ['#8a3a1a', '#5a3a22', '#1a1410', '#c8c8c8', '#b06a2a'], beardM: 1 },
     o: { h: 1.07, b: 1.2, tusks: 1, skin: ['#7a9a5a', '#6a8a5a', '#8a9a6a', '#7a8a7a'], hair: ['#1a1410', '#2a2420', '#3a2a1a'] },
     l: { h: 0.7, b: 1.06, skin: ['#e8c0a0', '#d8a880', '#c89878'], hair: ['#6a4a2a', '#a87a40', '#3a2416', '#c8a060'] },
+    k: { h: 1.04, b: 0.88, ears: 'elf', skin: ['#6e7088', '#5c5e78', '#7c7c98', '#686a80'], hair: ['#e8e8f0', '#d0d0e0', '#a8a8c0', '#1a1418', '#f0f0f8'], eyes: '#e04040' },
+    g: { h: 0.72, b: 0.92, ears: 'gob', skin: ['#8aa04a', '#9aae58', '#7a9440', '#a0a860'], hair: ['#1a1410', '#3a2a1a', '#5a4a2a'], eyes: '#f0d040', tuskS: 1 },
+    z: { h: 1.04, b: 1.08, ears: 'none', snout: 1, bald: 1, skin: ['#5e8a6a', '#4e7a8a', '#7a8a4a', '#6a8a5a'], hair: ['#3a5a3a', '#4a3a2a', '#c86a3a'], eyes: '#e8c040', tail: 'liz' },
+    c: { h: 0.96, b: 0.9, ears: 'cat', whisk: 1, skin: ['#d8a878', '#c89058', '#e8c8a8', '#a89888'], hair: ['#c87a3a', '#2a2420', '#e8e0d0', '#8a6a4a', '#5a5a5a'], eyes: '#80d060', tail: 'cat' },
+    t: { h: 1.0, b: 0.95, horns: 1, skin: ['#b04848', '#9a3a5a', '#c06050', '#7a4a8a'], hair: ['#1a1018', '#3a1a2a', '#e8d0f0', '#2a1a3a'], eyes: '#f0c040', tail: 'demon' },
+    b: { h: 1.28, b: 1.3, skin: ['#c89c80', '#b88a6a', '#a87a5a', '#d8b090'], hair: ['#6a4a2a', '#8a6a3a', '#3a2a1a', '#c8a060'], beardM: 1 },
     s: { h: 1.02, b: 0.9, demon: 1, skin: ['#d890b0', '#c87898', '#b05a7a', '#e0a8c0'], hair: ['#2a1028', '#5a1030', '#1a1018', '#8a2040', '#e8d0f0'] },
   };
   HF.RACEV = RACEV;
@@ -570,6 +586,13 @@
         beard: !covered && !soft && (j.beard || (rv && rv.beardM && !fem) || (V && V.r === 'h' && style % 5 === 1)), longBeard: V && V.r === 'd' && !fem,
         armsFwd: j.armsFwd, ears: rv && rv.ears, tusks: rv && rv.tusks, mood: V ? V.mood : 'n', lash: soft, brow: mat(shadeC(C(hairC), 0.6), 'dark'),
       };
+      if (rv && rv.eyes) look.eyes = mat(rv.eyes, 'eye', { em: 0.6 });
+      if (rv && rv.bald) { look.hair = null; look.snout = mat(hairC, 'skin'); look.head = mat(skinC, 'scale', { tex: scaleTex }); }
+      if (rv && rv.whisk) look.whisk = 1;
+      if (rv && rv.ears === 'cat' && covered) look.hair = mat(hairC, 'hair', { tex: hairTex });
+      if (rv && rv.tuskS) look.tusks = 1;
+      if (rv && rv.horns) look.horns = mat('#2a1a24', 'stone', { sp: 0.6 });
+      if (rv && rv.tail) { look.tail = mat(rv.tail === 'cat' ? hairC : shadeC(C(skinC), 0.8), rv.tail === 'cat' ? 'hair' : 'skin', rv.tail === 'cat' ? { tex: hairTex } : rv.tail === 'liz' ? { tex: scaleTex } : undefined); look.tailK = rv.tail; }
       if (rv && rv.demon) { look.horns = mat('#2a1a24', 'stone', { sp: 0.6 }); look.tail = mat(shadeC(C(skinC), 0.7), 'skin'); if (fem) look.wings = mat('#4a1a30', 'cloth'); look.eyes = mat('#e0b040', 'eye', { em: 0.5 }); look.lip = mat('#a02040', 'skin'); }
       const prims = human(look, P, s);
       if (j.apron) prims.push(el(0, S1(0.07), 0.66 * s, 0.12 * s, 0.05 * s, 0.24 * s, mat('#6a4a30', 'cloth', { tex: texNoise(0.1, 0.3, 14, 105) })));

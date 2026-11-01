@@ -84,7 +84,8 @@
   }
   UI.entArt = entArt;
   // облик жителя: народ, пол, «изящный юноша», настроение на лице, приметы
-  const RCODE = { human: 'h', elf: 'e', dwarf: 'd', orc: 'o', halfling: 'l', succubus: 's' };
+  const RCODE = { human: 'h', elf: 'e', dwarf: 'd', orc: 'o', halfling: 'l', succubus: 's', darkelf: 'k', goblin: 'g', lizard: 'z', catfolk: 'c', tiefling: 't', giant: 'b' };
+  UI.RCODE = RCODE;
   UI.moodOf = function (e) {
     if (e.asleep) return 'z';
     const now = performance.now();

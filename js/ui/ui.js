@@ -23,6 +23,14 @@
     for (let i = start; i < UI.stack.length; i++) UI.stack[i].draw(t, i === UI.stack.length - 1);
     if (UI.hoverTip) UI.hoverTip(t);
     t.render();
+    // курсор в окне, когда мышь «взята» (в игре мышь не отпускается)
+    if (UI.vcur && UI.locked && UI.top() && UI.top().name !== 'game') {
+      const c = t.ctx, x = Math.round(UI.vcur[0]), y = Math.round(UI.vcur[1]), k = Math.max(1, Math.round(t.ch / 18));
+      c.save(); c.setTransform(t.dpr || 1, 0, 0, t.dpr || 1, 0, 0);
+      c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + 14 * k); c.lineTo(x + 4 * k, y + 10 * k); c.lineTo(x + 7 * k, y + 16 * k); c.lineTo(x + 9 * k, y + 15 * k); c.lineTo(x + 6 * k, y + 9 * k); c.lineTo(x + 11 * k, y + 9 * k); c.closePath();
+      c.fillStyle = '#f4e6c0'; c.fill(); c.lineWidth = Math.max(1, k); c.strokeStyle = '#1a1410'; c.stroke();
+      c.restore();
+    }
     const inp = document.getElementById('nameInput');
     if (inp && UI.top() && UI.top().name !== 'create' && inp.style.display !== 'none') { inp.style.display = 'none'; inp.blur(); }
     UI.dirty = false;

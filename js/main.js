@@ -39,6 +39,15 @@
       else if (ev.key === 'Escape') { inp.blur(); }
       return;
     }
+    // шаг «имя»: просто печатай — буквы идут в имя, даже если поле не в фокусе
+    if (top && top.name === 'create' && top.step === 3 && inp && (ev.key.length === 1 || ev.key === 'Backspace') && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
+      ev.preventDefault();
+      const v = ev.key === 'Backspace' ? inp.value.slice(0, -1) : (inp.value + ev.key).slice(0, 18);
+      inp.value = v; top.name0 = v;
+      try { inp.focus(); } catch (e) { /* */ }
+      UI.render();
+      return;
+    }
     if (liveGame()) {
       const RT = E.RT, hk = HOLD[ev.code];
       // держишь клавишу — идёшь (и после закрытого окна, без повторного нажатия)
@@ -60,7 +69,8 @@
   let relock = false;
   function relockNow() {
     const cv = term && term.cv;
-    if (!relock || !cv || !liveGame() || !(UI.is3D && UI.is3D()) || document.pointerLockElement === cv || !cv.requestPointerLock) return;
+    const inG = !!(G.P && !G.P.dead && !G.P.ended && UI.stack.some((s) => s.name === 'game'));
+    if (!relock || !cv || !inG || !(UI.is3D && UI.is3D()) || document.pointerLockElement === cv || !cv.requestPointerLock) return;
     if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) { relock = false; return; }
     try { const p = cv.requestPointerLock(); if (p && p.catch) p.catch(() => { relock = true; }); } catch (e) { /* без захвата — до щелчка */ }
   }
@@ -93,8 +103,20 @@
     window.addEventListener('blur', () => { const RT = E.RT; if (RT) { RT.held.clear(); RT.run = false; } });
     // мышь от первого лица: щелчок по картинке «берёт» мышь — дальше она поворачивает голову
     const SENS = 0.0026;
+    // в игре мышь не отпускается и в окнах (разговор, торговля, сумка): там она водит курсор
+    const inGame = () => !!(G.P && !G.P.dead && !G.P.ended && UI.stack.some((s) => s.name === 'game'));
+    UI.vcur = null;
     document.addEventListener('mousemove', (ev) => {
       if (document.pointerLockElement !== cv || !UI.V3) return;
+      if (!liveGame()) {
+        const W = cv.clientWidth, H = cv.clientHeight;
+        if (!UI.vcur) UI.vcur = [W / 2, H * 0.6];
+        UI.vcur[0] = U.clamp(UI.vcur[0] + ev.movementX, 0, W - 1); UI.vcur[1] = U.clamp(UI.vcur[1] + ev.movementY, 0, H - 1);
+        const c = term.cellAt(UI.vcur[0], UI.vcur[1]);
+        if (!UI.mouse || UI.mouse[0] !== c[0] || UI.mouse[1] !== c[1]) UI.mouse = c;
+        UI.render();
+        return;
+      }
       const V3 = UI.V3;
       V3.yaw += ev.movementX * SENS; V3.yawT = V3.yaw;
       V3.pitch = U.clamp((V3.pitch || 0) - ev.movementY * SENS, -0.62, 0.5);
@@ -116,7 +138,14 @@
       const top0 = UI.top(), fromUI = top0 && top0.name !== 'game';
       // мышь уже «взята»: левая кнопка — удар правой рукой, правая — левой (действие — только E)
       if (document.pointerLockElement === cv) {
-        if (liveGame()) { if (ev.button === 2) E.RT.attack('off'); else if (ev.button === 0) E.RT.attack(); UI.render(); }
+        if (liveGame()) { if (ev.button === 2) E.RT.attack('off'); else if (ev.button === 0) E.RT.attack(); UI.render(); return; }
+        // окно поверх игры: щелчок там, где нарисованный курсор
+        if (!UI.vcur) UI.vcur = [cv.clientWidth / 2, cv.clientHeight * 0.6];
+        const [cx, cy] = term.cellAt(UI.vcur[0], UI.vcur[1]);
+        const h = term.hit(cx, cy);
+        if (h) h.fn(h, cx, cy, ev.button, UI.vcur[0], UI.vcur[1]);
+        else if (UI.top() && UI.top().name === 'popup') UI.pop();
+        UI.render();
         return;
       }
       if (liveGame() && UI.is3D && UI.is3D() && ev.pointerType === 'mouse' && ev.button === 0 && UI.mv3 && cv.requestPointerLock) {
@@ -184,7 +213,13 @@
       const RT = E.RT;
       if (!RT) return;
       const live = RT.frame(now);
-      if (!live) { if (RT.held.size && !liveGame()) RT.held.clear(); if (document.pointerLockElement === cv && !liveGame()) document.exitPointerLock(); return; }
+      if (!live) {
+        if (RT.held.size && !liveGame()) RT.held.clear();
+        // окно открылось — курсор в середину; мышь отпускаем, только если игра кончилась (заставка, смерть)
+        if (document.pointerLockElement === cv) { if (!inGame()) document.exitPointerLock(); else if (!UI.vcur) UI.vcur = [cv.clientWidth / 2, cv.clientHeight * 0.62]; }
+        return;
+      }
+      UI.vcur = null;
       UI.render();
     };
     requestAnimationFrame(loop);

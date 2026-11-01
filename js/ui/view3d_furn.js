@@ -12,7 +12,8 @@
   const WALL = 1.5;
   const SET = new Set(['BED', 'TABLE', 'CHAIR', 'BENCH', 'COUNTER', 'HEARTH', 'ANVIL', 'ALCHTABLE', 'THRONE', 'CHEST', 'ALTAR', 'PILLAR', 'GRAVE', 'WELL', 'OUTHOUSE', 'SIGN', 'TENT', 'INSCRIPTION', 'SHRINE',
     'BARREL', 'CRATE', 'STALL', 'HAY', 'LAMPPOST', 'BOAT', 'CART', 'RACK', 'WORKBENCH', 'RUG',
-    'BELFRY', 'WATCHTOWER', 'GALLOWS', 'PILLORY', 'GIBBET', 'PIKE', 'BANNER', 'WAYCROSS', 'WOODPILE', 'TROUGH', 'KILN', 'WINDMILL', 'OVEN', 'VAT', 'SACK', 'PALISADE'].map((k) => T[k]).filter((v) => v != null));
+    'BELFRY', 'WATCHTOWER', 'GALLOWS', 'PILLORY', 'GIBBET', 'PIKE', 'BANNER', 'WAYCROSS', 'WOODPILE', 'TROUGH', 'KILN', 'WINDMILL', 'OVEN', 'VAT', 'SACK', 'PALISADE',
+    'CAMPFIRE', 'GATE', 'STATUE', 'LIGHTHOUSE', 'BOULDER', 'CRYSTAL', 'BIGSHROOM', 'CACTUS'].map((k) => T[k]).filter((v) => v != null));
   FU.has = (tid) => SET.has(tid);
   const hsh = (x, y, k) => (U.hash(x, y, k) >>> 0) % 1000 / 1000;
 
@@ -329,6 +330,114 @@
     B(x - 0.05 * k, y - 0.04 * k, z - 0.04 * k, x + 0.05 * k, y, z + 0.06 * k, 'linen');
     B(x - 0.045 * k, y + 0.04 * k, z + 0.066 * k, x - 0.01 * k, y + 0.075 * k, z + 0.075 * k, 'ashes'); B(x + 0.01 * k, y + 0.04 * k, z + 0.066 * k, x + 0.045 * k, y + 0.075 * k, z + 0.075 * k, 'ashes');
   }
+  // восьмигранник не в середине клетки
+  function prismAt(M, F, cx, cz, r, y0, y1, tex, sky, top, n) {
+    const P3 = Gfx.P3, k = n || 8;
+    for (let i = 0; i < k; i++) {
+      const a0 = i / k * Math.PI * 2, a1 = (i + 1) / k * Math.PI * 2, am = (a0 + a1) / 2;
+      const p0 = [cx + Math.cos(a0) * r, cz + Math.sin(a0) * r], p1 = [cx + Math.cos(a1) * r, cz + Math.sin(a1) * r];
+      P3.quad(M, F.P(p1[0], y0, p1[1]), F.P(p0[0], y0, p0[1]), F.P(p0[0], y1, p0[1]), F.P(p1[0], y1, p1[1]), [i / k * 3, y1 - y0], [(i + 1) / k * 3, 0], tex, F.N(Math.cos(am), 0, Math.sin(am)), sky);
+      if (top) P3.tri(M, F.P(cx, y1, cz), F.P(p1[0], y1, p1[1]), F.P(p0[0], y1, p0[1]), [0.5, 0.5], [0.5 + Math.cos(a1) * 0.5, 0.5 + Math.sin(a1) * 0.5], [0.5 + Math.cos(a0) * 0.5, 0.5 + Math.sin(a0) * 0.5], top, F.N(0, 1, 0), sky);
+    }
+  }
+  // конус (крыша башни, шляпка гриба) не в середине клетки
+  function coneAt(M, F, cx, cz, r, y0, y1, tex, sky, n) {
+    const P3 = Gfx.P3, k = n || 8, A = F.P(cx, y1, cz);
+    for (let i = 0; i < k; i++) {
+      const a0 = i / k * Math.PI * 2, a1 = (i + 1) / k * Math.PI * 2, am = (a0 + a1) / 2;
+      P3.tri(M, F.P(cx + Math.cos(a1) * r, y0, cz + Math.sin(a1) * r), F.P(cx + Math.cos(a0) * r, y0, cz + Math.sin(a0) * r), A, [0, 1], [1, 1], [0.5, 0], tex, F.N(Math.cos(am) * 0.7, 0.7, Math.sin(am) * 0.7), sky);
+    }
+  }
+  // ---------- костёр: камни кругом, поленья шалашом, угли; пламя — живое (спрайт поверх) ----------
+  MODELS.CAMPFIRE = (M, F, c, m, x, y) => {
+    const B = c.box;
+    for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2, rr = 0.3 + c.r(k) * 0.03, s = 0.055 + c.r(k + 20) * 0.025; B(Math.cos(a) * rr - s, 0, Math.sin(a) * rr - s, Math.cos(a) * rr + s, 0.07 + c.r(k + 40) * 0.05, Math.sin(a) * rr + s, k % 3 ? 'rockfloor' : 'fieldstone'); }
+    B(-0.22, 0, -0.22, 0.22, 0.03, 0.22, 'ashes');
+    // поленья шалашом: две пары крест-накрест, ступенькой к центру
+    B(-0.24, 0.02, -0.04, 0.24, 0.09, 0.04, 'bark'); B(-0.04, 0.02, -0.24, 0.04, 0.09, 0.24, 'bark');
+    B(-0.17, 0.09, -0.03, 0.17, 0.15, 0.03, 'bark'); B(-0.03, 0.09, -0.17, 0.03, 0.15, 0.17, 'bark');
+    B(-0.06, 0.03, -0.06, 0.06, 0.1, 0.06, 'flame');
+    c.light(0, 0.45, 0, [1, 0.58, 0.26], 6.5, 1.35);
+    if (c.objs) { const p = F.P(0, 0, 0); c.objs.push({ k: 'flame3d', x, y, gy: p[1], c: null, seed: 0, sky: c.sky, anim: 1 }); }
+    // бревно-скамья рядом
+    if (c.r(3) < 0.6) B(0.3, 0, 0.36, 0.48, 0.12, 0.48, 'bark');
+  };
+  // ---------- городские ворота: арка в стене, створки распахнуты, решётка поднята, башни по бокам ----------
+  MODELS.GATE = (M, F, c, m, x, y) => {
+    const B = c.box, wt = 'townwall', sk = c.sky;
+    // проём и свод
+    B(-0.5, 0, -0.5, -0.36, 2.3, 0.5, wt); B(0.36, 0, -0.5, 0.5, 2.3, 0.5, wt);
+    B(-0.36, 1.92, -0.5, -0.26, 2.3, 0.5, wt); B(0.26, 1.92, -0.5, 0.36, 2.3, 0.5, wt);
+    B(-0.5, 2.3, -0.5, 0.5, 3.15, 0.5, wt);
+    B(-0.52, 3.05, -0.52, 0.52, 3.15, 0.52, 'arch');
+    for (const z of [-0.5, 0.38]) for (const lx of [-0.42, 0, 0.42]) B(lx - 0.09, 3.15, z, lx + 0.09, 3.45, z + 0.12, wt);
+    // решётка поднята под свод
+    for (let k = 0; k < 7; k++) { const lx = -0.3 + k * 0.1; B(lx - 0.012, 1.78, -0.03, lx + 0.012, 2.3, 0.03, 'iron'); }
+    B(-0.32, 1.78, -0.03, 0.32, 1.82, 0.03, 'iron'); B(-0.32, 2.02, -0.03, 0.32, 2.06, 0.03, 'iron');
+    // створки распахнуты наружу, к стенам
+    for (const sx of [-1, 1]) {
+      B(sx * 0.36 - (sx > 0 ? 0.05 : 0), 0, 0.5, sx * 0.36 + (sx < 0 ? 0.05 : 0), 1.85, 0.96, 'planks');
+      for (const yy of [0.35, 1.45]) B(sx * 0.36 - 0.06, yy, 0.52, sx * 0.36 + 0.06, yy + 0.06, 0.94, 'iron');
+    }
+    // факелы у ворот
+    for (const sx of [-1, 1]) { B(sx * 0.62 - 0.03, 1.55, 0.5, sx * 0.62 + 0.03, 1.7, 0.6, 'iron'); B(sx * 0.62 - 0.04, 1.7, 0.53, sx * 0.62 + 0.04, 1.84, 0.6, 'flame'); c.light(sx * 0.62, 1.85, 0.62, [1, 0.6, 0.28], 5, 1.05); }
+    // башни на соседних клетках стены
+    const isW = (a, b) => a >= 0 && b >= 0 && a < m.w && b < m.h && [T.TOWNWALL, T.WALL].includes(m.tiles[b * m.w + a]);
+    const along = F.dir && F.dir[0] !== 0 ? [[0, -1], [0, 1]] : [[-1, 0], [1, 0]];
+    for (const sx of [-1, 1]) {
+      if (!isW(x + (along[0][0] ? sx : 0), y + (along[0][1] ? sx : 0)) && !isW(x + sx, y) && !isW(x, y + sx)) continue;
+      prismAt(M, F, sx * 1.0, 0, 0.56, 0, 3.7, wt, sk, null, 10);
+      prismAt(M, F, sx * 1.0, 0, 0.62, 3.7, 3.82, 'arch', sk, 'arch', 10);
+      for (let k = 0; k < 10; k += 2) { const a = k / 10 * Math.PI * 2; B(sx * 1.0 + Math.cos(a) * 0.55 - 0.08, 3.82, Math.sin(a) * 0.55 - 0.08, sx * 1.0 + Math.cos(a) * 0.55 + 0.08, 4.08, Math.sin(a) * 0.55 + 0.08, wt); }
+      coneAt(M, F, sx * 1.0, 0, 0.5, 4.08, 5.0, 'roof_slate', sk, 10);
+      B(sx * 1.0 - 0.05, 2.4, 0.52, sx * 1.0 + 0.05, 2.75, 0.6, 'tunnel');
+      // знамя на шесте
+      B(sx * 1.0 - 0.015, 5.0, -0.015, sx * 1.0 + 0.015, 5.6, 0.015, 'beam'); B(sx * 1.0 + 0.015, 5.3, -0.01, sx * 1.0 + 0.32, 5.56, 0.01, 'cloth:' + (c.r(7) < 0.5 ? 'r' : 'b'));
+    }
+  };
+  // ---------- статуя: постамент, фигура в плаще, меч остриём вниз ----------
+  MODELS.STATUE = (M, F, c) => {
+    const B = c.box, st = c.r(4) < 0.5 ? 'arch' : 'stonetiles', sk = c.sky;
+    B(-0.38, 0, -0.38, 0.38, 0.22, 0.38, st); B(-0.3, 0.22, -0.3, 0.3, 0.62, 0.3, st); B(-0.34, 0.62, -0.34, 0.34, 0.7, 0.34, st);
+    prism(M, F, 0.17, 0.7, 1.35, st, sk, null, 8);                      // плащ
+    B(-0.1, 0.7, -0.06, -0.03, 1.05, 0.06, st); B(0.03, 0.7, -0.06, 0.1, 1.05, 0.06, st); // ноги
+    prism(M, F, 0.15, 1.35, 1.75, st, sk, null, 8);                     // грудь
+    for (const sx of [-1, 1]) B(sx * 0.15 - 0.05, 1.3, -0.05, sx * 0.15 + 0.05, 1.72, 0.05, st); // руки
+    prism(M, F, 0.075, 1.75, 1.82, st, sk, null, 6); prism(M, F, 0.1, 1.82, 2.04, st, sk, st, 8); // шея, голова
+    B(-0.02, 0.8, 0.12, 0.02, 1.5, 0.16, 'iron'); B(-0.1, 1.4, 0.11, 0.1, 1.44, 0.17, 'iron'); // меч
+    if (c.r(9) < 0.5) for (let k = 0; k < 5; k++) B(-0.3 + k * 0.14, 0.22, 0.3, -0.24 + k * 0.14, 0.26 + c.r(k) * 0.3, 0.32, 'grime');
+  };
+  // ---------- маяк: полосатая башня, огонь наверху ----------
+  MODELS.LIGHTHOUSE = (M, F, c) => {
+    const sk = c.sky;
+    for (let k = 0; k < 5; k++) prism(M, F, 0.46 - k * 0.04, k * 0.9, (k + 1) * 0.9, k % 2 ? 'linen' : 'brick', sk, null, 10);
+    prism(M, F, 0.34, 4.5, 4.58, 'iron', sk, 'iron', 10);
+    for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; c.box(Math.cos(a) * 0.3 - 0.02, 4.58, Math.sin(a) * 0.3 - 0.02, Math.cos(a) * 0.3 + 0.02, 5.1, Math.sin(a) * 0.3 + 0.02, 'iron'); }
+    c.box(-0.14, 4.58, -0.14, 0.14, 4.95, 0.14, 'flame');
+    coneAt(M, F, 0, 0, 0.38, 5.1, 5.6, 'roof_slate', sk, 10);
+    c.light(0, 4.8, 0, [1, 0.9, 0.6], 16, 1.6);
+  };
+  // ---------- камни, кристаллы, большие грибы, кактусы ----------
+  MODELS.BOULDER = (M, F, c) => {
+    const B = c.box, t = c.r(1) < 0.5 ? 'rockfloor' : 'mountain';
+    B(-0.34, 0, -0.28, 0.32, 0.42, 0.3, t); B(-0.24, 0.42, -0.2, 0.22, 0.62, 0.18, t); B(-0.4, 0, -0.1, -0.2, 0.28, 0.22, t);
+    B(0.1 + c.r(3) * 0.1, 0, 0.26, 0.38, 0.18, 0.42, t);
+    if (c.r(5) < 0.6) B(-0.2, 0.58, -0.15, 0.1, 0.64, 0.1, 'moss');
+  };
+  MODELS.CRYSTAL = (M, F, c) => {
+    for (let k = 0; k < 4; k++) { const a = k * 1.7 + c.r(k) * 0.6, rr = k ? 0.18 : 0, h = k ? 0.5 + c.r(k + 9) * 0.3 : 1.05; prismAt(M, F, Math.cos(a) * rr, Math.sin(a) * rr, k ? 0.07 : 0.11, 0, h, 'portal', c.sky, null, 6); coneAt(M, F, Math.cos(a) * rr, Math.sin(a) * rr, k ? 0.07 : 0.11, h, h + (k ? 0.16 : 0.26), 'portal', c.sky, 6); }
+    c.light(0, 0.6, 0, [0.7, 0.5, 1], 4, 0.9);
+  };
+  MODELS.BIGSHROOM = (M, F, c) => {
+    prism(M, F, 0.12, 0, 1.3, 'linen', c.sky, null, 8);
+    prism(M, F, 0.62, 1.3, 1.42, 'flesh', c.sky, null, 10);
+    coneAt(M, F, 0, 0, 0.62, 1.42, 1.85, 'flesh', c.sky, 10);
+    for (let k = 0; k < 6; k++) { const a = k * 1.1, rr = 0.25 + (k % 3) * 0.1; c.box(Math.cos(a) * rr - 0.04, 1.5 + (k % 2) * 0.08, Math.sin(a) * rr - 0.04, Math.cos(a) * rr + 0.04, 1.58 + (k % 2) * 0.08, Math.sin(a) * rr + 0.04, 'linen'); }
+  };
+  MODELS.CACTUS = (M, F, c) => {
+    prism(M, F, 0.1, 0, 1.1, 'moss', c.sky, 'moss', 8);
+    for (const sx of [-1, 1]) { if (c.r(sx + 4) < 0.35) continue; c.box(sx * 0.1, 0.45, -0.05, sx * 0.28, 0.55, 0.05, 'moss'); c.box(sx * 0.28 - 0.05 * Math.sign(sx), 0.45, -0.05, sx * 0.28 + 0.05 * Math.sign(sx), 0.85, 0.05, 'moss'); }
+  };
   MODELS.BELFRY = (M, F, c) => {
     const B = c.box, P3 = Gfx.P3;
     B(-0.47, 0, -0.47, 0.47, 0.25, 0.47, 'fieldstone');
@@ -505,20 +614,35 @@
         dir = row ? (walkAt(m, x - row[1], y + row[0]) ? [-row[1], row[0]] : [row[1], -row[0]]) : awayFromWall(m, x, y);
       } else if (key === 'BOAT') { const d = toward(m, x, y, [T.DOCK]); dir = d ? [d[1], -d[0]] : [0, 1]; }
       else if (key === 'GRAVE') dir = [0, 1];
+      else if (key === 'GATE') { const wl = (a, b) => a >= 0 && b >= 0 && a < W && b < H && [T.TOWNWALL, T.WALL, T.PALISADE].includes(m.tiles[b * W + a]); dir = wl(x - 1, y) || wl(x + 1, y) ? [0, 1] : [1, 0]; }
       else dir = awayFromWall(m, x, y);
       // высота пола: у лодки — вода
       const hb = cd.h[i];
       // кровать вдоль стены: изголовье — к стене
       if (key === 'BED') { const back = D4.find(([dx, dy]) => blockAt(m, x - dx, y - dy) && !blockAt(m, x + dx, y + dy)); if (back) dir = back; }
       const F = PR.frame(x, y, hb, dir);
+      F.dir = dir;
       const r = (k) => hsh(x + cd.ox, y + cd.oz, k);
       const c = {
         sky, indoor, r, ceil: WALL,
-        box: (x0, y0, z0, x1, y1, z1, tex) => PR.box(M, F, x0, y0, z0, x1, y1, z1, tex, sky),
+        box: (x0, y0, z0, x1, y1, z1, tex) => PR.box(M, F, x0, y0, z0, x1, y1, z1, tex, sky), objs: ctx.objs,
         light: (lx, ly, lz, col, rr, inten) => { const p = F.P(lx, ly, lz); ctx.lights.push({ x: p[0], y: p[1], z: p[2], r: rr, col, i: inten, fl: 1 }); },
       };
       const fn = MODELS[key];
       if (fn) fn(M, F, c, m, x, y);
+    }
+    // мосты: перила по краям, столбики
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (m.tiles[i] !== T.BRIDGE) continue;
+      const wet = (a, b) => a >= 0 && b >= 0 && a < W && b < H && TL[m.tiles[b * W + a]].water;
+      const ns = wet(x - 1, y) || wet(x + 1, y); // вода слева и справа — мост идёт с севера на юг
+      const hb = cd.h[i] + 0.04, F = PR.frame(x, y, hb, ns ? [0, 1] : [1, 0]);
+      for (const sx of [-1, 1]) {
+        PR.box(M, F, sx * 0.46 - 0.03, 0, -0.5, sx * 0.46 + 0.03, 0.5, 0.5, 'beam', 1);
+        PR.box(M, F, sx * 0.46 - 0.035, 0.44, -0.5, sx * 0.46 + 0.035, 0.52, 0.5, 'wood:d', 1);
+        PR.box(M, F, sx * 0.46 - 0.05, -0.6, -0.05, sx * 0.46 + 0.05, 0.62, 0.05, 'beam', 1);
+      }
     }
     // причалы: сваи в воду и брус по краю
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {

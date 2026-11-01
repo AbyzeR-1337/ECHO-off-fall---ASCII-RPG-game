@@ -1,0 +1,234 @@
+'use strict';
+// Рука от первого лица — спрайты с присланного листа (js/gfx/hand_atlas.js), как есть:
+// рука по диагонали снизу, рукав по одежде, мужская или женская. Под героя подстраивается:
+// кожа перекрашивается под народ и тон, кристалл посоха — под выбранное заклинание,
+// размер — под народ и сложение. Удар — взмах вокруг локтя, выпад, отдача; на ходу рука покачивается.
+(function (E) {
+  const UI = E.UI, G = E.G, D = E.D;
+  const HA = E.HandAtlas;
+  if (!HA) return;
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  const hex = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+
+  // ---------- загрузка атласа ----------
+  let A = null, M = null, ready = false;
+  const img = new Image(), msk = new Image();
+  let loaded = 0;
+  const onload = () => {
+    if (++loaded < 2) return;
+    A = document.createElement('canvas'); A.width = img.width; A.height = img.height; A.getContext('2d').drawImage(img, 0, 0);
+    M = document.createElement('canvas'); M.width = msk.width; M.height = msk.height; M.getContext('2d').drawImage(msk, 0, 0);
+    ready = true;
+  };
+  img.onload = onload; msk.onload = onload;
+  img.src = HA.img; msk.src = HA.mask;
+  UI.handAtlasReady = () => ready;
+
+  // ---------- что рисовать ----------
+  // оружие и вещи → спрайт листа
+  const KIND2 = {
+    staff: 'staff', sword: 'sword', longsword: 'sword', knife: 'sword', dagger: 'sword', axe: 'axe', waraxe: 'axe',
+    hammer: 'hammer', mace: 'hammer', club: 'hammer', flail: 'hammer', spear: 'spear', trident: 'spear',
+    bow: 'bow', crossbow: 'crossbow', rod: 'rod', shovel: 'shovel', pick: 'pick', sickle: 'pick3', scythe: 'pick2', sling: 'pouch',
+    torch: 'torch', candle: 'torch', lantern: 'lantern', potion: 'potion', scroll: 'scroll', book: 'book', pouch: 'pouch', small: 'pouch',
+    key: 'key', compass: 'compass', herbs: 'herbs', bread: 'bread', mug: 'mug', horn: 'horn', shield: 'shield',
+  };
+  // рука без оружия: рукав по одежде (номер в верхнем ряду листа)
+  function idleIndex(P) {
+    const f = P.sex === 'f', b = P.eq.body && P.eq.body.b, sh = P.eq.shirt && P.eq.shirt.b, gl = P.eq.hands && P.eq.hands.b;
+    if (gl === 'gauntlets') return 10;
+    if (gl) return 11;
+    if (f) {
+      if (b === 'robe') return 1;
+      if (b === 'leather') return sh ? 3 : 2;
+      if (b === 'gambeson') return 3;
+      if (b === 'chain' || b === 'scale' || b === 'plate') return 5;
+      if (b === 'furcoat' || b === 'furcloak') return 9;
+      if (b === 'rags') return 8;
+      if (sh === 'shirt_fine') return 6;
+      if (sh === 'tunic') return 0;
+      return 10;
+    }
+    if (b === 'leather') return (P.skin || 0) % 2 ? 5 : 0;
+    if (b === 'gambeson') return 3;
+    if (b === 'chain') return 6;
+    if (b === 'scale' || b === 'plate') return 10;
+    if (b === 'furcoat' || b === 'furcloak') return 6;
+    if (b === 'robe') return 4;
+    if (b === 'rags') return 2;
+    if (sh === 'shirt_fine') return 9;
+    if (sh === 'shirt_wool') return 8;
+    return 1;
+  }
+  UI.handSpriteName = function (P, it, punching) {
+    const s = P.sex === 'f' ? 'f' : 'm';
+    if (!it) return punching ? 'idle_' + s + '7' : 'idle_' + s + idleIndex(P);
+    const k = UI.handKindOf ? UI.handKindOf(it) : 'sword';
+    return (KIND2[k] || 'pouch') + '_' + s;
+  };
+
+  // ---------- облик: кожа по народу, размер ----------
+  const SKIN_H = ['#e8b08c', '#d8a07a', '#b97c58', '#8e5a3c', '#f0c4a4', '#62402a'];
+  const RACE = {
+    human: { k: 1 }, elf: { k: 0.98, skin: ['#f2dcca', '#ead0bc', '#dcc2ae'] }, dwarf: { k: 0.96, skin: ['#e2a282', '#d09070', '#be8068'] },
+    orc: { k: 1.1, skin: ['#7e9c5c', '#6a8a52', '#8c9c6c'] }, halfling: { k: 0.88, skin: ['#ecc4a4', '#dcaa84', '#c89878'] },
+    darkelf: { k: 0.98, skin: ['#6e7088', '#5c5e78', '#7c7c98'] }, goblin: { k: 0.84, skin: ['#8aa04a', '#9aae58', '#7a9440'] },
+    lizard: { k: 1.04, skin: ['#5e8a6a', '#4e7a8a', '#7a8a4a'] }, catfolk: { k: 0.96, skin: ['#d8a878', '#c89058', '#e8c8a8'] },
+    tiefling: { k: 1.0, skin: ['#b04848', '#9a3a5a', '#c06050'] }, giant: { k: 1.16, skin: ['#c89c80', '#b88a6a', '#a87a5a'] },
+  };
+  UI.HAND_RACE = RACE;
+  function lookOf(P) {
+    const r = RACE[P.race] || RACE.human;
+    const skin = r.skin ? r.skin[(P.skin || 0) % r.skin.length] : SKIN_H[(P.skin || 0) % SKIN_H.length];
+    const st = P.st || {}, mass = clamp(1 + ((st.str || 5) + (st.con || 5) - 10) * 0.01, 0.94, 1.12);
+    return { skin, k: r.k * mass };
+  }
+  // цвет кристалла посоха — по стихии выбранного заклинания
+  const ORB = { fire: [255, 130, 40], ice: [120, 210, 255], storm: [170, 190, 255], holy: [255, 220, 120], arcane: [170, 110, 255], void: [140, 80, 220], dark: [140, 80, 220], acid: [140, 230, 80] };
+
+  // готовые варианты спрайтов: перекрашенная кожа, кристалл, светящееся отдельно
+  const cache = new Map();
+  function variant(name, look, orbEl) {
+    const key = name + '|' + look.skin + '|' + (orbEl || '');
+    let v = cache.get(key);
+    if (v) return v;
+    const R = HA.rects[name];
+    if (!R) return null;
+    const cv = document.createElement('canvas'), em = document.createElement('canvas');
+    cv.width = em.width = R.w; cv.height = em.height = R.h;
+    const c = cv.getContext('2d');
+    c.drawImage(A, R.x, R.y, R.w, R.h, 0, 0, R.w, R.h);
+    const id = c.getImageData(0, 0, R.w, R.h), d = id.data;
+    const md = M.getContext('2d').getImageData(R.x, R.y, R.w, R.h).data;
+    const ed = em.getContext('2d').createImageData(R.w, R.h), e = ed.data;
+    const T = hex(look.skin), Ty = 0.3 * T[0] + 0.59 * T[1] + 0.11 * T[2];
+    const O = orbEl && ORB[orbEl];
+    let top = null;
+    const glowKind = /^(torch|lantern)/.test(name);
+    for (let y = 0; y < R.h; y++) for (let x = 0; x < R.w; x++) {
+      const q = (y * R.w + x) * 4;
+      if (d[q + 3] < 8) continue;
+      if (!top) top = [x, y];
+      const r = d[q], g = d[q + 1], b = d[q + 2], Y = 0.3 * r + 0.59 * g + 0.11 * b;
+      if (md[q] > 128) {
+        // кожа: яркость пикселя (свет и тень рисунка) — на цвет кожи героя
+        const k = Y / 168 * (172 / Math.max(60, Ty));
+        let nr = T[0] * k, ng = T[1] * k, nb = T[2] * k;
+        if (k > 1.15) { const w = Math.min(0.5, (k - 1.15) * 0.8); nr += (255 - nr) * w; ng += (255 - ng) * w; nb += (255 - nb) * w; }
+        d[q] = clamp(nr, 0, 255); d[q + 1] = clamp(ng, 0, 255); d[q + 2] = clamp(nb, 0, 255);
+      }
+      const orb = md[q + 1] > 128;
+      if (orb && O) {
+        const k = Y / 150;
+        let nr = O[0] * k, ng = O[1] * k, nb = O[2] * k;
+        if (k > 1.2) { const w = Math.min(0.7, (k - 1.2)); nr += (255 - nr) * w; ng += (255 - ng) * w; nb += (255 - nb) * w; }
+        d[q] = clamp(nr, 0, 255); d[q + 1] = clamp(ng, 0, 255); d[q + 2] = clamp(nb, 0, 255);
+      }
+      // светится само: кристалл, пламя факела, стекло фонаря
+      const hot = orb || (glowKind && r > 200 && g > 110 && b < 150 && r - b > 90);
+      if (hot) { e[q] = d[q]; e[q + 1] = d[q + 1]; e[q + 2] = d[q + 2]; e[q + 3] = 255; }
+    }
+    c.putImageData(id, 0, 0);
+    em.getContext('2d').putImageData(ed, 0, 0);
+    v = { cv, em, w: R.w, h: R.h, top: top || [0, 0] };
+    cache.set(key, v);
+    if (cache.size > 40) cache.delete(cache.keys().next().value);
+    return v;
+  }
+
+  // ---------- движение ----------
+  const SLASH = new Set(['sword', 'axe', 'hammer', 'pick', 'pick2', 'pick3', 'shovel']), THRUST = new Set(['spear', 'staff', 'rod']), RANGED = new Set(['bow', 'crossbow']);
+  // где спрайт в момент удара: угол вокруг локтя, сдвиг, след
+  function motion(base, sw, u) {
+    const r = { a: 0, dx: 0, dy: 0, smear: 0 };
+    if (!(sw >= 0 && sw < 1)) return r;
+    const k = Math.sin(sw * Math.PI);
+    if (SLASH.has(base)) {
+      // замах назад → рубящий взмах влево-вниз (со следом) → возврат
+      if (sw < 0.2) { const e = sw / 0.2; r.a = 0.22 * e; r.dy = -6 * u * e; }
+      else if (sw < 0.55) { const e = (sw - 0.2) / 0.35; r.a = 0.22 - 0.95 * e; r.dx = -14 * u * e; r.dy = -6 * u + 10 * u * e; r.smear = 1 - e * 0.3; }
+      else { const e = (sw - 0.55) / 0.45; r.a = -0.73 * (1 - e); r.dx = -14 * u * (1 - e); r.dy = 4 * u * (1 - e); }
+    } else if (THRUST.has(base)) { r.dx = -k * 18 * u; r.dy = -k * 26 * u; }
+    else if (RANGED.has(base)) { r.dy = k * 7 * u; r.a = k * 0.04; }
+    else if (base === 'idle') { r.dx = -k * 34 * u; r.dy = -k * 22 * u; r.a = -k * 0.15; }
+    else { r.dx = -k * 16 * u; r.dy = -k * 20 * u; r.a = -k * 0.1; }
+    return r;
+  }
+
+  // ---------- кадр ----------
+  let HC = null, TC = null;
+  const drawHand0 = UI.drawHand3D;
+  UI.drawHand3D = function (ctx, v) {
+    const P = G.P;
+    if (!P || P.dead) return;
+    if (!ready) { if (drawHand0) drawHand0(ctx, v); return; }
+    const fw = v.fw, fh = v.fh;
+    const RT = E.RT;
+    const swM = UI.HAND_SW != null ? UI.HAND_SW : RT ? (v.now - (RT.swing || 0)) / 420 : 9;
+    const swO = UI.HAND_SW_OFF != null ? UI.HAND_SW_OFF : RT ? (v.now - (RT.swingOff || 0)) / 420 : 9;
+    const left = P.hand === 'L', look = lookOf(P);
+    const orbOf = (it) => { if (!it || !E.Loadout || E.Loadout.kind(it) !== 'staff') return null; const x = E.Loadout.cur(it); return x && x.a ? x.a.el : 'arcane'; };
+    // свет вокруг: небо, солнце, огни
+    const sk = v.sky;
+    let L = [0.08, 0.075, 0.09];
+    for (let i = 0; i < 3; i++) L[i] += sk.amb[i] * (v.inside ? 0.75 : 1.1) + sk.sun[i] * (v.inside ? 0.12 : 0.62);
+    for (const l of v.lights.slice(0, 4)) { const dd = Math.hypot(l.x - (v.cam ? v.cam.x : l.x), l.z - (v.cam ? v.cam.z : l.z)); const a = Math.max(0, 1 - dd / l.r); for (let i = 0; i < 3; i++) L[i] += l.col[i] * l.i * a * a * 0.8; }
+    if (P.light > 0) { L[0] += 0.5; L[1] += 0.33; L[2] += 0.16; }
+    L = L.map((x) => Math.min(1.0, x));
+    const tint = 'rgb(' + Math.round(L[0] * 255) + ',' + Math.round(L[1] * 255) + ',' + Math.round(L[2] * 255) + ')';
+    // покачивание на ходу
+    const t = v.now / 1000, u = fh / 260;
+    let bx = Math.sin((v.walked || 0) * 2.6) * 2.5 * u, by = Math.abs(Math.cos((v.walked || 0) * 2.6)) * 3.2 * u;
+    if (!v.moving) { bx = Math.sin(t * 1.1) * 0.8 * u; by = Math.sin(t * 1.7) * 1.1 * u; }
+    if (!HC) { HC = document.createElement('canvas'); TC = document.createElement('canvas'); }
+    if (HC.width !== fw || HC.height !== fh) { HC.width = TC.width = fw; HC.height = TC.height = fh; }
+    const hc = HC.getContext('2d'), tc = TC.getContext('2d');
+    hc.clearRect(0, 0, fw, fh); hc.imageSmoothingEnabled = false; tc.imageSmoothingEnabled = false;
+    // одна рука: локоть (правый нижний угол спрайта) у края кадра; mirror — левая рука
+    const one = (it, sw, mirror, side, scaleK) => {
+      const punching = !it && sw >= 0 && sw < 1;
+      const name = UI.handSpriteName(P, it, punching);
+      const sp = variant(name, look, orbOf(it));
+      if (!sp) return;
+      const base = name.split('_')[0];
+      const s = (fh / 300) * 1.08 * look.k * scaleK;
+      const mo = motion(base, sw, u);
+      // локоть — за краем кадра справа снизу
+      const ex = mirror ? fw * (1 - side) : fw * side, ey = fh + sp.h * s * 0.06;
+      const draw = (c, im) => {
+        c.save();
+        c.translate(Math.round(ex + (mirror ? -1 : 1) * (mo.dx + bx * (scaleK < 1 ? -0.6 : 1)) ), Math.round(ey + mo.dy + by * (scaleK < 1 ? 0.6 : 1)));
+        if (mirror) c.scale(-1, 1);
+        c.rotate(mo.a);
+        c.drawImage(im, -sp.w * s, -sp.h * s, sp.w * s, sp.h * s);
+        c.restore();
+      };
+      // след удара — дуга по пути верхушки оружия
+      if (mo.smear > 0) {
+        const tx = -sp.w * s + sp.top[0] * s, ty = -sp.h * s + sp.top[1] * s, rr = Math.hypot(tx, ty), a0 = Math.atan2(ty, tx);
+        hc.save(); hc.translate(ex + (mirror ? -1 : 1) * mo.dx, ey + mo.dy); if (mirror) hc.scale(-1, 1);
+        for (let i = 0; i <= 14; i++) { const f = i / 14, a = a0 + 0.22 - (0.22 - mo.a) * f, al = mo.smear * f * f * 0.5; hc.fillStyle = 'rgba(235,240,250,' + al.toFixed(3) + ')'; hc.fillRect(Math.round(Math.cos(a) * rr), Math.round(Math.sin(a) * rr), Math.ceil(2 * u), Math.ceil(2 * u)); }
+        hc.restore();
+      }
+      // свет на руке: картинка × свет вокруг; светящееся — поверх, без тени
+      tc.globalCompositeOperation = 'source-over'; tc.clearRect(0, 0, fw, fh);
+      draw(tc, sp.cv);
+      tc.globalCompositeOperation = 'multiply'; tc.fillStyle = tint; tc.fillRect(0, 0, fw, fh);
+      tc.globalCompositeOperation = 'destination-in'; draw(tc, sp.cv);
+      tc.globalCompositeOperation = 'source-over';
+      hc.drawImage(TC, 0, 0);
+      draw(hc, sp.em);
+    };
+    // вторая рука: вещь, факел — слева (у левши — справа), чуть меньше
+    const offIt = P.eq.off;
+    const torch = !offIt && P.light > 0 ? { b: 'torch' } : null;
+    const offShow = offIt || torch || (swO >= 0 && swO < 1 && !(E.Gm.twoHanded && E.Gm.twoHanded(P.eq.hand)));
+    if (offShow) one(offIt || torch, swO, !left, 0.97, 0.9);
+    one(P.eq.hand, swM, left, 0.99, 1);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(HC, v.vx0, v.vy0, fw * v.px, fh * v.px);
+    ctx.restore();
+  };
+  UI.handReady = () => ready;
+})(window.EOF);
