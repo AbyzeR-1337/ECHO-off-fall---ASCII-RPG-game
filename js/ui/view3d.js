@@ -82,8 +82,6 @@
     if (b < 0.2) return b - 0.6;
     const mt = HGT.mtn(gx, gz);
     let h = Math.max(0.3, b) + Math.pow(mt, 1.4) * HGT.rock(gx, gz, 1) * 0.95;
-    const fo = field(gx, gz, FF);
-    if (fo > 0.05) h += fo * (1.3 + fbm(gx / 3.2, gz / 3.2, seed + 21, 2) * 1.6);
     return h;
   };
 
@@ -816,6 +814,81 @@
     for (const ck of [...V3.cd.keys()]) if (!keep.has(ck)) V3.cd.delete(ck);
     return out;
   }
+  // ---------- дальний лес: те же деревья, что вблизи, — до самого горизонта ----------
+  // Где кончаются подробные куски, лес не обрывается: деревья стоят там же, где встанут, когда подойдёшь
+  // (мировой шум тот же), только без травы под ногами. Каждая земля — своя связка спрайтов.
+  const FARTREE = 250;
+  const FARWOOD = new Map();
+  const FOL = { 0: ['#5a9a40', '#4a8a3a'], 1: ['#3e7b34', '#4a8a3c'], 2: ['#c08a30', '#b05a2a', '#c8a040'], 3: ['#3e7b34', '#4a8a3c'] };
+  function farTreeSprite(key, col, seed) {
+    const P3 = Gfx.P3, PX = Gfx.PX;
+    const pk = key + '|0|' + (col || '') + '|0|0|0|0|' + seed;
+    let r = V3.sprCache && V3.sprCache.get(pk);
+    if (!r || r.gen !== P3.sprGen) {
+      const sp = PX.sprite(key, { c: col, seed, season: season() }, { yaw: 0, pitch: 0.12, ppu: 44 });
+      if (!sp) return null;
+      r = P3.sprite(sp);
+      (V3.sprCache = V3.sprCache || new Map()).set(pk, r);
+    }
+    return r;
+  }
+  function buildForest(rx, ry) {
+    const P3 = Gfx.P3, MG = E.MapGen, B = P3.bmesh(), W = G.W;
+    const X0 = rx * MW, Z0 = ry * MH, g = W.regions[ry * WS + rx];
+    const sea = season(), cold = g.t < 0.55, fol = FOL[sea] || FOL[1];
+    const v = E.Sim.variant(ry * WS + rx);
+    if (v === null || v === 'c' || v === 'i' || g.exist === 'cyclic' || g.biome === 'ocean' || g.biome === 'sky') return { h: null, sea };
+    // посёлок вырубил лес вокруг себя
+    const s = g.settlement >= 0 ? W.settlements[g.settlement] : null;
+    const SZ = { capital: [33, 17], town: [30, 16], village: [26, 14], tree: [25, 14], hamlet: [18, 10], farm: [10, 7], vanish: [20, 12] };
+    const sz = s ? SZ[s.type] || [24, 13] : null;
+    const st = 2;
+    for (let z = 0; z < MH; z += st) for (let x = 0; x < MW; x += st) {
+      const h = U.hash(X0 + x, Z0 + z, 77);
+      const lx = x + (h & 1), lz = z + ((h >> 1) & 1);
+      if (sz && Math.abs(lx - MW / 2) < sz[0] && Math.abs(lz - MH / 2) < sz[1]) continue;
+      const tid = MG.terrainAt(W, X0 + lx, Z0 + lz);
+      let key = null, col = null;
+      if (tid === T.TREE) { if (sea === 3 && cold) key = 'tree_bare'; else { key = (lx * 7 + lz * 13) % 5 < 2 ? 'tree2' : 'tree'; col = fol[(lx + lz * 3) % fol.length]; } }
+      else if (tid === T.PINE) { if ((sea === 3 && cold) || g.biome === 'ice' || g.biome === 'tundra') key = 'pine_snow'; else col = (lx + lz) % 3 ? '#2e6b55' : '#3a7a5a', key = 'pine'; }
+      else if (tid === T.DEADTREE) key = 'deadtree';
+      else if (tid === T.BIGTREE) { key = 'tree'; col = fol[0]; }
+      if (!key) continue;
+      const r = farTreeSprite(key, col, (lx * 7 + lz * 13) % 3);
+      if (!r) continue;
+      const gx = X0 + lx + 0.5, gz = Z0 + lz + 0.5;
+      const j = ((h >> 4) % 100) / 100 - 0.5;
+      P3.bb(B, r, lx + 0.5, HGT.far(gx, gz) - 0.05, lz + 0.5, (tid === T.BIGTREE ? 2.2 : 1.25) + j * 0.3, 1);
+    }
+    return { h: B.n ? P3.upload(B) : null, sea };
+  }
+  function farForest(now, meshes, cx, cz) {
+    const m = G.map, P3 = Gfx.P3, out = [];
+    if (m.kind !== 'over') return out;
+    const near = new Set(meshes.map((ms) => ms.cd.rx + ',' + ms.cd.ry));
+    const budget = now + 8, sea = season();
+    const want = [];
+    for (let ry = Math.floor((cz - FARTREE) / MH); ry <= Math.floor((cz + FARTREE) / MH); ry++) for (let rx = Math.floor((cx - FARTREE) / MW); rx <= Math.floor((cx + FARTREE) / MW); rx++) {
+      if (rx < 0 || ry < 0 || rx >= WS || ry >= WS || near.has(rx + ',' + ry)) continue;
+      const dx = Math.max(rx * MW - cx, 0, cx - (rx + 1) * MW), dz = Math.max(ry * MH - cz, 0, cz - (ry + 1) * MH), d = Math.hypot(dx, dz);
+      if (d > FARTREE) continue;
+      want.push({ rx, ry, d });
+    }
+    want.sort((a, b) => a.d - b.d);
+    const keep = new Set();
+    for (const w of want) {
+      const ck = w.rx + ',' + w.ry;
+      keep.add(ck);
+      let f = FARWOOD.get(ck);
+      if (!f || f.sea !== sea || f.gen !== P3.sprGen || f.seed !== G.W.seed) {
+        if (performance.now() > budget) { V3.pending = true; if (!f) continue; }
+        else { if (f) P3.free(f.h); f = buildForest(w.rx, w.ry); f.gen = P3.sprGen; f.seed = G.W.seed; FARWOOD.set(ck, f); }
+      }
+      if (f.h) out.push({ h: f.h, off: [w.rx * MW - RO[0], 0, w.ry * MH - RO[1]], noShadow: true });
+    }
+    for (const [ck, f] of FARWOOD) if (!keep.has(ck)) { P3.free(f.h); FARWOOD.delete(ck); }
+    return out;
+  }
   // подпись куска: меняется — сетку пересобираем
   function sigOf(cd) {
     const m = cd.m;
@@ -894,7 +967,11 @@
     const bob = pmov ? (live() ? Math.sin(walked * 5.2) * 0.022 : Math.sin(now / 55) * 0.015) : 0;
     const ground = HGT.groundAt(gx, gz);
     V3.camY = V3.camY == null || Math.abs(V3.camY - ground) > 2 ? ground : V3.camY + (ground - V3.camY) * Math.min(1, dt * 12);
-    const cam = { x: gx - RO[0], y: V3.camY + EYE + bob, z: gz - RO[1], yaw: V3.yaw, pitch: (V3.pitch || 0) - 0.04, fov: 1.2 };
+    const jy = RT && RT.jy > 0 ? RT.jy : 0;
+    const land = RT && RT.landed ? Math.max(0, 1 - (now - RT.landed) / 160) : 0;
+    const cam = { x: gx - RO[0], y: V3.camY + EYE + bob + jy - land * 0.05, z: gz - RO[1], yaw: V3.yaw, pitch: (V3.pitch || 0) - 0.04, fov: 1.2 };
+    // глаза в координатах этой карты (для выстрелов и прицела)
+    V3.camPos = { x: px, y: cam.y, z: py };
     const fx = Math.sin(V3.yaw), fz = -Math.cos(V3.yaw);
     // огни: ближние к камере + факел
     const lights = [];
@@ -963,10 +1040,11 @@
       if (prev && (prev[0] !== e.x || prev[1] !== e.y)) { hd = Math.atan2(e.y - prev[1], e.x - prev[0]); V3.head.set(e.id, hd); }
       V3.head.set('p' + e.id, [e.x, e.y]);
       if (hd == null || (e.hostile || e.hostileToP) && !moving) hd = Math.atan2(P.y - e.y, P.x - e.x);
-      const key = X.entArt(e);
-      const always = X.ALWAYS.has(key) || key.startsWith('b_');
+      const base = X.entArt(e), ev = UI.entVar ? UI.entVar(e) : null;
+      const key = ev ? base + '~' + ev : base;
+      const always = X.ALWAYS.has(base) || base.startsWith('b_');
       const f = always ? Math.floor((now + e.id * 137) / 220) % 4 : moving ? (s.step % 2 ? 1 : 3) : 0;
-      let mode = vis ? 0 : 2;
+      let mode = 0;
       if (e.ghost || (e.kind === 'npc' && e.ai === 'wander' && e.immortal)) mode = 4;
       let c = e.c;
       if (e.kind === 'npc' && e.hostile) c = '#e07060';
@@ -998,8 +1076,12 @@
     // сетки кадра
     const fm = [];
     for (const ms of meshes) fm.push({ h: ms.h, off: [ms.cd.ox - RO[0], 0, ms.cd.oz - RO[1]] });
+    // стрелы, болты, камни и чары в полёте
+    const sh = shotsMesh(now, lights, gox - RO[0], goz - RO[1]);
+    if (sh) fm.push({ h: sh, off: [gox - RO[0], 0, goz - RO[1]], noShadow: true });
     const bills = meshes.map((ms) => ({ h: ms.bh, off: [ms.cd.ox - RO[0], 0, ms.cd.oz - RO[1]] }));
     if (DET && DET.h && m.outdoor) bills.push({ h: DET.h, off: [DET.cx - RO[0], 0, DET.cz - RO[1]] });
+    if (over && !m.dimName && !V3.noFarWood) for (const b of farForest(now, meshes, gx, gz)) bills.push(b);
     // дом, где ты: крыша прячется, потолок видно (крыши и потолки — особые вершины в сетке)
     const hide = inside ? [gox + inside.rect.x - RO[0] - 0.6, goz + inside.rect.y - RO[1] - 0.6, gox + inside.rect.x + inside.rect.w - RO[0] + 0.6, goz + inside.rect.y + inside.rect.h - RO[1] + 0.6] : null;
     const frame = {
@@ -1042,6 +1124,61 @@
     V3.proj = (lx, ly, lz) => { const p = P3.project(lx - RO[0], ly, lz - RO[1]); if (!p) return null; return [vx0 + p[0] / fw * vw, vy0 + p[1] / fh * vh, p[2]]; };
     if (!live() && (V3.pending || Math.abs(V3.yawT - V3.yaw) > 0.002) && !rafOn) { rafOn = true; requestAnimationFrame(() => { rafOn = false; UI.render(); }); }
   };
+  // ---------- снаряды: тонкие брусочки по ходу полёта ----------
+  let SHOT_H = null;
+  function shotsMesh(now, lights, ox, oz) {
+    const P3 = Gfx.P3, RT = E.RT;
+    if (SHOT_H) { P3.free(SHOT_H); SHOT_H = null; }
+    if (!RT || !RT.shots || !RT.shots.length) return null;
+    const M = P3.mesh();
+    const prism = (cx, cy, cz, d, len, th, tile, back) => {
+      // ось d (единичная), поперечные u (по земле) и v (вверх от оси)
+      let ux = -d[2], uz = d[0];
+      const ul = Math.hypot(ux, uz) || 1; ux /= ul; uz /= ul;
+      const v = [d[1] * uz, d[2] * ux - d[0] * uz, -d[1] * ux];
+      const a = [cx - d[0] * len * back, cy - d[1] * len * back, cz - d[2] * len * back], b = [cx + d[0] * len * (1 - back), cy + d[1] * len * (1 - back), cz + d[2] * len * (1 - back)];
+      const off = (p, su, sv) => [p[0] + ux * su * th + v[0] * sv * th, p[1] + v[1] * sv * th, p[2] + uz * su * th + v[2] * sv * th];
+      const C = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+      for (let i = 0; i < 4; i++) {
+        const c0 = C[i], c1 = C[(i + 1) % 4];
+        const n = [ux * (c0[0] + c1[0]) * 0.5 + v[0] * (c0[1] + c1[1]) * 0.5, v[1] * (c0[1] + c1[1]) * 0.5, uz * (c0[0] + c1[0]) * 0.5 + v[2] * (c0[1] + c1[1]) * 0.5];
+        P3.quad(M, off(a, c0[0], c0[1]), off(b, c0[0], c0[1]), off(b, c1[0], c1[1]), off(a, c1[0], c1[1]), [0, 0], [1, 0.2], tile, n, 1, 0);
+      }
+      P3.quad(M, off(b, -1, -1), off(b, 1, -1), off(b, 1, 1), off(b, -1, 1), [0, 0], [0.2, 0.2], tile, d, 1, 0);
+    };
+    for (const s of RT.shots) {
+      const sp = Math.hypot(s.vx, s.vy, s.vz) || 1, d = [s.vx / sp, s.vy / sp, s.vz / sp];
+      const gy = s.y;
+      if (s.k === 'spell') {
+        const col = s.el === 'ice' ? [0.6, 0.85, 1] : s.el === 'storm' ? [0.75, 0.8, 1] : s.el === 'acid' ? [0.55, 1, 0.4] : s.el === 'holy' ? [1, 0.95, 0.7] : s.el === 'dark' || s.el === 'void' ? [0.6, 0.4, 1] : [1, 0.55, 0.2];
+        // сгусток — звезда из трёх лучей, крутится на лету
+        const r = 0.05 + 0.015 * Math.sin(now / 40), a = now / 90;
+        const ax = [[Math.cos(a), 0, Math.sin(a)], [0, 1, 0], [-Math.sin(a), 0, Math.cos(a)]];
+        for (const q of ax) prism(s.x, gy, s.z, q, 0.17, r, 'flame', 0.5);
+        prism(s.x, gy, s.z, d, 0.5, r * 0.6, 'flame', 0.9);
+        lights.unshift({ x: ox + s.x, y: gy, z: oz + s.z, r: 4.5, col, i: 1.5 });
+        continue;
+      }
+      if (s.k === 'stone') { prism(s.x, gy, s.z, d, 0.07, 0.04, 'rockfloor', 0.5); continue; }
+      const shaft = s.k === 'bolt' ? 'wood:d' : 'wood:l';
+      prism(s.x, gy, s.z, d, s.len, 0.013, shaft, 0.92);
+      prism(s.x, gy, s.z, d, 0.06, 0.022, 'iron', 0.1);
+      // оперение: два тонких пера крест-накрест
+      const fx0 = s.x - d[0] * s.len * 0.8, fy0 = gy - d[1] * s.len * 0.8, fz0 = s.z - d[2] * s.len * 0.8;
+      let ux = -d[2], uz = d[0]; const ul = Math.hypot(ux, uz) || 1; ux /= ul; uz /= ul;
+      const vv = [d[1] * uz, d[2] * ux - d[0] * uz, -d[1] * ux];
+      const fl = 'linen', L = s.k === 'bolt' ? 0.09 : 0.13, W = 0.03;
+      for (const q of [[ux, 0, uz], vv]) {
+        const p0 = [fx0 - d[0] * L * 0.5, fy0 - d[1] * L * 0.5, fz0 - d[2] * L * 0.5], p1 = [fx0 + d[0] * L * 0.5, fy0 + d[1] * L * 0.5, fz0 + d[2] * L * 0.5];
+        const A = (p, k) => [p[0] + q[0] * W * k, p[1] + q[1] * W * k, p[2] + q[2] * W * k];
+        const n = [q[1] * d[2] - q[2] * d[1], q[2] * d[0] - q[0] * d[2], q[0] * d[1] - q[1] * d[0]];
+        P3.quad(M, A(p0, -1), A(p1, -0.4), A(p1, 0.4), A(p0, 1), [0, 0], [0.3, 0.1], fl, n, 1, 0);
+        P3.quad(M, A(p0, 1), A(p1, 0.4), A(p1, -0.4), A(p0, -1), [0, 0], [0.3, 0.1], fl, [-n[0], -n[1], -n[2]], 1, 0);
+      }
+    }
+    SHOT_H = P3.upload(M);
+    return SHOT_H;
+  }
   function drawCompass(ctx, t, x0, y0, w) {
     // полоса-компас: стороны света скользят под взглядом
     const fpx = Math.max(11, Math.round(t.fpx * 0.85));

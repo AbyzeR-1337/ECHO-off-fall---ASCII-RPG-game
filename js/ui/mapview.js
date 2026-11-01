@@ -83,6 +83,40 @@
     return 'm_thing';
   }
   UI.entArt = entArt;
+  // облик жителя: народ, пол, «изящный юноша», настроение на лице, приметы
+  const RCODE = { human: 'h', elf: 'e', dwarf: 'd', orc: 'o', halfling: 'l', succubus: 's' };
+  UI.moodOf = function (e) {
+    if (e.asleep) return 'z';
+    const now = performance.now();
+    if (e.mood && now - (e.moodT || 0) < 25000) return e.mood;
+    if (e.hostile || e.hostileToP) return 'a';
+    if (e.flee || (G.hitEnt === e.id && now - (G.hitEntT || 0) < 1500)) return 'f';
+    if (e.npc == null) return 'n';
+    const st = (G.S && G.S.npc[e.npc]) || {};
+    if (st.rel) return 'l';
+    if (st.grief && G.S.time - st.grief.t < 1440 * 20) return 's';
+    const n = E.Gm.npc(e.npc);
+    const race = E.Realms ? E.Realms.raceOf(n) : 'human';
+    let op = 0;
+    try { op = E.Gm.opinion(e.npc); } catch (err) { op = 0; }
+    if (op < -20) return 'a';
+    if (race === 'succubus') return op > 30 ? 'l' : 'c';
+    if (op > 35) return 'h';
+    // день на день не приходится: кто весел, кто хмур, кто задумался
+    const h = U.hash(e.npc, Math.floor(G.S.time / 180)) % 10;
+    const tr = n.traits || [];
+    if (tr.includes('cheerful') && h < 6) return 'h';
+    if ((tr.includes('gloomy') || tr.includes('grumpy')) && h < 6) return h < 3 ? 's' : 'a';
+    return ['n', 'n', 'n', 'n', 'h', 'h', 's', 'u', 'n', 'c'][h];
+  };
+  UI.entVar = function (e) {
+    if (e.kind !== 'npc' || e.npc == null) return null;
+    const n = E.Gm.npc(e.npc);
+    if (!n) return null;
+    const race = E.Realms ? E.Realms.raceOf(n) : 'human';
+    return (RCODE[race] || 'h') + (n.sex === 'f' ? 'f' : 'm') + (n.fb ? '1' : '0') + UI.moodOf(e) + ((n.skin != null ? n.skin : e.npc) % 10);
+  };
+  UI.entKey = (e) => { const k = entArt(e), v = UI.entVar(e); return v ? k + '~' + v : k; };
   const ITEM = { weapon: 'item_weapon', armor: 'item_armor', food: 'item_food', potion: 'item_potion', book: 'item_book', gold: 'item_gold', trinket: 'item_trinket', tool: 'item_tool', misc: 'item_misc', mat: 'item_mat', art: 'item_art' };
   const itemArt = (it) => { const t = it.t || (E.D.items[it.b] && E.D.items[it.b].t) || 'misc'; return (it.b && it.b.startsWith('a_')) || it.art ? 'item_art' : ITEM[t] || 'item_misc'; };
 
@@ -155,7 +189,14 @@
     if (s.x !== x || s.y !== y) {
       const [cx, cy] = curPos(s, now);
       if (Math.abs(x - cx) > 1.6 || Math.abs(y - cy) > 1.6) { s.fx = x; s.fy = y; s.t0 = 0; }
-      else { s.fx = cx; s.fy = cy; s.t0 = now; s.dur = durOf(id); UI.animUntil = Math.max(UI.animUntil || 0, now + s.dur + 20); }
+      else {
+        s.fx = cx; s.fy = cy; s.t0 = now; s.dur = durOf(id);
+        // идёт без остановок — скользит всё время между шагами, а не рывками «шаг — стоп»
+        const RT = E.RT, iv = s.lastMove ? now - s.lastMove : 1e9;
+        if (id !== 'P' && RT && RT.on && iv < RT.TICK * 1000 * 2.6) s.dur = Math.max(s.dur, Math.min(iv, RT.TICK * 1000 * 2.2) * 1.04);
+        UI.animUntil = Math.max(UI.animUntil || 0, now + s.dur + 20);
+      }
+      s.lastMove = now;
       if (x < s.x) s.flip = true; else if (x > s.x) s.flip = false;
       s.x = x; s.y = y; s.step++;
     }
@@ -316,15 +357,15 @@
       if (nf > 1) f = ALWAYS.has(key) ? Math.floor((now + e.id * 137) / 420) : moving ? 1 : 0;
       // кадр объёмной модели: шаг — ноги попеременно, крылья и призраки — всегда в движении
       const hf = ALWAYS.has(key) || key.startsWith('b_') ? Math.floor((now + e.id * 137) / 180) : moving ? (s.step % 2 ? 1 : 3) : 0;
-      let mode = vis ? 0 : 2, alpha = 1;
-      if (e.ghost || (e.kind === 'npc' && e.ai === 'wander' && e.immortal)) { mode = 4; alpha = 0.75; }
-      if (e.tpl === 'ally_shade') alpha = 0.7;
+      let mode = vis ? 0 : 2;
+      const alpha = 1; // модели сплошные, без просвечивания
+      if (e.ghost || (e.kind === 'npc' && e.ai === 'wander' && e.immortal)) mode = 4;
       if (e.boss === 'b_mirror' || e.tpl === 'reflection') mode = vis ? 5 : 2;
       let c = e.c;
       if (e.kind === 'npc' && e.hostile) c = '#e07060';
       if (e.ally) c = e.c || '#90f090';
       if (e.asleep) c = U.shade(c, 0.7);
-      sc.ents.push({ k: key, x: fx - tx0, y: fy - ty0, f, hf, moving, id: e.id, mode, c, flip: s.flip, alpha, sleep: !!e.asleep && vis, aura: e.kind === 'boss' ? '#ff2040' : e.ally ? '#60ff80' : null, big: e.kind === 'boss' });
+      sc.ents.push({ k: key, v: UI.entVar(e), x: fx - tx0, y: fy - ty0, f, hf, moving, id: e.id, mode, c, flip: s.flip, alpha, sleep: !!e.asleep && vis, aura: e.kind === 'boss' ? '#ff2040' : e.ally ? '#60ff80' : null, big: e.kind === 'boss' });
     }
     // игрок
     const hit = G.hitFlash && now - G.hitFlash < 160;

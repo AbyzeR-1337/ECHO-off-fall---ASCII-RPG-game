@@ -157,9 +157,8 @@ varying vec2 vUV; varying vec3 vW; varying vec4 vLS; varying float vSky; varying
 ${LIGHT_FN}
 void main(){
   vec4 t = texture2D(uSpr, vUV);
-  if (t.a < 0.3) discard;
-  // полупрозрачное (призраки) — сеткой точек, без сортировки
-  if (t.a < 0.9 && bayer(gl_FragCoord.xy) > t.a*1.1) discard;
+  // всё сплошное: точка либо есть, либо её нет
+  if (t.a < 0.5) discard;
   vec3 toCam = normalize(vec3(uCam.x - vW.x, 0.0, uCam.z - vW.z) + vec3(0.0,0.001,0.0));
   vec3 n = normalize(vec3(0.0, 0.55, 0.0) + toCam*0.6 + uSunDir*0.25);
   float sh = shadowAt(vLS, 0.004);
@@ -539,7 +538,7 @@ void main(){
       gl.uniform3f(L.u.uLRight, lightR[0], lightR[1], lightR[2]);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, stex); gl.uniform1i(L.u.uSpr, 0);
       const shB = (buf, n, off) => { bindBB(L, buf, off); gl.drawArrays(gl.TRIANGLES, 0, n); };
-      for (const b of bills) if (b.h) shB(b.h.buf, b.h.n, b.off);
+      for (const b of bills) if (b.h && !b.noShadow) shB(b.h.buf, b.h.n, b.off);
       if (f.dyn && f.dyn.n) { gl.bindBuffer(gl.ARRAY_BUFFER, S.dynBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(f.dyn.a), gl.DYNAMIC_DRAW); shB(S.dynBuf, f.dyn.n, [0, 0, 0]); f.dyn.up = true; }
       unbind(L);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);

@@ -41,6 +41,9 @@
     switch (mat) {
       case 'skin': r = ramp(SKIN[(P.skin || 0) % SKIN.length], 7, { shift: 0.09, sat: 0.9 }); break;
       case 'glove': r = ramp('#6e4a2c', 6, { shift: 0.05 }); break;
+      case 'knuckle': r = ramp(SKIN[(P.skin || 0) % SKIN.length], 7, { shift: 0.12, sat: 1.05 }).map((c) => [Math.min(255, c[0] * 1.05 + 6), c[1] * 0.96, c[2] * 0.95]); break;
+      case 'nail': r = ramp('#d8a898', 6, { shift: 0.05, sat: 0.7, hi: 0.35 }); break;
+      case 'cuff': r = ramp('#c8bca0', 6, { shift: 0.05 }); break;
       case 'wool': r = ramp('#8a4a3e', 6, { shift: 0.04 }); break;
       case 'bracer': r = ramp('#6a4426', 6, { shift: 0.06 }); break;
       case 'strap': r = ramp('#3e2616', 5, { shift: 0.04 }); break;
@@ -126,32 +129,44 @@
     const cap = (a, b, r0, r1, mat, g, ex) => add(capsule(a, b, r0, r1), mat, boxOfCapsule(a, b, Math.max(r0, r1)), g, ex);
     // точка вокруг рукояти: угол 0 — справа, 90° — дальняя сторона, 180° — слева
     const at = (R, deg, y) => { const a = deg * Math.PI / 180; return [R * Math.cos(a), y, -R * Math.sin(a)]; };
-    // пальцы: указательный сверху … мизинец снизу (высота, толщина, длина)
-    const FING = [[0.6, 0.2, 1.0], [0.19, 0.212, 1.04], [-0.22, 0.2, 0.98], [-0.6, 0.172, 0.86]];
+    // пальцы: указательный сверху … мизинец снизу (высота, толщина, длина). Каждая фаланга — своя часть:
+    // на сгибах видны складки, на кончиках — ногти, костяшки выступают
+    const FING = [[0.6, 0.192, 1.0], [0.19, 0.2, 1.05], [-0.22, 0.188, 0.98], [-0.58, 0.158, 0.84]];
     for (const [fy, r, k] of FING) {
-      id++;
       const R = 0.29 + r * 0.98;
       const mcp = [0.64 - (1 - k) * 0.12, fy + 0.03, 0.06 + (1 - k) * 0.25];
       const pip = at(R + 0.03, 72, fy), dip = at(R, 72 + 66 * k, fy - 0.02), tip = at(R - 0.02, 72 + 66 * k + 52 * k, fy - 0.04);
-      cap(mcp, pip, r * 1.08, r * 1.02, skin);
-      cap(pip, dip, r * 1.02, r * 0.95, skin);
-      cap(dip, tip, r * 0.95, r * 0.86, skin);
-      add(sphere(mcp, r * 1.12), skin, boxOfCapsule(mcp, mcp, r * 1.15)); // костяшка на тыльной стороне
-      add(sphere(pip, r * 1.06), skin, boxOfCapsule(pip, pip, r * 1.08));
+      id++; cap(mcp, pip, r * 1.06, r * 0.98, skin);
+      add(sphere(mcp, r * 1.14), skin === 'skin' ? 'knuckle' : skin, boxOfCapsule(mcp, mcp, r * 1.16)); // костяшка
+      id++; cap(pip, dip, r * 0.98, r * 0.9, skin);
+      add(sphere(pip, r * 1.02), skin, boxOfCapsule(pip, pip, r * 1.04));
+      id++; cap(dip, tip, r * 0.9, r * 0.78, skin);
+      // ноготь: на внешней стороне последней фаланги
+      if (skin === 'skin') {
+        const mx = (dip[0] + tip[0]) / 2, my = (dip[1] + tip[1]) / 2, mz = (dip[2] + tip[2]) / 2, ol = Math.hypot(mx, mz) || 1;
+        const nc = [mx + mx / ol * r * 0.62, my, mz + mz / ol * r * 0.62];
+        const dx = tip[0] - dip[0], dz = tip[2] - dip[2], dl = Math.hypot(dx, dz) || 1;
+        id++; cap([nc[0] - dx / dl * 0.07, nc[1], nc[2] - dz / dl * 0.07], [nc[0] + dx / dl * 0.08, nc[1] - 0.01, nc[2] + dz / dl * 0.08], r * 0.34, r * 0.3, 'nail', 'nail');
+      }
     }
-    // тыльная сторона кисти и ладонь
+    // тыльная сторона кисти и ладонь; на тыльной стороне — сухожилия к костяшкам
     id++;
-    add(rbox([0.5, 0.02, 0.62], [0.2, 0.74, 0.56], 0.17), skin, [0.25, -0.8, 0.0, 0.75, 0.8, 1.22]);
-    add(capsule([0.28, -0.6, 0.62], [0.32, -0.2, 0.7], 0.27, 0.27), skin, [0.0, -0.9, 0.3, 0.6, 0.1, 1.0]); // ребро ладони
-    // большой палец: от подушечки у запястья — вверх и поперёк указательного
+    add(rbox([0.5, 0.02, 0.62], [0.19, 0.72, 0.55], 0.18), skin, [0.25, -0.8, 0.0, 0.75, 0.8, 1.22]);
+    add(capsule([0.28, -0.6, 0.62], [0.32, -0.2, 0.7], 0.26, 0.26), skin, [0.0, -0.9, 0.3, 0.6, 0.1, 1.0]); // ребро ладони
+    if (skin === 'skin') for (const [fy] of FING.slice(0, 4)) cap([0.66, fy * 0.35 - 0.12, 1.12], [0.7, fy * 0.95, 0.3], 0.05, 0.045, skin);
+    // большой палец: от подушечки у запястья — вверх и поперёк указательного; на кончике — ноготь
     id++;
-    add(sphere([0.2, 0.52, 0.62], 0.33), skin, [-0.15, 0.17, 0.27, 0.55, 0.87, 0.97]);
-    cap([0.2, 0.62, 0.62], [-0.04, 0.96, 0.3], 0.25, 0.22, skin);
-    cap([-0.04, 0.96, 0.3], [-0.36, 0.95, 0.02], 0.22, 0.19, skin);
-    cap([-0.36, 0.95, 0.02], [-0.5, 0.86, -0.26], 0.19, 0.165, skin);
-    // запястье и предплечье — к глазу и вниз
+    add(sphere([0.2, 0.52, 0.62], 0.32), skin, [-0.15, 0.17, 0.27, 0.55, 0.87, 0.97]);
+    cap([0.2, 0.62, 0.62], [-0.04, 0.96, 0.3], 0.24, 0.21, skin);
     id++;
-    cap([0.46, -0.08, 1.05], [0.5, -0.32, 1.55], 0.4, 0.38, skin);
+    cap([-0.04, 0.96, 0.3], [-0.36, 0.95, 0.02], 0.21, 0.185, skin);
+    add(sphere([-0.04, 0.96, 0.3], 0.215), skin, boxOfCapsule([-0.04, 0.96, 0.3], [-0.04, 0.96, 0.3], 0.22));
+    id++;
+    cap([-0.36, 0.95, 0.02], [-0.5, 0.86, -0.26], 0.185, 0.155, skin);
+    if (skin === 'skin') { id++; cap([-0.36, 1.1, -0.02], [-0.46, 1.04, -0.2], 0.085, 0.075, 'nail', 'nail'); }
+    // запястье — уже кисти; предплечье — к глазу и вниз
+    id++;
+    cap([0.46, -0.1, 1.05], [0.5, -0.32, 1.55], 0.34, 0.33, skin);
     id++;
     // ближе к глазу рука толще — как в перспективе
     const A0 = WRIST, A1 = [0.9, -4.2, 4.6];
@@ -390,7 +405,7 @@
     }
     return true;
   }
-  const MATS = ['skin', 'glove', 'wool', 'gauntlet', 'bracer', 'strap', 'wrap', 'wood', 'wooddark', 'bone', 'rag', 'steel', 'steeldark', 'gold', 'dawn', 'spite', 'gem', 'crystal', 'nightcrystal', 'sun'];
+  const MATS = ['knuckle', 'nail', 'cuff', 'skin', 'glove', 'wool', 'gauntlet', 'bracer', 'strap', 'wrap', 'wood', 'wooddark', 'bone', 'rag', 'steel', 'steeldark', 'gold', 'dawn', 'spite', 'gem', 'crystal', 'nightcrystal', 'sun'];
 
   // ============================================================
   // Из объёма — в пиксель-арт: палитра, обводка, складки

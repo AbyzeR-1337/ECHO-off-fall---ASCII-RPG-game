@@ -24,6 +24,7 @@
     if (Gm.hasFx('webbed') && Math.random() < 0.6) { Gm.msg('Липкие нити держат тебя.'); Gm.endTurn(1); return; }
     if (Gm.hasFx('stun')) { Gm.msg('Голова кружится.'); Gm.endTurn(1); return; }
     const nx = P.x + dx, ny = P.y + dy;
+    if (dx || dy) G.faceDir = [dx, dy];
     if (nx < 0 || ny < 0 || nx >= m.w || ny >= m.h) { Gm.edge(dx, dy); return; }
     const e = Gm.entAt(nx, ny);
     if (e) {

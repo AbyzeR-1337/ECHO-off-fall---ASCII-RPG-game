@@ -31,6 +31,8 @@
     const s = UI.top();
     if (!s) return;
     if (UI.auto) { UI.auto = null; }
+    // пробел в игре — прыжок, в меню — выбор
+    if (cmd.k === 'jump' && s.name !== 'game') cmd = Object.assign({}, cmd, { k: 'enter' });
     s.key(cmd);
     UI.render();
   };
@@ -483,6 +485,7 @@
       if (dir) { if (dir[0] === 0 && dir[1] === 0) { E.Gm.wait(); return; } E.Gm.move(dir[0], dir[1]); return; }
       switch (c.k) {
         case 'act': E.Gm.interact(); break;
+        case 'jump': if (E.RT) E.RT.jump(); break;
         case 'inv': UI.inventory(); break;
         case 'char': UI.character(); break;
         case 'body': UI.body(); break;

@@ -115,11 +115,11 @@
   UI.askDir = function (prompt, cb) {
     UI.push({
       name: 'dir',
-      draw(t) { const s = ' ' + prompt + ' — стрелки; Enter — ближайшая цель; Esc — отмена '; t.text(Math.max(0, Math.floor((t.cols - s.length) / 2)), 1, s, '#fff0c0', '#3a2a10'); },
+      draw(t) { const s = ' ' + prompt + ' — стрелки; Enter — вперёд, куда шёл; Esc — отмена '; t.text(Math.max(0, Math.floor((t.cols - s.length) / 2)), 1, s, '#fff0c0', '#3a2a10'); },
       key(c) {
         const d = UI.dirOf(c);
         if (c.k === 'esc') { UI.pop(); return; }
-        if (c.k === 'enter' || c.k === 'act' || (d && d[0] === 0 && d[1] === 0)) { UI.pop(); cb(null); return; }
+        if (c.k === 'enter' || c.k === 'act' || (d && d[0] === 0 && d[1] === 0)) { UI.pop(); cb(G.faceDir || [0, 1]); return; }
         if (d) { UI.pop(); cb(d); }
       },
     });
@@ -127,7 +127,7 @@
   UI.useAbility = function (id) {
     const a = D.ab[id];
     if (!a) return;
-    if (E.Combat.needsDir(a)) UI.askDir(a.n, (d) => { Gm.useAb(id, d); UI.render(); });
+    if (E.Combat.needsDir(a) && !(UI.is3D && UI.is3D())) UI.askDir(a.n, (d) => { Gm.useAb(id, d); UI.render(); });
     else { Gm.useAb(id, null); UI.render(); }
   };
   UI.fireCmd = function () {
@@ -135,16 +135,17 @@
     const w = P.eq.hand;
     if (w && w.range) {
       UI.askDir('Стрелять', (d) => {
-        const e = d ? (() => { let x = P.x, y = P.y; for (let i = 0; i < w.range; i++) { x += d[0]; y += d[1]; if (x < 0 || y < 0 || x >= G.map.w || y >= G.map.h || !TL[G.map.tiles[y * G.map.w + x]].see) return null; const o = Gm.entAt(x, y); if (o && o.kind !== 'ally') return o; } return null; })() : E.Combat.nearestEnemy(w.range);
-        if (!e) { Gm.msg('Стрела уходит в пустоту.'); Gm.endTurn(1); return; }
-        E.Combat.playerAttack(e, { force: e.kind === 'npc' });
+        const e = (() => { let x = P.x, y = P.y; for (let i = 0; i < w.range * 2; i++) { x += d[0]; y += d[1]; if (x < 0 || y < 0 || x >= G.map.w || y >= G.map.h) return null; const tl = TL[G.map.tiles[y * G.map.w + x]]; if (!tl.see && !(E.RT && E.RT.colliderAt(x, y) && E.RT.colliderAt(x, y).r < 0.25)) return null; const o = Gm.entAt(x, y); if (o && o.kind !== 'ally') return o; } return null; })();
+        if (!e) { Gm.msg(/sling/.test(w.b) ? 'Камень улетает вдаль.' : 'Стрела уходит в пустоту.'); Gm.endTurn(1); return; }
+        if (e.kind === 'npc' && !e.hostile) { E.Combat.strikePeaceful(e); return; }
+        E.Combat.playerAttack(e, { force: 1 });
         Gm.endTurn(1);
         UI.render();
       });
       return;
     }
     UI.askDir('Атаковать', (d) => {
-      const e = d ? Gm.entAt(P.x + d[0], P.y + d[1]) : E.Combat.nearestEnemy(1);
+      const e = Gm.entAt(P.x + d[0], P.y + d[1]);
       if (!e) { Gm.msg('Там никого.'); return; }
       if (e.kind === 'npc' && !e.hostile) { E.Combat.strikePeaceful(e); return; }
       E.Combat.playerAttack(e, { force: 1 });
@@ -291,7 +292,7 @@
       items: P.prayers.map((pid) => {
         const p = G.W.prayers[pid];
         const cd = (P.prCd[pid] || 0) - G.S.time;
-        return { t: p.n + ' — ' + p.fx.d + '; цена: ' + p.cost.d, r: cd > 0 ? Math.ceil(cd / 60) + ' ч' : 'дух ' + p.mp, disabled: cd > 0 || P.mp < p.mp, c: '#fff0c0', f: () => { UI.pop(); const need = E.Combat.needsDir(p.fx); if (need) UI.askDir(p.n, (d) => { Gm.pray(pid, d); UI.render(); }); else { Gm.pray(pid, null); UI.render(); } return 'keep'; } };
+        return { t: p.n + ' — ' + p.fx.d + '; цена: ' + p.cost.d, r: cd > 0 ? Math.ceil(cd / 60) + ' ч' : 'дух ' + p.mp, disabled: cd > 0 || P.mp < p.mp, c: '#fff0c0', f: () => { UI.pop(); const need = E.Combat.needsDir(p.fx) && !(UI.is3D && UI.is3D()); if (need) UI.askDir(p.n, (d) => { Gm.pray(pid, d); UI.render(); }); else { Gm.pray(pid, null); UI.render(); } return 'keep'; } };
       }),
       empty: '—',
     });
@@ -317,33 +318,82 @@
   };
 
   // ---------- разговор ----------
+  // ---------- портрет собеседника ----------
+  const MOODW = { n: 'спокойно', h: 'улыбается', a: 'хмурится', s: 'грустит', f: 'в страхе', u: 'удивлён{|а}', c: 'хитро щурится', l: 'смотрит нежно', z: 'спит' };
+  UI.moodWord = (e) => { if (!UI.moodOf || e.npc == null) return ''; const m = UI.moodOf(e); return m === 'n' ? '' : Gm.fmt(MOODW[m] || '', Gm.npc(e.npc)); };
+  const portraits = new Map();
+  UI.portrait = function (ctx, e, x, y, w, h) {
+    const Gfx = E.Gfx;
+    if (!Gfx || !Gfx.PX || !UI.entKey) return;
+    const key = UI.entKey(e);
+    const n = Gm.npc(e.npc);
+    const c = e.c || (n && n.col) || '#b89878';
+    const asp = Math.round((h - 6) / Math.max(1, w - 6) * 4) / 4;
+    const ck = key + '|' + c + '|' + asp;
+    let pr = portraits.get(ck);
+    if (!pr) {
+      const sp = Gfx.PX.sprite(key, { c, f: 0, seed: e.npc }, { yaw: 0.32, pitch: 0.06, ppu: 150, levels: 9 });
+      if (!sp) return;
+      // голова и плечи: высота головы зависит от роста народа и возраста
+      const v = UI.entVar(e) || 'h';
+      const RV = Gfx.HF.RACEV && Gfx.HF.RACEV[v[0]];
+      const sc = (RV ? RV.h : 1) * (E.Sim.age(e.npc) < 13 ? 0.68 : 1);
+      // голова наверху, ниже — сколько влезет в рамку (плечи, грудь)
+      const hz = 1.235 * sc * sp.ppu, cw = 0.5 * sc * sp.ppu, chh = Math.max(0.52 * sc * sp.ppu, Math.min(cw * asp, 0.7 * sc * sp.ppu));
+      const sx = Math.max(0, Math.round(sp.ax - cw / 2)), sy = Math.max(0, Math.round(sp.ay - hz - 0.22 * sc * sp.ppu));
+      pr = { sp, sx, sy, sw: Math.min(sp.w - sx, Math.round(cw)), sh: Math.min(sp.h - sy, Math.round(chh)) };
+      portraits.set(ck, pr);
+      if (portraits.size > 60) portraits.delete(portraits.keys().next().value);
+    }
+    ctx.save();
+    // рамка и тёмный фон, как у старой миниатюры
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, '#2a2230'); g.addColorStop(1, '#120e16');
+    ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#6a5a40'; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+    const k = Math.min((w - 6) / pr.sw, (h - 6) / pr.sh);
+    const dw = pr.sw * k, dh = pr.sh * k;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(pr.sp.cv, pr.sx, pr.sy, pr.sw, pr.sh, Math.round(x + (w - dw) / 2), Math.round(y + Math.max(3, (h - dh) / 2)), Math.round(dw), Math.round(dh));
+    ctx.restore();
+  };
   UI.talk = function (e) {
     Dlg.onTalk(e);
     const s = {
       name: 'dialog', e, reply: e.npc != null ? Gm.fmt(Dlg.greet(e), Gm.npc(e.npc)) : (e.greet || (e.ghostShop != null ? 'Мы торгуем тем, чего у живых нет. Платят нам по-разному.' : '...')), sel: 0,
       draw(t) {
-        const W = Math.min(t.cols - 2, 76);
         const n = e.npc != null ? Gm.npc(e.npc) : null;
+        // портрет: лицо собеседника с его настроением (если есть место)
+        const PW = n && UI.portrait && t.cols >= 64 ? 14 : 0;
+        const W = Math.min(t.cols - 2, 76 + PW);
         const opts = Dlg.options(e);
         s.opts = opts;
-        const rl = U.wrap(s.reply || '', W - 4);
+        const tw = W - 4 - PW;
+        const rl = U.wrap(s.reply || '', tw);
         const look = n ? (Gm.knows(e.npc) ? U.cap(n.look) : '') : '';
-        const H = Math.min(t.rows - 1, 4 + (look ? 1 : 0) + rl.length + 1 + opts.length);
+        const mood = n && UI.moodWord ? UI.moodWord(e) : '';
+        const H = Math.min(t.rows - 1, Math.max(PW ? 10 : 0, 4 + (look ? 1 : 0) + rl.length + 1 + opts.length));
         const x0 = Math.floor((t.cols - W) / 2), y0 = Math.max(0, t.rows - H - 1);
         t.box(x0, y0, W, H, COL.border, COL.panel, Dlg.label(e));
+        const tx = x0 + 2 + PW;
         let y = y0 + 1;
-        if (look) t.text(x0 + 2, y++, look, COL.dim, COL.panel, W - 4);
-        for (const l of rl) t.text(x0 + 2, y++, l, '#e8dcb0', COL.panel, W - 4);
+        if (look) t.text(tx, y++, look, COL.dim, COL.panel, tw);
+        for (const l of rl) t.text(tx, y++, l, '#e8dcb0', COL.panel, tw);
         y++;
+        if (PW) {
+          if (mood) t.text(x0 + 1 + Math.max(0, Math.floor((PW - mood.length) / 2)), y0 + H - 2, mood.slice(0, PW), '#9a8a7a', COL.panel);
+          const px0 = (x0 + 1) * t.cw, py0 = (y0 + 1) * t.ch, pw = PW * t.cw, ph = (H - 3) * t.ch;
+          t.over = (ctx) => UI.portrait(ctx, e, px0, py0, pw, ph);
+        }
         s.sel = U.clamp(s.sel, 0, opts.length - 1);
         const room = y0 + H - 1 - y;
         const off = Math.max(0, s.sel - room + 1);
         for (let i = off; i < opts.length && y < y0 + H - 1; i++) {
           const bg = i === s.sel ? COL.sel : COL.panel;
-          t.fill(x0 + 1, y, W - 2, 1, ' ', COL.text, bg);
-          t.text(x0 + 2, y, (i < 9 ? i + 1 : ' ') + ' ' + opts[i].t, i === s.sel ? COL.selfg : opts[i].story ? '#d0c0ff' : COL.text, bg, W - 4);
+          t.fill(tx - 1, y, W - 2 - PW, 1, ' ', COL.text, bg);
+          t.text(tx, y, (i < 9 ? i + 1 : ' ') + ' ' + opts[i].t, i === s.sel ? COL.selfg : opts[i].story ? '#d0c0ff' : COL.text, bg, tw);
           const ii = i;
-          t.hot(x0 + 1, y, W - 2, 1, () => { if (s.sel === ii) s.choose(); else s.sel = ii; UI.render(); });
+          t.hot(tx - 1, y, W - 2 - PW, 1, () => { if (s.sel === ii) s.choose(); else s.sel = ii; UI.render(); });
           y++;
         }
       },
@@ -631,16 +681,16 @@
   UI.help = function () {
     UI.textScreen('Как играть', [
       ['Мир не объясняет себя. Эта страница объясняет только руки.', COL.dim], '',
-      ['Мир живёт сам: звери бегают, люди ходят по делам, день сменяет ночь, пока ты стоишь. Меню и разговоры ставят мир на паузу. Время «по ходам» — в меню (Esc).', COL.text],
-      ['От первого лица (пиксели 3D): WASD — идти, Shift — бегом, ←/→ или Q — повернуться. Щёлкни по картинке — и мышь станет головой: смотри, левая кнопка или F — удар, правая или E — действие. Esc отпускает мышь.', COL.text],
+      ['Мир живёт сам: звери бегают, люди ходят по делам, день сменяет ночь, пока ты стоишь. Меню и разговоры ставят мир на паузу.', COL.text],
+      ['От первого лица (пиксели 3D): WASD — идти, Shift — бегом, Пробел — прыжок (через бочки, костры, камни), ←/→ или Q — повернуться. Щёлкни по картинке — и мышь станет головой: левая кнопка или F — удар главной рукой, правая — второй рукой, E — действие. Esc отпускает мышь.', COL.text],
       ['На телефоне: кнопки — идти и поворачиваться, потяни по картинке — оглядеться, коснись земли — пойти туда, человека или вещи — действие.', COL.text],
       ['Движение в ASCII-видах: стрелки, WASD или цифровой блок (1–9, по диагонали тоже) — держи, чтобы идти. 5 или «.» — подождать.', COL.text],
       ['Мышь/палец: нажми на клетку — пойти туда. Правая кнопка — осмотреть.', COL.text],
-      ['Шаг ни с чем не взаимодействует сам: заговорить, открыть, войти — только действием (E). Мирные люди и звери уступают дорогу, врага шаг бьёт.', COL.text],
+      ['Шаг ни с чем не взаимодействует сам: заговорить, открыть, войти — только действием (E). Мирные люди и звери уступают дорогу. Деревья, бочки, костры мешают только собой — мимо можно протиснуться.', COL.text],
       '',
-      ['E / Пробел — действие (взять, открыть, войти, помолиться, порыбачить, сорвать траву...)', COL.text],
+      ['E — действие (взять, открыть, войти, помолиться, порыбачить, сорвать траву...)   Пробел — прыжок', COL.text],
       ['I — сумка   C — персонаж   K — умения   P — молитвы   1–9 — быстрые умения', COL.text],
-      ['F — атаковать (от первого лица — того, кто перед тобой; в ASCII — в выбранном направлении)', COL.text],
+      ['F — атаковать: меч бьёт того, кто прямо перед тобой; стрела, болт, камень и чары летят туда, куда смотришь (в ASCII — куда шёл последним)', COL.text],
       ['O — одежда   B — тело (вода, нужда)   T — что ты знаешь о мире', COL.text],
       ['R — отдых   M — карта   J — память   L — осмотреться   H — журнал   Esc — меню', COL.text],
       ['V — графика: ползунок от классического ASCII до «почти реальности». [ и ] — быстро сменить уровень.', COL.text],
@@ -697,7 +747,6 @@
     if (so.length) opts.push({ t: G.map.sett >= 0 ? 'Остаться здесь навсегда' : 'Остаться в этих краях навсегда', f: () => UI.settle(so) });
     opts.push({ t: 'Уйти навсегда', f: () => UI.confirm('Уйти, не оглядываясь? Эта жизнь закончится.', () => Gm.ending(G.P.flags.nameless ? 'hidden_nobody' : 'walk_away')) });
     opts.push({ t: 'Графика: ' + UI.GFX[UI.gfxLevel || 0][0] + ' (V)', f: () => UI.gfxScreen() });
-    if (E.RT) opts.push({ t: 'Время: ' + (E.RT.on ? 'идёт само' : 'по ходам'), f: () => { E.RT.set(!E.RT.on); Gm.msg(E.RT.on ? 'Мир живёт сам: время идёт, пока ты стоишь.' : 'Время замирает между твоими шагами — по ходам.', '#a0b0c0'); } });
     if (UI.view3d) { opts.push({ t: 'Карта крупнее (+)', f: () => UI.zoom(1) }); opts.push({ t: 'Карта мельче (−)', f: () => UI.zoom(-1) }); }
     opts.push({ t: 'Журнал сообщений', f: () => UI.logScreen() });
     opts.push({ t: 'Как играть', f: () => UI.help() });

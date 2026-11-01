@@ -116,12 +116,13 @@
     }
     const sneak = (!e.aware && e.kind === 'mon') || (e.kind === 'npc' && !e.hostile) || (opts.sneakMul && !e.aware);
     const acc = 75 + P.st.dex * 2 + P.level - e.dg + (sneak ? 30 : 0);
-    if (Math.random() * 100 > U.clamp(acc, 10, 97)) { Gm.msg('Ты промахиваешься.', '#909090'); Cb.wear(w, 0.3); e.aware = true; return true; }
+    const shot = w && w.range ? (/crossbow/.test(w.b) ? 'Болт' : /sling/.test(w.b) ? 'Камень' : 'Стрела') : null;
+    if (Math.random() * 100 > U.clamp(acc, 10, 97)) { Gm.msg(shot ? shot + ' проходит мимо.' : 'Ты промахиваешься.', '#909090'); Cb.wear(w, 0.3); e.aware = true; return true; }
     const r = Cb.playerDmg(e, (opts.mult || 1) * (sneak ? (opts.sneakMul || 1.6) : 1), { sneak: sneak && opts.sneakMul });
     let dmg = Math.max(1, r.dmg - Math.floor(e.d * (opts.pierce ? 0.2 : 0.7)));
     if (sneak) { Gm.cnt('sneak'); Gm.gain('sneak'); }
-    const verb = r.crit ? 'Ты наносишь сокрушительный удар' : 'Ты бьёшь';
-    Gm.msg(verb + ' — ' + Cb.accOf(e) + ' (' + dmg + ').', r.crit ? '#ffe080' : '#e0e0e0');
+    if (shot) Gm.msg((r.crit ? 'Точно в цель! ' : '') + shot + ' попадает в ' + Cb.accOf(e) + ' (' + dmg + ').', r.crit ? '#ffe080' : '#e0e0e0');
+    else Gm.msg((r.crit ? 'Ты наносишь сокрушительный удар' : 'Ты бьёшь') + ' — ' + Cb.accOf(e) + ' (' + dmg + ').', r.crit ? '#ffe080' : '#e0e0e0');
     Cb.wear(w, 1);
     e.aware = true;
     if (e.kind === 'mon' && e.ai === 'passive') e.hostileToP = true;
@@ -339,8 +340,12 @@
     const comet = Gm.event('comet') ? 1.3 : 1;
     const powerDmg = (p) => Math.max(1, Math.round((rnd(2, 5) + sv * 0.9 + P.level * 0.8) * p * spell * comet));
     const m = G.map;
-    const target1 = () => { // первый враг по направлению
-      if (!dir) return Cb.nearestEnemy(a.r || 8);
+    // от первого лица чары летят туда, куда смотришь; в ASCII — куда шёл последним
+    const in3D = !!(E.RT && E.RT.is3D && E.RT.is3D() && E.RT.rayHit);
+    const aim = in3D && Cb.needsDir(a) ? E.RT.rayHit((a.r || 8) * 1.5) : null;
+    if (!dir) dir = in3D && E.UI.V3 && E.UI.V3.dirRel ? E.UI.V3.dirRel(0) : (G.faceDir || [0, 1]);
+    const target1 = () => { // первый, кто на линии
+      if (aim) return aim.e && aim.e.kind !== 'ally' ? aim.e : null;
       let x = P.x, y = P.y;
       for (let i = 0; i < (a.r || 8); i++) { x += dir[0]; y += dir[1]; if (x < 0 || y < 0 || x >= m.w || y >= m.h) break; if (!TL[m.tiles[y * m.w + x]].see && !TL[m.tiles[y * m.w + x]].walk) break; const e = Gm.entAt(x, y); if (e && e.kind !== 'ally') return e; }
       return null;
@@ -348,8 +353,8 @@
     const hurt = (e, dmg, el) => { if (e.kind === 'npc' && !e.hostile) Gm.crime(e, 'attack'); e.aware = true; Gm.msg(U.cap(a.n) + ' — ' + Cb.accOf(e) + ' (' + dmg + ').', '#ffd0a0'); const k = Cb.hurtEnt(e, dmg, 'player', el); if (!k) Cb.onHitFx(e, a.x || {}); return k; };
     switch (a.k) {
       case 'strike': case 'execute': case 'drain': {
-        const e = dir ? Gm.entAt(P.x + dir[0], P.y + dir[1]) : Cb.nearestEnemy(1);
-        if (!e) { Gm.msg('Рядом никого.'); return false; }
+        const e = in3D ? G.aim : Gm.entAt(P.x + dir[0], P.y + dir[1]);
+        if (!e) { Gm.msg('Перед тобой никого.'); return false; }
         let mult = a.p;
         if (a.k === 'execute' && e.hp < e.mhp * 0.35) mult *= 2.5;
         const r = Cb.playerDmg(e, mult, { stat: a.stat !== 'str' ? a.stat : null, sneak: a.x && a.x.sneak && !e.aware });
@@ -369,15 +374,22 @@
       }
       case 'bolt': {
         const e = target1();
-        if (!e) { Gm.msg('Мимо.'); break; }
         const el = a.el === 'random' ? ['fire', 'ice', 'acid', 'storm'][rnd(0, 3)] : a.el;
+        if (aim && E.RT.spellShot) E.RT.spellShot(el, aim);
+        if (!e) { Gm.msg('Мимо.'); break; }
         hurt(e, powerDmg(a.p), el);
         if (el === 'fire' && !e.dead && Math.random() < 0.3) Cb.entFx(e, 'burn', 4, 3);
         break;
       }
       case 'blast': {
         let cx = P.x, cy = P.y;
-        if (!a.self) { const e = target1(); if (e) { cx = e.x; cy = e.y; } else if (dir) { cx = P.x + dir[0] * Math.min(4, a.range || 5); cy = P.y + dir[1] * Math.min(4, a.range || 5); } }
+        if (!a.self) {
+          const e = target1();
+          if (e) { cx = e.x; cy = e.y; }
+          else if (aim) { cx = U.clamp(Math.floor(aim.x - (aim.wall ? (aim.x - P.posX) / Math.max(0.1, aim.t) * 0.6 : 0)), 0, m.w - 1); cy = U.clamp(Math.floor(aim.z - (aim.wall ? (aim.z - P.posY) / Math.max(0.1, aim.t) * 0.6 : 0)), 0, m.h - 1); }
+          else if (dir) { cx = P.x + dir[0] * Math.min(4, a.range || 5); cy = P.y + dir[1] * Math.min(4, a.range || 5); }
+          if (aim && E.RT.spellShot) E.RT.spellShot(a.el === 'random' ? 'fire' : a.el, aim);
+        }
         Gm.flash(cx, cy, a.r || 2, a.el);
         const el = a.el === 'random' ? ['fire', 'ice', 'acid', 'storm'][rnd(0, 3)] : a.el;
         for (const e of m.ents.slice()) {
@@ -428,7 +440,7 @@
         break;
       }
       case 'shadowstep': {
-        const e = Cb.nearestEnemy(a.r || 8);
+        const e = in3D ? (E.RT.rayHit(a.r || 8) || {}).e : target1();
         if (!e) { Gm.msg('Никого.'); return false; }
         const p = Ent.freeNear(e.x - U.sign(P.x - e.x), e.y - U.sign(P.y - e.y));
         if (p) { P.x = p.x; P.y = p.y; }

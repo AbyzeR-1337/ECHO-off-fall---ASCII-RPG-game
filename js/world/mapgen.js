@@ -158,6 +158,37 @@
     }
     return T.GRASS;
   }
+  // ---------- реки через весь мир ----------
+  // Русло — линия уровня мирового шума со сдвигом: оно тянется через границы земель,
+  // петляет, то сужается до ручья, то разливается. 2 — стремнина, 1 — мелко у берега.
+  const RIVER_B = { plains: 1, forest: 1, ancient: 1, swamp: 1, tundra: 1, coast: 1, mountain: 0.6, living: 0.6, nightland: 1 };
+  function riverAt(W, wx, wy, b) {
+    const k = RIVER_B[b];
+    if (!k) return 0;
+    const s = W.seed;
+    const qx = wx + (U.noise(s + 211, wx / 23, wy / 23) - 0.5) * 18, qy = wy + (U.noise(s + 212, wx / 23, wy / 23) - 0.5) * 12;
+    const v = U.fbm(s + 213, qx / 64, qy / 40, 2);
+    const d = Math.abs(v - 0.5);
+    // реки есть не везде: в сухих краях русло мелеет и пропадает
+    const pres = U.noise(s + 216, wx / 170, wy / 170);
+    if (pres < 0.42) return 0;
+    const w = (0.003 + U.noise(s + 214, wx / 80, wy / 80) * 0.008) * k * Math.min(1, (pres - 0.42) / 0.12);
+    if (d >= w) return 0;
+    // брод: каждые несколько десятков клеток стремнина мелеет
+    const ford = U.noise(s + 215, wx / 9, wy / 9) > 0.78;
+    return d < w * 0.5 && !ford ? 2 : 1;
+  }
+  MG.riverAt = riverAt;
+  // клетка открытой земли по мировым координатам — без посёлков и построек (для дальнего вида)
+  MG.terrainAt = function (W, wx, wy) {
+    const rx = Math.floor(wx / MW), ry = Math.floor(wy / MH);
+    if (rx < 0 || ry < 0 || rx >= WS || ry >= WS) return T.WATER;
+    const g = W.regions[ry * WS + rx];
+    const b = biomeAt(W, wx, wy, null, null);
+    const r = riverAt(W, wx, wy, b);
+    if (r) return r === 2 ? T.WATER : T.SHALLOW;
+    return terrain(W, b, wx, wy, null, 0, 0, g);
+  };
   const FLOOR_FOR = { plains: T.GRASS, forest: T.GRASS, ancient: T.GRASS, swamp: T.SWAMP, desert: T.SAND, tundra: T.SNOW, ice: T.SNOW, mountain: T.ROCKFLOOR, living: T.ROCKFLOOR, volcanic: T.ASH, ash: T.ASH, ocean: T.SHALLOW, coast: T.SAND, sky: T.GRASS, nightland: T.NIGHTGRASS };
 
   // ---------- карта региона ----------
@@ -198,6 +229,10 @@
         let near = false;
         for (const [dx, dy] of [[2, 0], [-2, 0], [0, 2], [0, -2]]) if (BA(x + dx, y + dy) === 'ocean') { near = true; break; }
         if (near) t = T.SAND;
+      }
+      if (variant !== 'c' && variant !== 'i' && variant !== 'n' && g.exist !== 'cyclic') {
+        const r = riverAt(W, wx, wy, b);
+        if (r) { t = r === 2 ? (b === 'tundra' && g.t < 0.3 ? T.ICE : T.WATER) : T.SHALLOW; m.river = 1; }
       }
       m.tiles[I(x, y)] = t;
     }

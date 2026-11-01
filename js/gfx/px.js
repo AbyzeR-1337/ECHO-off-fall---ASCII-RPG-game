@@ -81,7 +81,7 @@
 
   // ---------- модель → тела ----------
   PX.prims = function (key, o, ppu) {
-    const def = HF.models[key] || HF.models[HF.alias[key]];
+    const def = HF.modelOf ? HF.modelOf(key) : HF.models[key] || HF.models[HF.alias[key]];
     if (!def) return null;
     const P = { season: o.season != null ? o.season : 1, cold: !!o.cold, T: 0, level: 5, night: !!o.night, px: 1 / ppu, wet: false };
     const sp = def(o, P);
@@ -117,6 +117,9 @@
     let prims = PX.prims(key, o, ppu / scale);
     if (!prims || !prims.length) return null;
     if (scale !== 1) prims = prims.map((p) => scaleP(p, scale));
+    // без полупрозрачного: бледные тени-пятна и ореолы не рисуем, остальное — сплошное
+    prims = prims.filter((p) => !(p.m && p.m.a != null && p.m.a < 0.45));
+    if (!prims.length) return null;
     // камера: вперёд f (из камеры к модели), вправо R, вверх U
     const cp = Math.cos(pitch), spn = Math.sin(pitch);
     const fx = Math.sin(yaw) * cp, fy = -Math.cos(yaw) * cp, fz = -spn;
@@ -202,8 +205,8 @@
     for (let k = 0; k < N; k++) {
       if (!al[k]) continue;
       d[k * 4] = q(col[k * 3]); d[k * 4 + 1] = q(col[k * 3 + 1]); d[k * 4 + 2] = q(col[k * 3 + 2]);
-      // альфа: 255 — освещается сценой, 250 — светится сама, меньше — полупрозрачное
-      d[k * 4 + 3] = al[k] < 0.95 ? Math.round(al[k] * 200) : emi[k] ? 250 : 255;
+      // альфа: 255 — освещается сценой, 250 — светится сама; полупрозрачного нет
+      d[k * 4 + 3] = emi[k] ? 250 : 255;
     }
     // тёмный контур по силуэту
     if (opt.outline !== false) {

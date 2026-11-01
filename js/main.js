@@ -8,7 +8,7 @@
     KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right',
     Numpad8: 'up', Numpad2: 'down', Numpad4: 'left', Numpad6: 'right', Numpad7: 'ul', Numpad9: 'ur', Numpad1: 'dl', Numpad3: 'dr', Numpad5: 'wait',
     Home: 'home', End: 'end', PageUp: 'pgup', PageDown: 'pgdn',
-    KeyE: 'act', Space: 'act', KeyG: 'act', Enter: 'enter', NumpadEnter: 'enter', Escape: 'esc', Tab: 'tab',
+    KeyE: 'act', Space: 'jump', KeyG: 'act', Enter: 'enter', NumpadEnter: 'enter', Escape: 'esc', Tab: 'tab',
     KeyQ: 'tl', KeyI: 'inv', KeyC: 'char', KeyP: 'pray', KeyK: 'skills', KeyM: 'map', KeyJ: 'mem', KeyR: 'rest', KeyF: 'fire', KeyL: 'look', KeyX: 'look', KeyH: 'log', KeyV: 'view', KeyB: 'body', KeyO: 'outfit', KeyT: 'stats',
     Equal: 'zin', NumpadAdd: 'zin', Minus: 'zout', NumpadSubtract: 'zout', BracketLeft: 'gdown', BracketRight: 'gup',
     Period: 'wait', KeyZ: 'wait', NumpadDecimal: 'wait', F1: 'help', Slash: 'help',
@@ -44,7 +44,8 @@
       if (hk) { ev.preventDefault(); if (!ev.repeat) { RT.held.add(hk); RT.path = null; UI.auto = null; } return; }
       if (ev.key === 'Shift') { RT.run = true; return; }
       if (ev.code === 'KeyF' && UI.is3D && UI.is3D()) { ev.preventDefault(); RT.attack(); return; }
-      if (ev.repeat && ['KeyE', 'Space', 'KeyG'].includes(ev.code)) { ev.preventDefault(); return; }
+      if (ev.code === 'Space') { ev.preventDefault(); if (!ev.repeat) RT.jump(); return; }
+      if (ev.repeat && ['KeyE', 'KeyG'].includes(ev.code)) { ev.preventDefault(); return; }
     }
     const c = cmdFromEvent(ev);
     if (!c.k && !c.n && !(top && top.name === 'create')) return;

@@ -397,6 +397,8 @@
     // новых рисунков за кадр — сколько успеем; остальные дорисуются в следующих кадрах
     if (HF.deadline && performance.now() > HF.deadline) { HF.pending = true; return null; }
     if (flip) prims = prims.map(mirror);
+    // без полупрозрачного: бледные пятна не рисуем, остальное — сплошное
+    prims = prims.filter((p) => !(p.m && p.m.a != null && p.m.a < 0.45));
     const SX = RS.sx, SY = RS.sy, D = SX * SY, pt = patterns(SX, SY, 'full');
     let u0 = 1e9, u1 = -1e9, v0 = 1e9, v1 = -1e9;
     const bb = prims.map(bounds);
@@ -435,7 +437,7 @@
       mo.r = m.c[0]; mo.g = m.c[1]; mo.b = m.c[2]; mo.t = 0.5; mo.cs = m.cs; mo.sp = m.sp || 0; mo.em = m.em || 0; mo.fl = m.fl || 0;
       if (m.tex) { m.tex(lx, y, z, mo, nrm); const nl = Math.hypot(nrm[0], nrm[1], nrm[2]) || 1; nrm[0] /= nl; nrm[1] /= nl; nrm[2] /= nl; }
       R.r[k] = mo.r; R.g[k] = mo.g; R.b[k] = mo.b; R.nx[k] = nrm[0]; R.ny[k] = nrm[1]; R.nz[k] = nrm[2]; R.em[k] = mo.em; R.sp[k] = mo.sp;
-      R.al[k] = m.a != null ? m.a : 1;
+      R.al[k] = 1;
       R.lk[k] = mo.lk || 0; mo.lk = 0;
     }
     // 3. «мастерский» свет, затенение складок, линия перекрытия
@@ -624,7 +626,7 @@
       const row = byRow.get(j);
       if (row) for (const e of row) {
         const flags = (e.mode === 2 ? F.REVEAL : 0) | (e.mode === 4 ? F.GHOST : 0);
-        HF.drawModel(e.k, { c: e.c, f: e.hf != null ? e.hf : e.f, T, moving: e.moving, mode: e.mode, alpha: e.alpha, boss: e.big, ring: e.ring, hit: e.mode === 3 }, e.x, e.y, CX, CY, 100000 + (e.id || 0), flags, e.flip, P);
+        HF.drawModel(e.v ? e.k + '~' + e.v : e.k, { c: e.c, f: e.hf != null ? e.hf : e.f, T, moving: e.moving, mode: e.mode, alpha: e.alpha, boss: e.big, ring: e.ring, hit: e.mode === 3 }, e.x, e.y, CX, CY, 100000 + (e.id || 0), flags, e.flip, P);
         if (e.sleep) HF.drawModel('fx_sleep', { f: Math.floor(now / 500) }, e.x, e.y, CX, CY, 99999, 0, false, P);
       }
       for (const r of sc.roofs) if (r.chim) for (const c of r.chim) if (c.y === j && c.x >= 0 && c.x < W && sc.mem[j * W + c.x] !== 255) HF.drawModel('chimney', { f: Math.floor(now / 140), T, seed: c.x }, c.x, c.y, CX, CY, 7, r.mem ? F.MEM : 0, false, P);
@@ -925,7 +927,7 @@
   // Модель на клетке: из ключа рисунка — объёмная модель (или упрощённая из рисунка)
   // ============================================================
   HF.drawModel = function (key, o, x, y, CX, CY, id, flags, flip, P) {
-    const def = HF.models[key] || HF.models[HF.alias[key]];
+    const def = HF.modelOf ? HF.modelOf(key) : HF.models[key] || HF.models[HF.alias[key]];
     if (!def) return;
     const sp = def(o, P);
     if (!sp) return;
