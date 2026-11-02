@@ -43,10 +43,13 @@
     milk_ember: () => { Gm.fx('haste', 60); Gm.fx('warmth', 120); return 'Тёплое, с искрой. Ноги сами просятся в путь.'; },
     milk_meadow: () => { Gm.fx('content', 120); return 'Сладкое, пахнет клевером. Хорошо.'; },
   };
+  // дар тавров: после еды и молока — «Лёгкие копыта» (Ловкость +2), от молока — дольше
+  D.effects.hoofgrace = { id: 'hoofgrace', n: 'Лёгкие копыта', kind: 'state', d: 'Сыто и легко: ноги сами несут, руки быстрее. Ловкость +2.', mods: { dex: 2 } };
   const eat0 = Gm.eat;
   Gm.eat = function (it) {
     const r = eat0.apply(this, arguments);
     if (it && FX[it.b] && !G.P.dead) Gm.msg(FX[it.b](), '#e8e0d0');
+    if (it && DY.kin() && !G.P.dead) { Gm.fx('hoofgrace', /milk/.test(it.b) ? 360 : 180); Gm.calc(); }
     return r;
   };
   // напиться прямо из-под долыни
@@ -55,6 +58,7 @@
     Gm.thirstAdd(Math.min(-40, (d.thirst || -40) - 10));
     G.P.hunger = Math.min(100, (G.P.hunger || 0) + 8);
     Gm.cnt('milk_drunk');
+    if (DY.kin()) { Gm.fx('hoofgrace', 360); Gm.calc(); }
     const s = FX[mid] ? FX[mid]() : '';
     return 'Ты пьёшь парное молоко прямо из ладоней. ' + s;
   }
@@ -73,7 +77,9 @@
     if (k) { G.S.dolyn = G.S.dolyn || {}; G.S.dolyn[k] = t; return; }
     e.mt = t;
   }
-  DY.ready = (e) => G.S.time - milkT(e) >= 6 * 60;
+  // тавры и коровьи девы — долыням родня: те доятся им без отказа и без счёта
+  DY.kin = () => !!(G.P && G.P.race === 'taur');
+  DY.ready = (e) => DY.kin() || G.S.time - milkT(e) >= 6 * 60;
   DY.nameOf = function (e) {
     if (e.own === 'P') { const h = G.P.farm.herd[e.hi]; return (h && h.name ? h.name + ', ' : '') + (BR[breedOf(e)] || BR.meadow).n.toLowerCase(); }
     return e.n;
@@ -97,7 +103,7 @@
     const out = (s, c) => { Gm.msg(s, c || '#e8e0d0'); };
     // дикая может лягнуть и убежать
     const calm = () => {
-      if (!wild || e.tame >= 2) return true;
+      if (!wild || e.tame >= 2 || DY.kin()) return true;
       const p = 0.35 + (e.tame || 0) * 0.25 + ((G.P.st && G.P.st.dex) || 5) * 0.02;
       if (Math.random() < p) return true;
       out('Долынь фыркает, лягается и отбегает.', '#c0a080');

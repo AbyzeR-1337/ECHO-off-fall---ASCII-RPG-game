@@ -447,6 +447,7 @@
     if (o.ears === 'gob') for (const sd of [-1, 1]) { out.push(el(sd * S(0.12), yh - S(0.01), hz + S(0.02), S(0.05), S(0.012), S(0.03), head), el(sd * S(0.17), yh - S(0.015), hz + S(0.04), S(0.04), S(0.01), S(0.02), head), sph(sd * S(0.205), yh - S(0.02), hz + S(0.05), pmin(P, S(0.01)), head)); }
     else if (o.ears === 'cat') for (const sd of [-1, 1]) { out.push(cone(sd * S(0.06), yh - S(0.01), hz + S(0.09), pmin(P, S(0.034)), S(0.085), o.hair || head), cone(sd * S(0.06), yh + S(0.004), hz + S(0.1), pmin(P, S(0.018)), S(0.055), mat('#e8a8a8', 'skin'))); }
     else if (o.ears === 'none') { /* у ящеролюдов — только дырочки */ }
+    else if (o.ears === 'cow') for (const sd of [-1, 1]) { const em = o.earM || head; out.push(el(sd * S(0.135), yh - S(0.005), hz + S(0.03), S(0.055), S(0.022), S(0.026), em), el(sd * S(0.125), yh + S(0.004), hz + S(0.03), S(0.03), S(0.012), S(0.014), mat('#e8a8a8', 'skin'))); }
     else if (o.ears === 'elf') for (const sd of [-1, 1]) { out.push(el(sd * S(0.108), yh, hz + S(0.01), S(0.03), S(0.014), S(0.026), head), el(sd * S(0.128), yh - S(0.008), hz + S(0.045), S(0.016), S(0.01), S(0.026), head), sph(sd * S(0.142), yh - S(0.012), hz + S(0.075), pmin(P, S(0.008)), head)); }
     else for (const sd of [-1, 1]) out.push(sph(sd * S(0.098), yh, hz - S(0.005), S(0.024), head));
     face(out, P, o, S, yh, hz, head);
@@ -464,7 +465,11 @@
     // клыки, рожки, хвост, крылышки
     if (o.tusks) for (const sd of [-1, 1]) out.push(cone(sd * S(0.03), yh + S(0.1), hz - S(0.07), pmin(P, S(0.01)), S(0.035), mat('#e8e0c8', 'bone')));
     if (o.horns) for (const sd of [-1, 1]) { const hm = o.horns; out.push(sph(sd * S(0.055), yh + S(0.01), hz + S(0.1), pmin(P, S(0.022)), hm), sph(sd * S(0.075), yh - S(0.02), hz + S(0.14), pmin(P, S(0.018)), hm), sph(sd * S(0.085), yh - S(0.06), hz + S(0.165), pmin(P, S(0.013)), hm), sph(sd * S(0.085), yh - S(0.1), hz + S(0.17), pmin(P, S(0.009)), hm)); }
-    if (o.tail && o.tailK === 'cat') { const tm = o.tail; for (let q = 0; q < 8; q++) { const a = q / 7; out.push(sph(-S(0.02) + S(Math.sin(a * 2) * 0.06), -S(0.1 + a * 0.18), S(0.7 - a * 0.25 + a * a * 0.5), pmin(P, S(0.026)), tm)); } }
+    if (o.cowHorns) for (const sd of [-1, 1]) { out.push(cone(sd * S(0.07), yh - S(0.005), hz + S(0.085), pmin(P, S(0.017)), S(0.04), o.cowHorns), sph(sd * S(0.09), yh - S(0.005), hz + S(0.125), pmin(P, S(0.011)), o.cowHorns)); }
+    if (o.bell) { out.push(sph(0, yh + S(0.065), S(1.12), pmin(P, S(0.024)), mat('#d8b040', 'gold', { sp: 1 })), el(0, yh + S(0.035), S(1.145), S(0.05), S(0.045), S(0.008), mat('#8a2a2a', 'cloth'))); }
+    if (o.bow) for (const sd of [-1, 1]) out.push(el(sd * S(0.045), yh - S(0.03), hz + S(0.115), S(0.035), S(0.012), S(0.022), o.bow));
+    if (o.tail && o.tailK === 'cow') { const tm = o.tail; for (let q = 0; q < 6; q++) { const a = q / 5; out.push(sph(0, -S(0.1 + a * 0.06), S(0.72 - a * 0.36), pmin(P, S(0.014)), tm)); } out.push(el(0, -S(0.16), S(0.33), S(0.022), S(0.022), S(0.04), o.tuft || tm)); }
+    else if (o.tail && o.tailK === 'cat') { const tm = o.tail; for (let q = 0; q < 8; q++) { const a = q / 7; out.push(sph(-S(0.02) + S(Math.sin(a * 2) * 0.06), -S(0.1 + a * 0.18), S(0.7 - a * 0.25 + a * a * 0.5), pmin(P, S(0.026)), tm)); } }
     else if (o.tail && o.tailK === 'liz') { const tm = o.tail; for (let q = 0; q < 8; q++) { const a = q / 7; out.push(sph(0, -S(0.1 + a * 0.32), S(0.66 - a * 0.56), pmin(P, S(0.06 - a * 0.045)), tm)); } }
     else if (o.tail) { const tm = o.tail; for (let q = 0; q < 7; q++) { const a = q / 6; out.push(sph(S(0.05 + a * 0.16), -S(0.1 + Math.sin(a * 2.4) * 0.12), S(0.72 - a * 0.42), pmin(P, S(0.022 - a * 0.008)), tm)); } out.push(cone(S(0.21), -S(0.18), S(0.24), pmin(P, S(0.028)), S(0.05), tm)); }
     if (o.wings) for (const sd of [-1, 1]) out.push(el(sd * S(0.14), -S(0.13), S(1.02), S(0.12), S(0.018), S(0.17), o.wings), el(sd * S(0.24), -S(0.15), S(1.12), S(0.06), S(0.014), S(0.1), o.wings));
@@ -559,6 +564,8 @@
     c: { h: 0.96, b: 0.9, ears: 'cat', whisk: 1, skin: ['#d8a878', '#c89058', '#e8c8a8', '#a89888'], hair: ['#c87a3a', '#2a2420', '#e8e0d0', '#8a6a4a', '#5a5a5a'], eyes: '#80d060', tail: 'cat' },
     t: { h: 1.0, b: 0.95, horns: 1, skin: ['#b04848', '#9a3a5a', '#c06050', '#7a4a8a'], hair: ['#1a1018', '#3a1a2a', '#e8d0f0', '#2a1a3a'], eyes: '#f0c040', tail: 'demon' },
     b: { h: 1.28, b: 1.3, skin: ['#c89c80', '#b88a6a', '#a87a5a', '#d8b090'], hair: ['#6a4a2a', '#8a6a3a', '#3a2a1a', '#c8a060'], beardM: 1 },
+    w: { h: 1.06, b: 1.12, ears: 'cow', cow: 1, skin: ['#f0d4bc', '#e2bc9c', '#c89878', '#a87858'], hair: ['#f0ece0', '#2a1a10', '#8a5a2a', '#d8c8a8', '#4a3a2a', '#c87a4a'], tail: 'cow' },
+    y: { h: 0.98, b: 0.84, femb: 1, skin: ['#f4dccc', '#ecc8b0', '#d8b090', '#b88868'], hair: ['#f0c8d8', '#c8b0f0', '#f0e0a0', '#1a1418', '#a0d0f0', '#e8e8f0'] },
     s: { h: 1.02, b: 0.9, demon: 1, skin: ['#d890b0', '#c87898', '#b05a7a', '#e0a8c0'], hair: ['#2a1028', '#5a1030', '#1a1018', '#8a2040', '#e8d0f0'] },
   };
   HF.RACEV = RACEV;
@@ -592,6 +599,8 @@
       if (rv && rv.ears === 'cat' && covered) look.hair = mat(hairC, 'hair', { tex: hairTex });
       if (rv && rv.tuskS) look.tusks = 1;
       if (rv && rv.horns) look.horns = mat('#2a1a24', 'stone', { sp: 0.6 });
+      if (rv && rv.cow) { look.cowHorns = mat('#ece4d0', 'bone', { sp: 0.5 }); look.bell = 1; look.earM = mat(hairC, 'hair', { tex: hairTex }); look.tuft = mat(shadeC(C(hairC), 0.7), 'hair'); }
+      if (rv && rv.femb) { look.bow = mat(['#f080b0', '#a090f0', '#80c8f0', '#f0f0f0'][V.k % 4], 'cloth'); look.lash = true; look.long = !covered; look.bun = false; look.beard = false; look.blush = V.k % 2 === 0; }
       if (rv && rv.tail) { look.tail = mat(rv.tail === 'cat' ? hairC : shadeC(C(skinC), 0.8), rv.tail === 'cat' ? 'hair' : 'skin', rv.tail === 'cat' ? { tex: hairTex } : rv.tail === 'liz' ? { tex: scaleTex } : undefined); look.tailK = rv.tail; }
       if (rv && rv.demon) { look.horns = mat('#2a1a24', 'stone', { sp: 0.6 }); look.tail = mat(shadeC(C(skinC), 0.7), 'skin'); if (fem) look.wings = mat('#4a1a30', 'cloth'); look.eyes = mat('#e0b040', 'eye', { em: 0.5 }); look.lip = mat('#a02040', 'skin'); }
       const prims = human(look, P, s);

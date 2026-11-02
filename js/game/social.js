@@ -105,6 +105,10 @@
     return small0.apply(this, arguments);
   };
 
+  // фембою люди добрее с первой встречи
+  const opn0 = Gm.opinion;
+  Gm.opinion = function (id) { return opn0.apply(this, arguments) + (G.P && G.P.race === 'femboy' ? 5 : 0); };
+
   // ---------- реакция: удача броска с учётом статов ----------
   const roll = (p) => Math.random() < U.clamp(p, 0.04, 0.96);
   const PS = (k) => (G.P.st && G.P.st[k]) || 5;
@@ -356,6 +360,7 @@
   const pm0 = Dlg.priceMul;
   Dlg.priceMul = function (e, b, buy) {
     let m = pm0.apply(this, arguments);
+    if (G.P && G.P.race === 'femboy') m *= buy ? 0.95 : 1.04; // обаяние фембоя
     if (e && e.npc != null) {
       const s = G.S.npc[e.npc] || {};
       if (s.disc === Gm.day()) m *= buy ? 0.85 : 1.1;
