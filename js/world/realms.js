@@ -273,9 +273,14 @@
     // изящные юноши — и в обычных землях
     for (const n of W.npcs) if (n.sex === 'm' && !n.fb && n.age >= 17 && n.age <= 32 && rng.chance(0.05) && !['guard', 'veteran', 'ruler', 'smith', 'miner'].includes(n.job)) n.fb = 1;
     for (const n of W.npcs) if (n.fb) n.look = fbLook(rng, n);
+    // «старуха, пахнущий овцами» → «пахнущая»: приметы в женском роде
+    for (const n of W.npcs) if (n.sex === 'f' && n.look) n.look = R.femLook(n.look);
     // склонности сердца
     for (const n of W.npcs) n.orient = rng.weighted([['any', 55], ['opp', 30], ['same', 15]]);
     return W;
+  };
+  R.femLook = function (look) {
+    return look.split(', ').map((p, i) => (i === 0 ? p : p.replace(/^(\S+?)(ийся|ий|ый|ой)(?=\s|$)/, (m, a, b) => a + (b === 'ийся' ? 'аяся' : 'ая')))).join(', ');
   };
   function setRace(rng, n, race, cu) {
     n.race = race;

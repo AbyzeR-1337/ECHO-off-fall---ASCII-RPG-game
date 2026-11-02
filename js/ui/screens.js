@@ -370,39 +370,67 @@
   };
   UI.talk = function (e) {
     Dlg.onTalk(e);
+    const SO = E.Social;
     const s = {
-      name: 'dialog', e, reply: e.npc != null ? Gm.fmt(Dlg.greet(e), Gm.npc(e.npc)) : (e.greet || (e.ghostShop != null ? 'Мы торгуем тем, чего у живых нет. Платят нам по-разному.' : '...')), sel: 0,
+      name: 'dialog', e, reply: e.npc != null ? Gm.fmt(Dlg.greet(e), Gm.npc(e.npc)) : (e.greet || (e.ghostShop != null ? 'Мы торгуем тем, чего у живых нет. Платят нам по-разному.' : '...')), sel: 0, subT: null,
+      // варианты: главный список или раздел («По душам…», «Флирт…», «Хитрость…»)
+      list() {
+        const main = Dlg.options(e);
+        if (s.subT) {
+          const so = main.find((o) => o.t === s.subT && o.sub);
+          if (so) { s.subC = so.c; return so.sub().concat([{ t: '← Назад', back: 1, c: '#a09080' }]); }
+          s.subT = null;
+        }
+        return main;
+      },
       draw(t) {
         const n = e.npc != null ? Gm.npc(e.npc) : null;
-        // портрет: лицо собеседника с его настроением (если есть место)
-        const PW = n && UI.portrait && t.cols >= 64 ? 14 : 0;
-        const W = Math.min(t.cols - 2, 76 + PW);
-        const opts = Dlg.options(e);
+        // слева — портрет собеседника, его настроение и шкалы отношений
+        const PW = n && UI.portrait && t.cols >= 66 ? 18 : 0;
+        const W = Math.min(t.cols - 2, 80 + PW);
+        const opts = s.list();
         s.opts = opts;
         const tw = W - 4 - PW;
         const rl = U.wrap(s.reply || '', tw);
         const look = n ? (Gm.knows(e.npc) ? U.cap(n.look) : '') : '';
+        const tags = n && SO ? SO.tags(e.npc) : [];
         const mood = n && UI.moodWord ? UI.moodWord(e) : '';
-        const H = Math.min(t.rows - 1, Math.max(PW ? 10 : 0, 4 + (look ? 1 : 0) + rl.length + 1 + opts.length));
+        const head = (look ? 1 : 0) + (tags.length ? 1 : 0) + rl.length + 1 + (s.subT ? 1 : 0);
+        const H = Math.min(t.rows - 1, Math.max(PW ? 17 : 0, 3 + head + opts.length));
         const x0 = Math.floor((t.cols - W) / 2), y0 = Math.max(0, t.rows - H - 1);
         t.box(x0, y0, W, H, COL.border, COL.panel, Dlg.label(e));
         const tx = x0 + 2 + PW;
         let y = y0 + 1;
         if (look) t.text(tx, y++, look, COL.dim, COL.panel, tw);
+        if (tags.length) t.text(tx, y++, Gm.fmt(tags.join(' · '), n), '#b8a0c8', COL.panel, tw);
         for (const l of rl) t.text(tx, y++, l, '#e8dcb0', COL.panel, tw);
         y++;
+        if (s.subT) t.text(tx, y++, '— ' + Gm.fmt(s.subT.replace('…', ''), n) + ' —', s.subC || COL.accent, COL.panel, tw);
         if (PW) {
-          if (mood) t.text(x0 + 1 + Math.max(0, Math.floor((PW - mood.length) / 2)), y0 + H - 2, mood.slice(0, PW), '#9a8a7a', COL.panel);
-          const px0 = (x0 + 1) * t.cw, py0 = (y0 + 1) * t.ch, pw = PW * t.cw, ph = (H - 3) * t.ch;
+          // стадия и пять шкал: дружба, доверие, уважение, симпатия, страх
+          const bars = SO ? SO.bars(e.npc) : [];
+          const by = y0 + H - 2 - bars.length;
+          if (SO) {
+            const [sg, sc] = SO.stage(e.npc);
+            t.text(x0 + 1 + Math.max(0, Math.floor((PW - sg.length) / 2)), by - 1, sg.slice(0, PW), sc, COL.panel);
+            bars.forEach(([nm, val, lo, c], i) => {
+              const k = U.clamp(Math.round(((val - lo) / (100 - lo)) * 8), 0, 8);
+              t.text(x0 + 1, by + i, nm.slice(0, 8), '#8a7a6a', COL.panel);
+              for (let q = 0; q < 8; q++) t.put(x0 + 10 + q, by + i, q < k ? '█' : '░', q < k ? c : '#3a3230', COL.panel);
+            });
+          }
+          if (mood) t.text(x0 + 1 + Math.max(0, Math.floor((PW - mood.length) / 2)), by - 2, mood.slice(0, PW), '#9a8a7a', COL.panel);
+          const px0 = (x0 + 1) * t.cw, py0 = (y0 + 1) * t.ch, pw = PW * t.cw, ph = Math.max(3, by - 2 - (mood ? 1 : 0) - y0 - 1) * t.ch;
           t.over = (ctx) => UI.portrait(ctx, e, px0, py0, pw, ph);
         }
         s.sel = U.clamp(s.sel, 0, opts.length - 1);
         const room = y0 + H - 1 - y;
         const off = Math.max(0, s.sel - room + 1);
         for (let i = off; i < opts.length && y < y0 + H - 1; i++) {
-          const bg = i === s.sel ? COL.sel : COL.panel;
+          const bg = i === s.sel ? COL.sel : COL.panel, o = opts[i];
           t.fill(tx - 1, y, W - 2 - PW, 1, ' ', COL.text, bg);
-          t.text(tx, y, (i < 9 ? i + 1 : ' ') + ' ' + opts[i].t, i === s.sel ? COL.selfg : opts[i].story ? '#d0c0ff' : COL.text, bg, tw);
+          const fg = i === s.sel ? COL.selfg : o.story ? '#d0c0ff' : o.c || COL.text;
+          t.text(tx, y, (i < 9 ? i + 1 : ' ') + ' ' + Gm.fmt(o.t, n) + (o.sub ? ' ›' : ''), fg, bg, tw);
           const ii = i;
           t.hot(tx - 1, y, W - 2 - PW, 1, () => { if (s.sel === ii) s.choose(); else s.sel = ii; UI.render(); });
           y++;
@@ -411,6 +439,8 @@
       choose() {
         const o = s.opts[s.sel];
         if (!o) return;
+        if (o.back) { s.subT = null; s.sel = 0; return; }
+        if (o.sub) { s.subT = o.t; s.sel = 0; return; }
         G.dlgReply = null;
         const r = o.f();
         if (r === 'close') { if (UI.top() === s) UI.pop(); return; }
@@ -423,7 +453,7 @@
         if (c.k === 'up') s.sel = (s.sel - 1 + n) % n;
         else if (c.k === 'down') s.sel = (s.sel + 1) % n;
         else if (c.k === 'enter' || c.k === 'act') s.choose();
-        else if (c.k === 'esc') UI.pop();
+        else if (c.k === 'esc' || (c.k === 'left' && s.subT)) { if (s.subT) { s.subT = null; s.sel = 0; } else UI.pop(); }
         else if (c.n >= 1 && c.n <= 9 && c.n <= n) { s.sel = c.n - 1; s.choose(); }
       },
     };
@@ -704,7 +734,7 @@
       ['I — сумка   C — персонаж   K — умения   P — молитвы   1–9 — быстрые умения', COL.text],
       ['F — атаковать: меч бьёт того, кто прямо перед тобой; стрела, болт, камень и чары летят туда, куда смотришь (в ASCII — куда шёл последним)', COL.text],
       ['O — одежда   B — тело (вода, нужда)   T — что ты знаешь о мире', COL.text],
-      ['R — отдых   M — карта   J — память   L — осмотреться   H — журнал   Esc — меню', COL.text],
+      ['R — отдых   M — карта   J — память   N — отношения   L — осмотреться   H — журнал   Esc — меню', COL.text],
       ['V — графика: ползунок от классического ASCII до «почти реальности». [ и ] — быстро сменить уровень.', COL.text],
       ['+ и − (или колесо мыши) — масштаб карты.', COL.text],
       ['Значок [E] над вещью — до неё можно дотянуться. От первого лица подпись [E] внизу прицела говорит, что сделает действие.', COL.text],
