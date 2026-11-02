@@ -41,6 +41,7 @@
 
   // ---------- существа → рисунок ----------
   const MON = {
+    dol_meadow: 'm_dolyn', dol_forest: 'm_dolyn', dol_mountain: 'm_dolyn', dol_sand: 'm_dolyn', dol_snow: 'm_dolyn', dol_bog: 'm_dolyn', dol_ember: 'm_dolyn',
     hare: 'm_hare', deer: 'm_deer', boar: 'm_boar', wolf: 'm_wolf', bear: 'm_bear', fox: 'm_fox', rat: 'm_rat', bat: 'm_bat', snake: 'm_snake',
     spider: 'm_spider', scorpion: 'm_scorpion', crab: 'm_crab', croc: 'm_croc', frostwolf: 'm_wolf', mammoth: 'm_mammoth', eagle: 'm_eagle',
     sandworm: 'm_worm', leech: 'm_leech', bandit: 'm_bandit', archer: 'm_archer', cultist: 'm_cultist', deserter: 'm_soldier', soldier: 'm_soldier',

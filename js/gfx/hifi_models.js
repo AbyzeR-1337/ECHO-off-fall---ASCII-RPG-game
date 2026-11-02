@@ -710,6 +710,45 @@
       return wrap(key + '|' + (c || '') + '|' + (o.moving ? o.f % 4 : 0) + (q.wings ? '|' + (o.f % 6) : '') + '|' + P.level, quad(o, P, q), o);
     };
   }
+  // долынь — молочная, с выменем и рожками; порода видна по окрасу
+  const DOLOOK = {
+    '#e8dcc8': { spots: '#5a3a2a' }, '#8a6a4a': { belly: '#c8a880', twig: 1 }, '#b8b0a0': { shag: 1, curl: 1, belly: '#d8d0c0' },
+    '#d8b880': { hump: 1, legs: 1.2, belly: '#f0dcb0' }, '#f0f0f4': { shag: 1, belly: '#ffffff' }, '#6a7a5a': { belly: '#a0a888', web: 1 }, '#8a3a2a': { belly: '#c86a40', glow: 1 },
+  };
+  MD.m_dolyn = (o, P) => {
+    const c = colOf(o, '#e8dcc8'), L = DOLOOK[c] || {};
+    const q = { len: 0.84, h: 0.8 * (L.legs || 1), w: 0.22, body: C(c), belly: C(L.belly || '#f0e8e0'), snout: 0.075, headR: 0.145, legR: 0.055, fat: L.shag ? 1.32 : 1.2, headUp: 0.12 };
+    const out = quad(o, P, q);
+    const Hh = q.h, bz = Hh * 0.6, hx = q.len * 0.56, hz = bz + Hh * q.headUp, hR = q.headR;
+    const BM = mat(c, 'fur', { tex: furTex2 }), MZ = mat(L.belly || '#f0e8e0', 'skin');
+    // широкая морда с ноздрями, уши в стороны
+    out.push(el(hx + hR * 0.5 + 0.17, 0, hz - hR * 0.42, hR * 0.55, hR * 0.62, hR * 0.45, MZ));
+    for (const sy of [-1, 1]) out.push(sph(hx + hR * 0.5 + 0.23, sy * hR * 0.25, hz - hR * 0.4, pmin(P, 0.014), mat('#3a2020', 'dark')));
+    for (const sy of [-1, 1]) out.push(el(hx - hR * 0.15, sy * hR * 1.15, hz + hR * 0.35, hR * 0.28, hR * 0.55, hR * 0.16, BM));
+    // хвост с кисточкой
+    const tz = bz + Hh * 0.1, tx0 = -q.len * 0.48;
+    limb(out, P, tx0, 0, tz, tx0 - 0.05, 0.02, tz - Hh * 0.45, 0.016, 0.012, BM);
+    out.push(el(tx0 - 0.05, 0.02, tz - Hh * 0.5, 0.03, 0.03, 0.06, mat(shadeC(C(c), 0.6), 'fur', { tex: furTex2 })));
+    // вымя и соски
+    const ud = mat('#e8a0a8', 'skin');
+    out.push(el(-0.1, 0, bz - Hh * 0.24, 0.1, 0.085, 0.07, ud));
+    for (const [dx, dy] of [[-0.05, -0.04], [-0.05, 0.04], [-0.15, -0.04], [-0.15, 0.04]]) out.push(el(dx, dy, bz - Hh * 0.3, 0.012, 0.012, 0.028, ud));
+    // рожки: прямые, веточкой или завитком
+    const HM = mat(L.glow ? '#3a1a10' : '#e8dcc0', 'bone', { sp: 0.4 });
+    for (const sy of [-1, 1]) {
+      if (L.curl) { for (let k = 0; k < 5; k++) { const a = k / 4 * 2.6; out.push(sph(hx - hR * 0.3 - Math.sin(a) * 0.06, sy * (hR * 0.55 + 0.03 + Math.cos(a) * 0.02), hz + hR * 0.7 + (1 - Math.cos(a)) * 0.04, pmin(P, 0.022 - k * 0.002), HM)); } }
+      else if (L.twig) { limb(out, P, hx - hR * 0.2, sy * hR * 0.4, hz + hR * 0.7, hx - hR * 0.5, sy * hR * 0.8, hz + hR * 2, 0.014, 0.01, HM); limb(out, P, hx - hR * 0.35, sy * hR * 0.6, hz + hR * 1.3, hx - hR * 0.05, sy * hR * 0.9, hz + hR * 1.8, 0.01, 0.008, HM); }
+      else out.push(cone(hx - hR * 0.25, sy * hR * 0.45, hz + hR * 0.75, pmin(P, 0.02), 0.07, HM));
+    }
+    // пятна, горб, лохмы, искры
+    if (L.spots) { const S2 = mat(L.spots, 'fur', { tex: furTex2 }); for (const [x, y, z, r] of [[0.12, 0.17, bz + 0.06, 0.07], [-0.15, -0.18, bz + 0.03, 0.08], [-0.25, 0.16, bz + 0.1, 0.06], [0.05, -0.19, bz + 0.12, 0.05]]) out.push(el(x, y * 1.15, z, r, 0.02, r * 0.8, S2)); }
+    if (L.hump) out.push(el(0.02, 0, bz + Hh * 0.22, 0.16, 0.13, 0.12, mat(c, 'fur', { tex: furTex2 })));
+    if (L.shag) { const SH = mat(shadeC(C(c), 0.85), 'fur', { tex: furTex2 }); for (const x of [-0.2, -0.05, 0.1, 0.24]) for (const sy of [-1, 1]) out.push(el(x, sy * 0.2, bz - Hh * 0.14, 0.07, 0.05, 0.09, SH)); }
+    if (L.glow) for (let k = 0; k < 3; k++) out.push(sph(-0.2 + k * 0.18, 0, bz + Hh * 0.25 + (((o.f || 0) + k) % 3) * 0.03, pmin(P, 0.015), mat('#ffb040', 'glow', { em: 1.6, fl: F.NOSHADOW })));
+    // колокольчик на шее
+    out.push(sph(q.len * 0.42, 0, bz - Hh * 0.02, pmin(P, 0.025), mat('#c8a040', 'gold', { sp: 1 })));
+    return wrap('dolyn|' + c + '|' + (o.moving ? o.f % 4 : 0) + (L.glow ? '|' + ((o.f || 0) % 3) : '') + '|' + P.level, out, o);
+  };
   MD.m_rat = (o, P) => { const out = [el(0, 0, 0.08, 0.13, 0.07, 0.07, mat(colOf(o, '#8a7a6a'), 'fur', { tex: furTex })), sph(0.14, 0, 0.09, pmin(P, 0.05), mat(colOf(o, '#8a7a6a'), 'fur'))]; limb(out, P, -0.12, 0, 0.06, -0.32, 0.02, 0.02, 0.015, 0.01, mat('#c8a0a0', 'fur')); return wrap('rat|' + P.level, out, o); };
   function flyer(o, P, body, wingc, s, head) {
     const f = (o.f || 0) % 4, up = [0.18, 0.06, -0.08, 0.06][f], out = [];

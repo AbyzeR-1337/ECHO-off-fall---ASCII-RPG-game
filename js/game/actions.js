@@ -601,7 +601,7 @@
     if (b.drink && it.b === 'ale') { Gm.fx('drunk', 90); }
     if (it.b === 'star_jelly') Gm.fx('focus', 120);
     if (Gm.day() === P.startDay) P.flags.ate_first_day = 1;
-    Gm.msg('Ты ешь: ' + b.n.toLowerCase() + '.');
+    Gm.msg((b.drink ? 'Ты пьёшь: ' : 'Ты ешь: ') + b.n.toLowerCase() + '.');
     Gm.cnt('eaten'); Gm.gain('eat');
     Gm.fire('eat', { item: it });
     Gm.endTurn(2);
