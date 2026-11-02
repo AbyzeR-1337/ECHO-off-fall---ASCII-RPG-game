@@ -166,6 +166,9 @@
     const RT = E.RT;
     const swM = UI.HAND_SW != null ? UI.HAND_SW : RT ? (v.now - (RT.swing || 0)) / 420 : 9;
     const swO = UI.HAND_SW_OFF != null ? UI.HAND_SW_OFF : RT ? (v.now - (RT.swingOff || 0)) / 420 : 9;
+    // смена оружия: рука уходит вниз и возвращается с другим
+    const swp = UI.swapT ? (v.now - UI.swapT) / 300 : 9, sdy = swp >= 0 && swp < 1 ? Math.sin(swp * Math.PI) * fh * 0.45 : 0;
+    if (sdy) UI.animUntil = Math.max(UI.animUntil || 0, v.now + 40);
     const left = P.hand === 'L', look = lookOf(P);
     const orbOf = (it) => { if (!it || !E.Loadout || E.Loadout.kind(it) !== 'staff') return null; const x = E.Loadout.cur(it); return x && x.a ? x.a.el : 'arcane'; };
     // свет вокруг: небо, солнце, огни
@@ -197,7 +200,7 @@
       const ex = mirror ? fw * (1 - side) : fw * side, ey = fh + sp.h * s * 0.06;
       const draw = (c, im) => {
         c.save();
-        c.translate(Math.round(ex + (mirror ? -1 : 1) * (mo.dx + bx * (scaleK < 1 ? -0.6 : 1)) ), Math.round(ey + mo.dy + by * (scaleK < 1 ? 0.6 : 1)));
+        c.translate(Math.round(ex + (mirror ? -1 : 1) * (mo.dx + bx * (scaleK < 1 ? -0.6 : 1)) ), Math.round(ey + mo.dy + by * (scaleK < 1 ? 0.6 : 1) + (scaleK < 1 ? 0 : sdy)));
         if (mirror) c.scale(-1, 1);
         c.rotate(mo.a);
         c.drawImage(im, -sp.w * s, -sp.h * s, sp.w * s, sp.h * s);

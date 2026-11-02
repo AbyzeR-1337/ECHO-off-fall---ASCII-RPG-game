@@ -18,6 +18,10 @@
   it('mace', 'Булава', 'f', 'weapon', { s: 'hand', w: 4, dmg: [4, 9], v: 55, wear: 150, stat: 'str', vs: { undead: 1.3, stone: 1.3 }, d: 'Дробит кость и камень.' });
   it('spear', 'Копьё', 'n', 'weapon', { s: 'hand', w: 4, dmg: [4, 9], v: 45, wear: 100, stat: 'str', d: 'Держит врага на расстоянии.' });
   it('staff', 'Посох', 'm', 'weapon', { s: 'hand', w: 3, dmg: [2, 5], v: 25, wear: 120, stat: 'int', spell: 1.2, d: 'Посох из прямого дерева.' });
+  it('staff_crystal', 'Хрустальный посох', 'm', 'weapon', { s: 'hand', w: 3, dmg: [2, 6], v: 160, wear: 160, stat: 'int', spell: 1.4, d: 'Навершие — живой кристалл. Чары из него бьют сильнее.' });
+  it('staff_bone', 'Костяной посох', 'm', 'weapon', { s: 'hand', w: 2.5, dmg: [3, 6], v: 110, wear: 140, stat: 'int', spell: 1.3, d: 'Позвонки, перевитые серебряной проволокой. Холодный на ощупь.' });
+  it('wand', 'Жезл из ясеня', 'm', 'weapon', { s: 'hand', w: 0.6, dmg: [1, 3], v: 70, wear: 90, stat: 'int', spell: 1.15, d: 'Короткий, лёгкий. Носят на поясе.' });
+  it('mana_shard', 'Осколок маны', 'm', 'mat', { w: 0.1, v: 30, st: 1, d: 'Застывший дух, тёплый и мерцающий. В мастерской чар без него не обойтись.' });
   it('warhammer', 'Боевой молот', 'm', 'weapon', { s: 'hand', w: 7, dmg: [6, 13], v: 135, wear: 160, stat: 'str', vs: { stone: 1.5 }, d: 'Оружие для тех, кто не спешит.' });
   it('club', 'Дубина', 'f', 'weapon', { s: 'hand', w: 3, dmg: [2, 6], v: 4, wear: 60, stat: 'str', d: 'Сучковатая палка.' });
   it('sickle', 'Серп', 'm', 'weapon', { s: 'hand', w: 1, dmg: [2, 4], v: 8, wear: 70, stat: 'dex', tool: 'herb', d: 'Им жнут колосья.' });

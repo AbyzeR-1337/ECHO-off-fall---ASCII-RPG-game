@@ -740,8 +740,9 @@
     const a = D.ab[aid];
     if (!a) return;
     if ((P.cd[aid] || 0) > 0) { Gm.msg('Ещё не готово. (' + P.cd[aid] + ')'); return; }
-    if (P.mp < a.cost) { Gm.msg('Не хватает духа.'); return; }
-    if (E.Combat.useAbility(aid, dir)) { P.mp -= a.cost; P.cd[aid] = a.cd; Gm.endTurn(1); }
+    const cost = E.Magic ? E.Magic.cost(aid) : a.cost, cd = E.Magic ? E.Magic.cd(aid) : a.cd;
+    if (P.mp < cost) { Gm.msg('Не хватает духа.'); return; }
+    if (E.Combat.useAbility(aid, dir)) { P.mp -= cost; P.cd[aid] = cd; Gm.endTurn(1); }
   };
 
   // ---------- отдых ----------

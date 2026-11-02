@@ -142,6 +142,7 @@
   t('SACK', 'ѳ', '#b8a07a', '#16120d', 'мешки', 0, 1, { indoor: 1 });
   t('PALISADE', '‖', '#6a4a2a', null, 'частокол', 0, 0);
   t('BOARDED', '#', '#7a5a3a', null, 'заколоченная дверь', 0, 0, { auto: 1 });
+  t('MAGETOWER', '♜', '#a890e0', null, 'башня магов', 0, 0, { use: 1, light: 4 });
 
   E.tileAt = (id) => TL[id] || TL[0];
   E.isWalk = (id) => TL[id].walk;

@@ -26,7 +26,7 @@
   o('pillar', 'PILLAR'); o('grave', 'GRAVE'); o('well', 'WELL'); o('campfire', 'CAMPFIRE'); o('hearth', 'HEARTH'); o('chest', 'CHEST'); o('bed', 'BED');
   o('table', 'TABLE'); o('anvil', 'ANVIL'); o('counter', 'COUNTER'); o('alchtable', 'ALCHTABLE'); o('throne', 'THRONE'); o('crystal', 'CRYSTAL');
   o('mushroom', 'MUSHROOM'); o('bigshroom', 'BIGSHROOM'); o('portal', 'PORTAL'); o('whirlpool', 'WHIRLPOOL'); o('mine', 'MINE'); o('tent', 'TENT');
-  o('coral', 'CORAL'); o('sign', 'SIGN'); o('lighthouse', 'LIGHTHOUSE'); o('fern', 'FERN'); o('sapling', 'SAPLING'); o('gate', 'GATE');
+  o('coral', 'CORAL'); o('sign', 'SIGN'); o('lighthouse', 'LIGHTHOUSE'); o('lighthouse', 'MAGETOWER'); o('fern', 'FERN'); o('sapling', 'SAPLING'); o('gate', 'GATE');
   o('chair', 'CHAIR'); o('bench', 'BENCH'); o('outhouse', 'OUTHOUSE');
   o('barrel', 'BARREL'); o('crate', 'CRATE'); o('stall', 'STALL'); o('hay', 'HAY'); o('lamppost', 'LAMPPOST'); o('boat', 'BOAT'); o('cart', 'CART');
   o('rack', 'RACK'); o('workbench', 'WORKBENCH'); o('rug', 'RUG');
@@ -232,7 +232,7 @@
     [T.LAMPPOST]: [[1, 0.78, 0.45], 1.1, 5, 1], [T.OVEN]: [[1, 0.5, 0.2], 1.2, 4, 1], [T.KILN]: [[1, 0.4, 0.15], 0.9, 3.5, 1],
     // всё, что светится, светит: горн у наковальни, грибы и кристаллы в пещерах, лунная пыль, туман духов
     [T.ANVIL]: [[1, 0.48, 0.18], 0.7, 3, 1], [T.BIGSHROOM]: [[0.45, 0.85, 0.8], 0.55, 3.2, 0],
-    [T.BELFRY]: [[1, 0.7, 0.35], 0.5, 3, 1],
+    [T.BELFRY]: [[1, 0.7, 0.35], 0.5, 3, 1], [T.MAGETOWER]: [[0.7, 0.5, 1], 1.4, 9, 0],
   };
   const OBJH = Gfx.HF ? Gfx.HF.OBJH : {};
   UI.objHeight = (k) => OBJH[k] || 0.4;

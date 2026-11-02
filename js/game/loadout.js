@@ -110,13 +110,14 @@
     // без лишних строк в журнале: готовность и дух видны в списке слева вверху
     const once = (k, t) => { const now = performance.now(); LO.said = LO.said || {}; if (now - (LO.said[k] || 0) > 4000) { LO.said[k] = now; Gm.msg(t, '#9090a8'); } };
     if ((P.cd[x.id] || 0) > 0) return false;
-    if (P.mp < a.cost) { once('mp', 'Не хватает духа на «' + a.n + '».'); return false; }
+    const cost = E.Magic ? E.Magic.cost(x.id) : a.cost, cdv = E.Magic ? E.Magic.cd(x.id) : a.cd;
+    if (P.mp < cost) { once('mp', 'Не хватает духа на «' + a.n + '».'); return false; }
     // посох во второй руке: на миг он «главный», чтобы его сила усилила чары
     const main = P.eq.hand;
     if (hand === 'off') P.eq.hand = w;
     let ok = false;
     try { ok = E.Combat.useAbility(x.id, null); } finally { P.eq.hand = main; }
-    if (ok) { P.mp -= a.cost; P.cd[x.id] = a.cd; Gm.cnt('cast'); }
+    if (ok) { P.mp -= cost; P.cd[x.id] = cdv; Gm.cnt('cast'); }
     return ok;
   };
 

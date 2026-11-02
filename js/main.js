@@ -181,10 +181,12 @@
       if (!UI.mouse || UI.mouse[0] !== c[0] || UI.mouse[1] !== c[1]) { UI.mouse = c; UI.render(); }
     });
     cv.addEventListener('pointerleave', () => { if (UI.mouse) { UI.mouse = null; UI.render(); } });
-    // колесо: на карте — масштаб, в списках — прокрутка
+    // колесо: от первого лица — сменить оружие (пояс и спина), на карте — масштаб, в списках — прокрутка
+    let wheelT = 0;
     cv.addEventListener('wheel', (ev) => {
       ev.preventDefault();
       const top = UI.top();
+      if (top && top.name === 'game' && UI.wheel) { const now = performance.now(); if (now - wheelT < 90) return; if (UI.wheel(ev.deltaY)) { wheelT = now; return; } }
       if (top && top.name === 'game') { if (UI.view3d) UI.zoom(ev.deltaY > 0 ? -1 : 1); return; }
       UI.key({ k: ev.deltaY > 0 ? 'down' : 'up' });
     }, { passive: false });

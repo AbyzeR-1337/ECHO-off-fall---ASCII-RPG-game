@@ -74,6 +74,7 @@
     for (const p of G.S.extraPl || []) E.World.place(G.W, p.r, p.o);
     E.Sim.prepare();
     G.P = data.P;
+    if (E.Magic && E.Magic.restore) E.Magic.restore(); // свои заклинания — снова в книгу
     G.log = data.log || [];
     G.turn = data.turn || 0;
     G.cache.clear();

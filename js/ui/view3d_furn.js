@@ -13,7 +13,7 @@
   const SET = new Set(['BED', 'TABLE', 'CHAIR', 'BENCH', 'COUNTER', 'HEARTH', 'ANVIL', 'ALCHTABLE', 'THRONE', 'CHEST', 'ALTAR', 'PILLAR', 'GRAVE', 'WELL', 'OUTHOUSE', 'SIGN', 'TENT', 'INSCRIPTION', 'SHRINE',
     'BARREL', 'CRATE', 'STALL', 'HAY', 'LAMPPOST', 'BOAT', 'CART', 'RACK', 'WORKBENCH', 'RUG',
     'BELFRY', 'WATCHTOWER', 'GALLOWS', 'PILLORY', 'GIBBET', 'PIKE', 'BANNER', 'WAYCROSS', 'WOODPILE', 'TROUGH', 'KILN', 'WINDMILL', 'OVEN', 'VAT', 'SACK', 'PALISADE',
-    'CAMPFIRE', 'GATE', 'STATUE', 'LIGHTHOUSE', 'BOULDER', 'CRYSTAL', 'BIGSHROOM', 'CACTUS'].map((k) => T[k]).filter((v) => v != null));
+    'CAMPFIRE', 'GATE', 'STATUE', 'LIGHTHOUSE', 'BOULDER', 'CRYSTAL', 'BIGSHROOM', 'CACTUS', 'MAGETOWER'].map((k) => T[k]).filter((v) => v != null));
   FU.has = (tid) => SET.has(tid);
   const hsh = (x, y, k) => (U.hash(x, y, k) >>> 0) % 1000 / 1000;
 
@@ -426,6 +426,28 @@
     c.box(-0.14, 4.58, -0.14, 0.14, 4.95, 0.14, 'flame');
     coneAt(M, F, 0, 0, 0.38, 5.1, 5.6, 'roof_slate', sk, 10);
     c.light(0, 4.8, 0, [1, 0.9, 0.6], 16, 1.6);
+  };
+  // ---------- башня магов: круглая, сужается кверху, с балконом, светящимися окнами,
+  // островерхой крышей и кристаллом, что парит над шпилем ----------
+  MODELS.MAGETOWER = (M, F, c) => {
+    const sk = c.sky, B = c.box;
+    prism(M, F, 0.74, 0, 0.5, 'fieldstone', sk, 'fieldstone', 12);
+    for (let k = 0; k < 6; k++) prism(M, F, 0.64 - k * 0.025, 0.5 + k * 0.75, 0.5 + (k + 1) * 0.75, k % 2 ? 'stonewall' : 'brick', sk, null, 12);
+    // окна по спирали — по ночам в них горит свет
+    for (let k = 0; k < 7; k++) { const a = k * 2.1 + 0.6, r = 0.6 - k * 0.022, y = 1.2 + k * 0.6; B(Math.cos(a) * r - 0.07, y, Math.sin(a) * r - 0.07, Math.cos(a) * r + 0.07, y + 0.28, Math.sin(a) * r + 0.07, 'candle'); }
+    // дверь со стороны прохода
+    B(-0.2, 0, 0.66, 0.2, 0.95, 0.76, 'door'); B(-0.26, 0.95, 0.66, 0.26, 1.08, 0.78, 'arch');
+    B(0.28, 0.6, 0.7, 0.34, 0.8, 0.78, 'iron'); B(0.29, 0.8, 0.72, 0.33, 0.92, 0.77, 'flame'); c.light(0.31, 0.9, 0.95, [1, 0.62, 0.3], 4.5, 0.9);
+    // балкон и верхний покой
+    prism(M, F, 0.82, 5.0, 5.1, 'wood', sk, 'wood', 14);
+    for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; B(Math.cos(a) * 0.78 - 0.02, 5.1, Math.sin(a) * 0.78 - 0.02, Math.cos(a) * 0.78 + 0.02, 5.42, Math.sin(a) * 0.78 + 0.02, 'iron'); }
+    prism(M, F, 0.58, 5.1, 6.0, 'arch', sk, null, 12);
+    for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.4; B(Math.cos(a) * 0.55 - 0.08, 5.35, Math.sin(a) * 0.55 - 0.08, Math.cos(a) * 0.55 + 0.08, 5.75, Math.sin(a) * 0.55 + 0.08, 'portal'); }
+    coneAt(M, F, 0, 0, 0.78, 6.0, 7.9, 'roof_palace', sk, 14);
+    // парящий кристалл
+    prismAt(M, F, 0, 0, 0.1, 8.15, 8.55, 'portal', sk, null, 6); coneAt(M, F, 0, 0, 0.1, 8.55, 8.8, 'portal', sk, 6); coneAt(M, F, 0, 0, 0.1, 8.15, 7.95, 'portal', sk, 6);
+    c.light(0, 8.3, 0, [0.72, 0.5, 1], 12, 1.5);
+    c.light(0, 5.5, 0, [0.85, 0.65, 1], 6, 0.8);
   };
   // ---------- камни, кристаллы, большие грибы, кактусы ----------
   MODELS.BOULDER = (M, F, c) => {
