@@ -504,6 +504,7 @@
         case 'map': UI.worldMap(); break;
         case 'mem': UI.memory(); break;
         case 'rel': if (UI.relations) UI.relations(); break;
+        case 'fx3d': if (UI.fx3Screen) UI.fx3Screen(); break;
         case 'rest': UI.rest(); break;
         case 'fire': if (E.RT && E.RT.on && UI.is3D && UI.is3D()) E.RT.attack(); else UI.fireCmd(); break;
         case 'look': UI.look(); break;

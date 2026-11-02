@@ -769,12 +769,13 @@
         }
         t.text(x0 + 2, y0 + 4, lv + ' · ' + UI.GFX[lv][0], COL.title, COL.panel, W - 4);
         UI.wrapText(t, x0 + 2, y0 + 5, W - 4, UI.GFX[lv][1], COL.text, 1);
-        t.text(x0 + 2, y0 + H - 2, '←/→ или 0–6 — менять · Enter — готово', COL.dim, COL.panel, W - 4);
+        t.text(x0 + 2, y0 + H - 2, '←/→ или 0–6 — менять · Enter — готово' + (lv === 6 && UI.fx3Screen ? ' · F2 — настройки 3D' : ''), COL.dim, COL.panel, W - 4);
       },
       key(c) {
         if (c.k === 'left' || c.k === 'right') { UI.setGfx((UI.gfxLevel || 0) + (c.k === 'right' ? 1 : -1), true); return; }
         if (c.n != null && c.n >= 0 && c.n <= 6) { UI.setGfx(c.n, true); return; }
         if (c.k === 'gup' || c.k === 'gdown') { UI.setGfx((UI.gfxLevel || 0) + (c.k === 'gup' ? 1 : -1), true); return; }
+        if (c.k === 'fx3d' && UI.fx3Screen) { UI.pop(); UI.fx3Screen(); return; }
         if (c.k === 'esc' || c.k === 'enter' || c.k === 'view' || c.k === 'act') { UI.pop(); E.Gm.msg('Графика: ' + UI.GFX[UI.gfxLevel || 0][0] + '.', '#808090'); }
       },
     };
@@ -789,6 +790,7 @@
     if (so.length) opts.push({ t: G.map.sett >= 0 ? 'Остаться здесь навсегда' : 'Остаться в этих краях навсегда', f: () => UI.settle(so) });
     opts.push({ t: 'Уйти навсегда', f: () => UI.confirm('Уйти, не оглядываясь? Эта жизнь закончится.', () => Gm.ending(G.P.flags.nameless ? 'hidden_nobody' : 'walk_away')) });
     opts.push({ t: 'Графика: ' + UI.GFX[UI.gfxLevel || 0][0] + ' (V)', f: () => UI.gfxScreen() });
+    if (UI.fx3Screen) opts.push({ t: 'Настройки 3D-картинки (F2)', f: () => UI.fx3Screen() });
     if (UI.view3d) { opts.push({ t: 'Карта крупнее (+)', f: () => UI.zoom(1) }); opts.push({ t: 'Карта мельче (−)', f: () => UI.zoom(-1) }); }
     opts.push({ t: 'Журнал сообщений', f: () => UI.logScreen() });
     opts.push({ t: 'Как играть', f: () => UI.help() });

@@ -278,6 +278,43 @@
   }
   const season = () => E.Gm.season();
   // коробка в мировых координатах куска (зубцы, створки)
+  // убранство подземелий на стенах: факелы в склепах и руинах, фонари в шахтах, светящиеся
+  // кристаллы и грибы в пещерах, багровые наросты в живой плоти, руны в бездне — и все они светят
+  const DUNDEC = { crypt: 'torch', tomb: 'torch', barrow: 'torch', ruins: 'torch', sunken: 'torch', mine_old: 'lantern', cave: 'crystal', roots: 'shroom', flooded: 'crystal', ice: 'ice', flesh: 'flesh', abyss: 'rune', lava: null };
+  function dunDecor(M, lights, m, x, y, dx, dy, hb) {
+    const kind = DUNDEC[m.dtype] !== undefined ? DUNDEC[m.dtype] : 'torch';
+    if (!kind) return;
+    const every = kind === 'torch' ? 6 : kind === 'lantern' ? 7 : 9;
+    if ((U.hash(x * 3 + dx + 7, y * 5 + dy + 11, 97) >>> 0) % every) return;
+    const P3 = Gfx.P3;
+    // точка на стене со стороны прохода; ось вдоль стены
+    const cx = x + 0.5 + dx * 0.5, cz = y + 0.5 + dy * 0.5, ax = dy !== 0 ? 1 : 0, az = dx !== 0 ? 1 : 0;
+    const out = (k) => [cx + dx * k, cz + dy * k];
+    if (kind === 'torch') {
+      const [bx, bz] = out(0.08), [fx, fz] = out(0.16);
+      cube(M, bx - 0.035 * ax - 0.02 * az, hb + 1.05, bz - 0.035 * az - 0.02 * ax, bx + 0.035 * ax + 0.02 * az, hb + 1.12, bz + 0.035 * az + 0.02 * ax, 'iron', 0);
+      cube(M, fx - 0.025, hb + 1.1, fz - 0.025, fx + 0.025, hb + 1.3, fz + 0.025, 'beam', 0);
+      for (const r of [0, 1]) { const ux = r ? ax : az, uz = r ? az : ax; P3.quad(M, [fx - ux * 0.07, hb + 1.28, fz - uz * 0.07], [fx + ux * 0.07, hb + 1.28, fz + uz * 0.07], [fx + ux * 0.02, hb + 1.5, fz + uz * 0.02], [fx - ux * 0.02, hb + 1.5, fz - uz * 0.02], [0, 1], [1, 0], 'flame', [dx, 0, dy], 0); }
+      lights.push({ x: fx + dx * 0.25, y: hb + 1.4, z: fz + dy * 0.25, r: 7.5, col: [1, 0.6, 0.28], i: 2.2, fl: 1 });
+    } else if (kind === 'lantern') {
+      const [bx, bz] = out(0.14);
+      cube(M, bx - 0.02, hb + 1.38, bz - 0.02, bx + 0.02, hb + 1.5, bz + 0.02, 'iron', 0);
+      cube(M, bx - 0.07, hb + 1.18, bz - 0.07, bx + 0.07, hb + 1.38, bz + 0.07, 'lantern', 0);
+      lights.push({ x: bx + dx * 0.2, y: hb + 1.3, z: bz + dy * 0.2, r: 7, col: [1, 0.78, 0.48], i: 1.8, fl: 1 });
+    } else {
+      // у подножия стены: друза кристаллов, грибы, наросты, руна
+      const [bx, bz] = out(0.12);
+      const col = { crystal: [0.55, 0.45, 1], ice: [0.55, 0.8, 1], shroom: [0.4, 0.95, 0.8], flesh: [1, 0.3, 0.3], rune: [0.8, 0.4, 1] }[kind];
+      const tex = kind === 'flesh' ? 'flesh' : kind === 'rune' ? 'runestone' : kind === 'shroom' ? 'portal' : 'glass';
+      if (kind === 'rune') { const [rx, rz] = out(0.02); cube(M, rx - 0.12 * ax - 0.01 * az, hb + 0.9, rz - 0.12 * az - 0.01 * ax, rx + 0.12 * ax + 0.01 * az, hb + 1.2, rz + 0.12 * az + 0.01 * ax, 'portal', 0); }
+      else for (const [ox, oz, hh, w] of [[0, 0, 0.42, 0.06], [0.12, 0.05, 0.28, 0.045], [-0.1, 0.06, 0.22, 0.04]]) {
+        const px = bx + ox * ax + oz * dx, pz = bz + ox * az + oz * dy;
+        cube(M, px - w, hb, pz - w, px + w, hb + hh * (kind === 'shroom' ? 0.6 : 1), pz + w, tex, 0);
+        if (kind === 'shroom') cube(M, px - w * 2.4, hb + hh * 0.6, pz - w * 2.4, px + w * 2.4, hb + hh * 0.6 + 0.05, pz + w * 2.4, 'portal', 0);
+      }
+      lights.push({ x: bx + dx * 0.3, y: hb + 0.6, z: bz + dy * 0.3, r: 5, col, i: 1.3, fl: kind === 'flesh' ? 1 : 0 });
+    }
+  }
   function cube(M, x0, y0, z0, x1, y1, z1, tex, sky) {
     const P3 = Gfx.P3;
     P3.quad(M, [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], [0, 0], [x1 - x0, z1 - z0], tex, [0, 1, 0], sky);
@@ -337,7 +374,7 @@
     const wallH = (x, y, bk) => { let hh = WH[bk] || WALL; if (dungeon && hh < CAVE && bk !== 'shelf') hh = CAVE; if ((bk === 'wall' || bk === 'window' || bk === 'door' || bk === 'boarded') && x >= 0 && y >= 0 && x < W && y < H && tallAt[y * W + x]) hh = TALL; return hh; };
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = y * W + x, tid = m.tiles[i];
-      if (dungeon && !m.ex[i] && !(G.map === m && G.vis[i])) continue; // подземелья — только увиденное
+      // подземелье строится целиком сразу — без «проявления» по мере хода
       const c = cd.cls[i], bk = BK[tid];
       const indoorT = TL[tid].indoor || insideRoof[i];
       const sky = dungeon ? 0 : indoorT ? 0.6 : 1;
@@ -359,6 +396,7 @@
           const b0 = nc === CL.WATER ? Math.min(bot, hAt(x + dx, y + dy) - 0.3) : bot;
           const fsky = dungeon ? 0 : (TL[tidAt(x + dx, y + dy)].indoor || (x + dx >= 0 && y + dy >= 0 && x + dx < W && y + dy < H && insideRoof[(y + dy) * W + x + dx])) ? 0.6 : 1;
           P3.quad(M, [p0[0], b0, p0[2]], [p1[0], b0, p1[2]], [p1[0], top, p1[2]], [p0[0], top, p0[2]], [0, top - b0], [1, 0], tex, [nx, 0, nz], fsky);
+          if (dungeon && nc !== CL.BLOCK && nc !== CL.WATER && nc >= 0) dunDecor(M, lights, m, x, y, dx, dy, hAt(x + dx, y + dy));
         }
         continue;
       }
@@ -442,6 +480,8 @@
         const ti = ay * W + ax;
         if (!TL[m.tiles[ti]].walk || !(TL[m.tiles[ti]].indoor || insideRoof[ti])) continue;
         lights.push({ x: x + 0.5 + dx * 0.75, y: hb + (bk === 'door' ? 0.8 : 1.0), z: y + 0.5 + dy * 0.75, r: bk === 'door' ? 3.4 : 4.2, col: [1, 0.95, 0.86], i: bk === 'door' ? 0.55 : 0.8, day: 1 });
+        // ночью — наоборот: из окна на улицу падает тёплый свет очага и свечей
+        if (bk === 'window' && !dungeon) lights.push({ x: x + 0.5 - dx * 0.7, y: hb + 1.0, z: y + 0.5 - dy * 0.7, r: 3.2, col: [1, 0.72, 0.38], i: 0.55, night: 1, fl: 1 });
         break;
       }
     }
@@ -907,7 +947,6 @@
     const m = cd.m;
     let h = 0;
     for (let i = 0; i < m.tiles.length; i++) h = (Math.imul(h, 31) + m.tiles[i]) | 0;
-    if (!m.outdoor && m === G.map) for (let i = 0; i < m.tiles.length; i++) if (m.ex[i] || G.vis[i]) h = (Math.imul(h, 7) + i) | 0;
     return h + '|' + season();
   }
 
@@ -945,7 +984,8 @@
     fields();
     const dpr = t.dpr || 1;
     const vx0 = L.mx * t.cw, vy0 = L.my * t.ch, vw = L.mw * t.cw, vh = L.mh * t.ch;
-    const KP = Math.max(2, Math.round(vh * dpr / 260));
+    const FX3 = UI.FX3 || {};
+    const KP = FX3.pix ? Math.max(1, FX3.pix) : Math.max(2, Math.round(vh * dpr / 260));
     const fw = Math.max(64, Math.ceil(vw * dpr / KP)), fh = Math.max(48, Math.ceil(vh * dpr / KP));
     // голова: в живом мире — куда смотришь; по ходам — плавный поворот к стороне света
     if (live()) { V3.yawT = V3.yaw; V3.face = faceOf(V3.yaw); }
@@ -972,17 +1012,18 @@
     // небо и свет
     const w = E.Gm.weather();
     const hs = { time: G.S.time, outdoor: !!m.outdoor, dim: m.dimName || null, weather: m.outdoor && !m.dimName ? w : null, season: season(), cold: m.region && m.region.t < 0.55, fullMoon: E.Gm.fullMoon(), nightland: m.tint === 'night' };
-    const sky = skyOf(m, hs);
+    const sky = Object.assign({}, skyOf(m, hs));
+    if (FX3.fog != null && FX3.fog !== 1) sky.fogD = sky.fogD * FX3.fog;
     const rects = X.roofsOf(m);
     const inside = rects.find((r) => P.x >= r.rect.x && P.y >= r.rect.y && P.x < r.rect.x + r.rect.w && P.y < r.rect.y + r.rect.h && X.roofIntact(m, r.rect)) || null;
     if (inside && m.outdoor) sky.amb = sky.amb.map((v) => v * 0.9);
     const walked = RT ? RT.walked || 0 : 0;
-    const bob = pmov ? (live() ? Math.sin(walked * 5.2) * 0.022 : Math.sin(now / 55) * 0.015) : 0;
+    const bob = (pmov ? (live() ? Math.sin(walked * 5.2) * 0.022 : Math.sin(now / 55) * 0.015) : 0) * (FX3.bob == null ? 1 : FX3.bob);
     const ground = HGT.groundAt(gx, gz);
     V3.camY = V3.camY == null || Math.abs(V3.camY - ground) > 2 ? ground : V3.camY + (ground - V3.camY) * Math.min(1, dt * 12);
     const jy = RT && RT.jy > 0 ? RT.jy : 0;
     const land = RT && RT.landed ? Math.max(0, 1 - (now - RT.landed) / 160) : 0;
-    const cam = { x: gx - RO[0], y: V3.camY + EYE + bob + jy - land * 0.05, z: gz - RO[1], yaw: V3.yaw, pitch: (V3.pitch || 0) - 0.04, fov: 1.2 };
+    const cam = { x: gx - RO[0], y: V3.camY + EYE + bob + jy - land * 0.05, z: gz - RO[1], yaw: V3.yaw, pitch: (V3.pitch || 0) - 0.04, fov: (FX3.fov || 69) * Math.PI / 180 };
     // глаза в координатах этой карты (для выстрелов и прицела)
     V3.camPos = { x: px, y: cam.y, z: py };
     const fx = Math.sin(V3.yaw), fz = -Math.cos(V3.yaw);
@@ -991,22 +1032,23 @@
     const dayK = m.outdoor ? U.clamp((Time.light(G.S.time) - 0.15) / 0.6, 0, 1) : 0;
     for (const ms of meshes) for (const l of ms.lights) {
       const lx = ms.cd.ox + l.x - RO[0], lz = ms.cd.oz + l.z - RO[1], d = (lx - cam.x) ** 2 + (lz - cam.z) ** 2;
-      if (d >= 900 || (l.day && dayK < 0.05)) continue;
-      lights.push({ x: lx, y: l.y, z: lz, r: l.r, col: l.col, i: l.day ? l.i * dayK : l.fl ? l.i * (0.85 + 0.15 * Math.sin(now / 90 + l.x * 3)) : l.i, d: l.day ? d * 1.5 : d });
+      if (d >= 900 || (l.day && dayK < 0.05) || (l.night && dayK > 0.6)) continue;
+      lights.push({ x: lx, y: l.y, z: lz, r: l.r * (FX3.lightR || 1), col: l.col, i: (l.day ? l.i * dayK : l.fl ? l.i * (0.85 + 0.15 * Math.sin(now / 90 + l.x * 3)) : l.i) * (l.night ? 1 - dayK : 1) * (FX3.light || 1), d: l.day || l.night ? d * 1.5 : d });
     }
+    if (UI.extraLights) for (const l of UI.extraLights(now, cam, gox, goz, RO, dayK)) { const d = (l.x - cam.x) ** 2 + (l.z - cam.z) ** 2; if (d < 900) { l.d = d; l.r *= FX3.lightR || 1; l.i *= FX3.light || 1; lights.push(l); } }
     lights.sort((a, b) => a.d - b.d);
-    lights.length = Math.min(lights.length, 7);
+    lights.length = Math.min(lights.length, (P3.NL || 8) - 1);
     const dark = !m.outdoor || m.dimName ? 1 : Math.max(0, 1 - Time.light(G.S.time) * 1.4);
     if (E.Gm.lanternHeld && E.Gm.lanternHeld() && !(P.light > 0)) lights.unshift({ x: cam.x + fx * 0.3 + Math.cos(V3.yaw) * 0.25, y: cam.y + 0.05, z: cam.z + fz * 0.3 + Math.sin(V3.yaw) * 0.25, r: 7, col: [1, 0.82, 0.55], i: 1.25 });
     else if (P.light > 0) lights.unshift({ x: cam.x + fx * 0.3 + Math.cos(V3.yaw) * 0.25, y: cam.y + 0.1, z: cam.z + fz * 0.3 + Math.sin(V3.yaw) * 0.25, r: 7.5, col: [1, 0.66, 0.36], i: 1.4 * (0.9 + 0.1 * Math.sin(now / 70)) });
-    else if (dark > 0.15) lights.unshift({ x: cam.x, y: cam.y + 0.3, z: cam.z, r: 4, col: [0.5, 0.55, 0.78], i: 0.5 * dark });
+    else if (dark > 0.15) lights.unshift({ x: cam.x, y: cam.y + 0.3, z: cam.z, r: 5, col: [0.5, 0.55, 0.78], i: 0.6 * dark });
     // спрайты этого кадра
     const PX = Gfx.PX, dyn = P3.bmesh();
     const budget = now + 18;
     const add = (key, o, wx, wz, heading, scale, skyK) => {
       const dx = wx - cam.x, dz = wz - cam.z;
       const dist = Math.hypot(dx, dz);
-      if (dist > FARSPR) return;
+      if (dist > FARSPR * (FX3.dist || 1)) return;
       if ((dx * fx + dz * fz) < -0.6 && dist > 1.5) return; // позади
       let yaw = 0;
       if (!SYM.has(key)) {
@@ -1038,14 +1080,15 @@
       add(ob.k, { c: ob.c, seed: ob.seed % 3, f: ob.k === 'campfire' || ob.k === 'hearth' || ob.k === 'flame3d' ? Math.floor(now / 160 + ob.x * 3) % 4 : 0, season: season() }, wx, wz, Math.PI / 2, K_ENT, ob.sky);
     }
     // вещи на земле
-    for (const it of m.items) { if (!G.vis[it.y * m.w + it.x]) continue; add(X.itemArt(it.it), {}, gox + it.x + 0.5 - RO[0], goz + it.y + 0.5 - RO[1], Math.PI / 2, K_ENT, skyKAt(it.x, it.y)); }
+    for (const it of m.items) { if (!G.vis[it.y * m.w + it.x] && (m.outdoor || Math.abs(it.x - P.x) + Math.abs(it.y - P.y) > 22)) continue; add(X.itemArt(it.it), {}, gox + it.x + 0.5 - RO[0], goz + it.y + 0.5 - RO[1], Math.PI / 2, K_ENT, skyKAt(it.x, it.y)); }
     // существа
     const reveal = G.revealUntil && G.turn < G.revealUntil;
     // на улице видно всех, кто не заслонён (заслоняет сама картинка); в подземелье — только в поле зрения
     const openAir = m.outdoor && !m.dimName;
     for (const e of m.ents) {
       if (e.dead) continue;
-      const vis = G.vis[e.y * m.w + e.x] || (openAir && !e.hidden && !e.asleep);
+      // в подземелье видно всех поблизости: заслоняют стены, а не «туман неизведанного»
+      const vis = G.vis[e.y * m.w + e.x] || (openAir && !e.hidden && !e.asleep) || (!m.outdoor && !e.hidden && Math.abs(e.x - P.x) + Math.abs(e.y - P.y) <= 26);
       if (!vis && !(reveal && e.kind !== 'npc')) continue;
       const s = X.track(e.id, e.x, e.y, now);
       const [ex, ey, moving] = X.curPos(s, now);
@@ -1120,14 +1163,22 @@
     t.under = (ctx) => {
       ctx.save();
       ctx.beginPath(); ctx.rect(vx0, vy0, vw, vh); ctx.clip();
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = !!FX3.smooth;
       if (gcv) ctx.drawImage(gcv, vx0, vy0, fw * KP / dpr, fh * KP / dpr);
-      // тёмные края кадра — как на старой гравюре
-      const vg = ctx.createRadialGradient(vx0 + vw / 2, vy0 + vh * 0.48, Math.min(vw, vh) * 0.38, vx0 + vw / 2, vy0 + vh * 0.48, Math.hypot(vw, vh) * 0.62);
-      vg.addColorStop(0, 'rgba(8,6,10,0)'); vg.addColorStop(1, 'rgba(8,6,10,0.55)');
-      ctx.fillStyle = vg; ctx.fillRect(vx0, vy0, vw, vh);
-      // рука с оружием
-      if (UI.drawHand3D) UI.drawHand3D(ctx, { vx0, vy0, vw, vh, px: KP / dpr, fw, fh, now, moving: pmov, walked, sky, lights, cam, inside: !m.outdoor || !!inside });
+      ctx.imageSmoothingEnabled = false;
+      // тёмные края кадра — как на старой гравюре (если нет постобработки — она делает это сама)
+      if (!P3.postOn() && (FX3.vig == null || FX3.vig > 0)) {
+        const vg = ctx.createRadialGradient(vx0 + vw / 2, vy0 + vh * 0.48, Math.min(vw, vh) * 0.38, vx0 + vw / 2, vy0 + vh * 0.48, Math.hypot(vw, vh) * 0.62);
+        vg.addColorStop(0, 'rgba(8,6,10,0)'); vg.addColorStop(1, 'rgba(8,6,10,' + (FX3.vig == null ? 0.55 : FX3.vig) + ')');
+        ctx.fillStyle = vg; ctx.fillRect(vx0, vy0, vw, vh);
+      }
+      // рука с оружием — в тех же красках, что и кадр
+      if (UI.drawHand3D && FX3.hand !== 0) {
+        const flt = UI.fx3Filter ? UI.fx3Filter() : 'none';
+        if (flt !== 'none') ctx.filter = flt;
+        UI.drawHand3D(ctx, { vx0, vy0, vw, vh, px: KP / dpr, fw, fh, now, moving: pmov, walked, sky, lights, cam, inside: !m.outdoor || !!inside });
+        ctx.filter = 'none';
+      }
       if (UI.drawHUD3D) UI.drawHUD3D(ctx, t, { vx0, vy0, vw, vh, now, cam, RO, gox, goz, fw, fh });
       drawCompass(ctx, t, vx0, vy0, vw);
       drawMinimap(ctx, m, P, vx0 + vw - 8, vy0 + 8, Math.round(Math.min(vw, vh) * 0.22), KP / dpr);
