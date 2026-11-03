@@ -324,7 +324,8 @@
     const q = [s];
     prev[s] = s;
     let found = false;
-    for (let h = 0; h < q.length && h < (maxN || 3000); h++) {
+    const lim = Math.max(maxN || 3000, maxN >= 4000 ? W * H : 0);
+    for (let h = 0; h < q.length && h < lim; h++) {
       const i = q[h];
       if (i === g) { found = true; break; }
       const x = i % W, y = (i / W) | 0;
@@ -343,7 +344,8 @@
     if (!found && prev[g] < 0) return null;
     const path = [];
     let c = g;
-    while (c !== s) { path.push([c % W, (c / W) | 0]); c = prev[c]; if (path.length > 400) break; }
+    // путь целиком (обрезанный «с хвоста» уводил героя в стену)
+    while (c !== s) { path.push([c % W, (c / W) | 0]); c = prev[c]; if (path.length > W * H) return null; }
     return path.reverse();
   };
 
