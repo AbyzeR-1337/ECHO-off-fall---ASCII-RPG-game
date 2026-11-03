@@ -7,7 +7,9 @@
   const COL = UI.COL = {
     bg: '#0b0a0f', panel: '#121019', border: '#4a4458', text: '#c8c8c8', dim: '#7a7a88', faint: '#4a4a56', title: '#e8d8a8', accent: '#f0c060',
     hp: '#d04848', mp: '#4878d0', food: '#c09040', xp: '#9090e0', good: '#80d080', bad: '#e07070', sel: '#2a2438', selfg: '#fff0c0',
+    bar: '#16131e', logbg: '#0e0c14',
   };
+  UI.COL0 = Object.assign({}, COL);
   UI.push = function (s) { UI.stack.push(s); if (s.open) s.open(); UI.dirty = true; UI.render(); return s; };
   UI.pop = function () { const s = UI.stack.pop(); if (s && s.close) s.close(); UI.dirty = true; UI.render(); return s; };
   UI.top = () => UI.stack[UI.stack.length - 1];
@@ -282,7 +284,7 @@
   // ---------- верхняя строка ----------
   UI.drawTop = function (t, L) {
     const m = G.map, S = G.S;
-    t.fill(0, 0, t.cols, 1, ' ', COL.text, '#16131e');
+    t.fill(0, 0, t.cols, 1, ' ', COL.text, COL.bar);
     let place;
     if (m.kind === 'over') {
       const g = m.region;
@@ -297,8 +299,8 @@
     const moon = ['●', '◑', '○', '◐'][Math.floor(Time.moon(S.time) / 7)];
     let s = ' ' + place;
     const right = time + ' · ' + date + (wn ? ' · ' + wn : '') + ' ' + moon + ' ';
-    if (L.wide) { t.text(0, 0, s, COL.title, '#16131e', t.cols - right.length - 1); t.text(t.cols - right.length, 0, right, COL.dim, '#16131e'); }
-    else { t.text(0, 0, s, COL.title, '#16131e', t.cols - 13); t.text(t.cols - 12, 0, Time.fmt(S.time) + ' ' + moon + ' ', COL.dim, '#16131e'); }
+    if (L.wide) { t.text(0, 0, s, COL.title, COL.bar, t.cols - right.length - 1); t.text(t.cols - right.length, 0, right, COL.dim, COL.bar); }
+    else { t.text(0, 0, s, COL.title, COL.bar, t.cols - 13); t.text(t.cols - 12, 0, Time.fmt(S.time) + ' ' + moon + ' ', COL.dim, COL.bar); }
   };
 
   // ---------- боковая панель ----------
@@ -386,7 +388,7 @@
   };
   UI.drawLog = function (t, L) {
     const x = L.lx, y0 = L.ly, w = L.lw - 1, h = L.lh;
-    t.fill(x, y0, L.lw, h, ' ', COL.text, '#0e0c14');
+    t.fill(x, y0, L.lw, h, ' ', COL.text, COL.logbg);
     t.hline(x, y0, L.lw, COL.border, '─');
     const lines = [];
     for (let i = G.log.length - 1; i >= 0 && lines.length < h - 1; i--) {
@@ -398,7 +400,7 @@
       for (let k = wl.length - 1; k >= 0 && lines.length < h - 1; k--) lines.push([wl[k], c]);
     }
     lines.reverse();
-    lines.forEach((l, k) => t.text(x + 1, y0 + 1 + k, l[0], l[1], '#0e0c14', w));
+    lines.forEach((l, k) => t.text(x + 1, y0 + 1 + k, l[0], l[1], COL.logbg, w));
   };
 
   // ---------- клик по карте ----------

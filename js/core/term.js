@@ -48,7 +48,7 @@
     clear(bg) {
       this.c.fill(' '); this.f.fill('#cccccc'); this.b.fill(bg || null);
       this.hots.length = 0;
-      this.under = null; this.over = null;
+      this.under = null; this.over = null; this.post = [];
     }
     put(x, y, ch, fg, bg) {
       if (x < 0 || y < 0 || x >= this.cols || y >= this.rows) return;
@@ -153,6 +153,7 @@
           ctx.fillText(c, px + cw / 2, py + ch / 2 + 1);
         }
       }
+      if (this.post) for (const f of this.post) { ctx.save(); f(ctx, this); ctx.restore(); }
       if (this.over) { ctx.save(); this.over(ctx, this); ctx.restore(); }
     }
     // Один символ в произвольной точке (fillStyle и font уже выставлены)
