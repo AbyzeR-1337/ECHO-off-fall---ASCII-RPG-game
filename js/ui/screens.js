@@ -38,6 +38,7 @@
           if (it.g) t.put(x0 + 4, y, it.g[0], it.g[1], bg);
           const tx = x0 + (it.g ? 6 : 4);
           t.text(tx, y, fmt(it.t), it.disabled ? COL.faint : isSel ? COL.selfg : (it.c || COL.text), bg, W - (tx - x0) - 2 - (it.r ? it.r.length + 1 : 0));
+          if (it.fxId && UI.drawFxIcon) { const yy = y, xx = tx; t.post.push((ctx) => UI.drawFxIcon(ctx, it.fxId, xx * t.cw, yy * t.ch + 1, Math.max(10, t.ch - 2))); }
           if (it.r) t.text(x0 + W - 2 - it.r.length, y, it.r, it.rc || COL.dim, bg);
           t.hot(x0 + 1, y, W - 2, 1, () => { if (s.sel === i) s.choose(); else { s.sel = i; } UI.render(); }, o.tip ? { tip: () => o.tip(it) } : null);
           if (isSel) s.selY = y;
@@ -267,7 +268,7 @@
         for (const k of keys) out.push({ t: U.pad(E.STATN[k], 10) + ' ' + U.padl(P.st[k], 3) + (P.base[k] !== P.st[k] ? '  (' + P.base[k] + ')' : ''), r: P.pts > 0 ? '[+]' : '', c: COL.text, f: () => { if (P.pts > 0) { P.base[k]++; P.pts--; Gm.calc(); } return 'keep'; } });
         if (P.paths.length) for (const cid of P.paths) { const c = D.classes[cid]; out.push({ t: (P.cls === cid ? '► ' : '  ') + c.n + ' ' + U.roman(P.rank[cid] || 1), r: P.cls === cid ? 'текущий путь' : 'принять путь', c: P.cls === cid ? COL.accent : '#c0b0e0', f: () => { if (P.cls !== cid) { Gm.setClass(cid); Gm.msg('Ты принимаешь путь: ' + c.n + '.', '#ffd0a0'); } return 'keep'; } }); }
         if (P.talentPts > 0) for (const [n, k1, k2] of [['Древо Эха', 'luck', 'dex'], ['Древо Пепла', 'str', 'con'], ['Древо Пустоты', 'int', 'fai']]) out.push({ t: n, r: '+2 ' + E.STATN[k1] + ', +2 ' + E.STATN[k2], c: '#e0c0ff', f: () => { P.talentPts--; P.base[k1] += 2; P.base[k2] += 2; Gm.calc(); return 'keep'; } });
-        for (const f of P.fx) { const d = D.effects[f.id]; if (!d) continue; out.push({ t: '· ' + d.n, c: d.kind === 'curse' ? '#c080c0' : d.kind === 'bless' ? '#80c0f0' : '#c0a080', fxId: f.id, r: Gm.fxKnown(f.id) ? '' : '?', f: () => { UI.popup(d.n, UI.fxTip(f.id).slice(1).join('\n\n')); return 'keep'; } }); }
+        for (const f of P.fx) { const d = D.effects[f.id]; if (!d) continue; out.push({ t: '   ' + d.n, c: d.kind === 'curse' ? '#c080c0' : d.kind === 'bless' ? '#80c0f0' : '#c0a080', fxId: f.id, r: Gm.fxKnown(f.id) ? '' : '?', f: () => { UI.popup(d.n, UI.fxTip(f.id).slice(1).join('\n\n')); return 'keep'; } }); }
         out.push({ t: 'Одежда (O)', c: '#c0d0e0', f: () => { UI.outfit(); return 'keep'; } });
         out.push({ t: 'Тело: вода и нужда (B)', c: '#c0d0e0', f: () => { UI.body(); return 'keep'; } });
         out.push({ t: 'Статистика мира (T)', c: '#c0d0e0', f: () => { UI.worldStats(); return 'keep'; } });

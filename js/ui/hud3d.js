@@ -48,6 +48,8 @@
     drawTitle(ctx, t, v, fpx);
     drawTips(ctx, t, v, fpx);
     drawPops(ctx, t, v, fpx);
+    drawFxRow(ctx, t, v, fpx);
+    drawEntFx(ctx, t, v, fpx);
     if (!v.third) {
       ctx.fillStyle = 'rgba(255,240,200,0.75)';
       ctx.fillRect(Math.round(cx) - 1, Math.round(cy) - 5, 2, 3); ctx.fillRect(Math.round(cx) - 1, Math.round(cy) + 3, 2, 3);
@@ -79,6 +81,9 @@
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(Math.round(tx - bw / 2) - 1, Math.round(ty - fpx * 2.1) - 1, Math.round(bw) + 2, 6);
         ctx.fillStyle = hostile ? '#c84a3a' : '#7aa860'; ctx.fillRect(Math.round(tx - bw / 2), Math.round(ty - fpx * 2.1), Math.round(bw * k), 4);
       }
+      // что на нём: горит, мокрый, заморожен… — значки под полоской
+      const afx = (a.fx || []).filter((f) => f.t > 0);
+      if (afx.length && UI.drawFxIcon) { const sz = Math.round(fpx * 1.2), n = Math.min(6, afx.length); afx.slice(0, n).forEach((f, i) => UI.drawFxIcon(ctx, f.id, tx - n * (sz + 2) / 2 + i * (sz + 2), ty - fpx * 1.75, sz, true)); }
     }
     // что перед тобой
     const lab = UI.focusLabel();
@@ -102,7 +107,8 @@
       const rows = list.map((x, i) => {
         const a = x.a, cd = staff && P.cd[x.id] > 0, poor = staff && P.mp < a.cost;
         const tier = a && a.k === 'school' && E.Schools ? E.Schools.TIERS[a.tier] + ' ' : '';
-        return { t: (i + 1) + ' ' + tier + x.n + (x.lock ? '  ✕' : staff ? '  ' + a.cost : x.cnt ? ' ×' + x.cnt : x.inf ? '  ∞' : ''), on: cur && x.id === cur.id, dim: cd || poor || !!x.lock, col: a && a.k === 'school' && E.Schools ? E.Schools.list[a.school].c : null };
+        const ic = staff && UI.spellIconId ? UI.spellIconId(a) : null;
+        return { t: (i + 1) + (ic ? '    ' : ' ') + tier + x.n + (x.lock ? '  ✕' : staff ? '  ' + a.cost : x.cnt ? ' ×' + x.cnt : x.inf ? '  ∞' : ''), ic, on: cur && x.id === cur.id, dim: cd || poor || !!x.lock, col: a && a.k === 'school' && E.Schools ? E.Schools.list[a.school].c : null };
       });
       const w2 = Math.max(...rows.map((r) => ctx.measureText(r.t).width)) + fpx;
       ctx.fillStyle = 'rgba(10,8,6,0.55)'; ctx.fillRect(x0 - 4, y0 - 2, w2, rows.length * lh + fpx * 1.3);
@@ -113,6 +119,7 @@
         ctx.fillStyle = r.on ? '#ffe6a0' : r.dim ? '#7a7068' : '#d8cca8';
         ctx.fillText(r.t, x0 + 2, y);
         if (r.col && !r.dim) { ctx.fillStyle = r.col; ctx.fillRect(x0 - 3, y - lh * 0.32, 2, lh * 0.64); }
+        if (r.ic && UI.drawFxIcon) { const isz = Math.round(lh * 0.92); ctx.save(); if (r.dim) ctx.globalAlpha = 0.45; UI.drawFxIcon(ctx, r.ic, x0 + 2 + ctx.measureText(r.t.split(' ')[0] + ' ').width, y - isz / 2, isz, true); ctx.restore(); }
       });
     }
     if (lines.length) {
@@ -177,6 +184,45 @@
     if (v.head && P.name) { ctx.font = '600 ' + f1 + 'px ' + t.family; stroked(ctx, P.name, Math.round(v.head[0]), Math.round(v.head[1] - fpx * 0.6), '#f4f0e6'); }
     void n;
     ctx.restore();
+  }
+  // твои эффекты — значки под компасом; полоска под значком — сколько осталось
+  function drawFxRow(ctx, t, v, fpx) {
+    const P = G.P;
+    if (!UI.drawFxIcon || !P || !P.fx || UI.stack.length > 1) return;
+    const fx = P.fx.filter((f) => D.effects[f.id]);
+    if (!fx.length) return;
+    const sz = Math.round(fpx * 1.45), gap = 3, n = Math.min(14, fx.length), w = n * (sz + gap) - gap;
+    const x0 = v.vx0 + (v.vw - w) / 2, y0 = v.vy0 + 6 + fpx * 1.5 + 6;
+    const now = G.S.time;
+    fx.slice(0, n).forEach((f, i) => {
+      const x = x0 + i * (sz + gap);
+      UI.drawFxIcon(ctx, f.id, x, y0, sz);
+      if (f.until && f.until < 1e14) {
+        const tot = Math.max(1, f.until - (f.t0 != null ? f.t0 : now)), k = U.clamp((f.until - now) / tot, 0, 1);
+        ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(Math.round(x), Math.round(y0 + sz + 1), sz, 3);
+        ctx.fillStyle = k < 0.25 ? '#e07050' : '#e8d8a8'; ctx.fillRect(Math.round(x), Math.round(y0 + sz + 1), Math.round(sz * k), 3);
+      }
+    });
+  }
+  // состояния существ рядом — значки над головой (кроме того, на кого смотришь: у него — под полоской)
+  function drawEntFx(ctx, t, v, fpx) {
+    const m = G.map, P = G.P, V3 = UI.V3;
+    if (!UI.drawFxIcon || !V3 || !V3.proj || !m || !P) return;
+    const ox = m.kind === 'over' ? m.region.x * MW : 0, oz = m.kind === 'over' ? m.region.y * MH : 0;
+    const gAt = (x, z) => (UI.Hgt && UI.Hgt.groundAt ? UI.Hgt.groundAt(x, z) : 0);
+    const sz = Math.round(fpx * 1.05);
+    for (const e of m.ents) {
+      if (e.dead || e === G.aim || !e.fx || !e.fx.length || Math.abs(e.x - P.x) > 12 || Math.abs(e.y - P.y) > 12 || !G.vis[e.y * m.w + e.x]) continue;
+      const list = e.fx.filter((f) => f.t > 0);
+      if (!list.length) continue;
+      const s = UI.mvTiles && UI.mvTiles.track ? UI.mvTiles.track(e.id, e.x, e.y, v.now) : null;
+      const cp = s ? UI.mvTiles.curPos(s, v.now) : [e.x, e.y];
+      const wx = ox + cp[0] + 0.5, wz = oz + cp[1] + 0.5;
+      const q = V3.proj(wx, gAt(wx, wz) + (e.boss ? 2.0 : 1.35), wz);
+      if (!q || q[0] < v.vx0 || q[0] > v.vx0 + v.vw || q[1] < v.vy0 || q[1] > v.vy0 + v.vh) continue;
+      const n = Math.min(4, list.length);
+      list.slice(0, n).forEach((f, i) => UI.drawFxIcon(ctx, f.id, q[0] - n * (sz + 1) / 2 + i * (sz + 1), q[1] - sz, sz, true));
+    }
   }
   // всплывающие слова над местом: урон, комбо, находки, «Обвал!» — поднимаются и тают
   const POPS = UI.pops = [];
@@ -265,8 +311,8 @@
     // ячейки
     const lh = LO && LO.hand && LO.hand(), w = lh ? P.eq[lh] : null;
     let cells = [];
-    if (lh && w) cells = LO.list(w).map((x) => ({ n: x.n, cd: x.a && P.cd[x.id] > 0, poor: (x.a && LO.kind(w) === 'staff' && P.mp < x.a.cost) || !!x.lock, on: LO.cur(w) && LO.cur(w).id === x.id, cnt: x.cnt }));
-    else cells = (P.abil || []).slice(0, 10).map((id) => { const a = E.D.ab[id]; return a ? { n: a.n, cd: P.cd[id] > 0, poor: a.cost && P.mp < a.cost } : null; });
+    if (lh && w) cells = LO.list(w).map((x) => ({ n: x.n, ic: UI.spellIconId && LO.kind(w) === 'staff' ? UI.spellIconId(x.a) : null, cd: x.a && P.cd[x.id] > 0, poor: (x.a && LO.kind(w) === 'staff' && P.mp < x.a.cost) || !!x.lock, on: LO.cur(w) && LO.cur(w).id === x.id, cnt: x.cnt }));
+    else cells = (P.abil || []).slice(0, 10).map((id) => { const a = E.D.ab[id]; return a ? { n: a.n, ic: UI.spellIconId ? UI.spellIconId(a) : null, cd: P.cd[id] > 0, poor: a.cost && P.mp < a.cost } : null; });
     ctx.fillStyle = 'rgba(4,6,10,0.82)'; ctx.fillRect(x0, y1, W, ch);
     for (let i = 0; i < 10; i++) {
       const cx = x0 + i * cw, c = cells[i];
@@ -277,6 +323,7 @@
       if (c) {
         ctx.font = Math.max(8, Math.round(fpx * 0.6)) + 'px ' + t.family;
         ctx.fillStyle = c.cd || c.poor ? '#6a6a74' : c.on ? '#ffe6a0' : '#b8bcc8';
+        if (c.ic && UI.drawFxIcon) { const isz = Math.round(Math.min(ch * 0.42, cw * 0.3)); UI.drawFxIcon(ctx, c.ic, cx + cw - isz - 2, y1 + 2, isz, true); }
         let s2 = c.n; while (s2.length > 2 && ctx.measureText(s2).width > cw - 4) s2 = s2.slice(0, -1);
         ctx.fillText(s2 + (s2.length < c.n.length ? '.' : ''), cx + cw / 2, y1 + ch * 0.7);
       }

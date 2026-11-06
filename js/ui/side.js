@@ -249,7 +249,7 @@
     let yb = t.rows - 2 - Math.min(4, fx.length);
     if (fx.length && yb > y) {
       t.hline(X - 1, yb - 1, IW + 1, COL.border, '─');
-      for (const f of fx.slice(0, 4)) { const d = D.effects[f.id]; t.text(X, yb, '· ' + d.n, d.kind === 'curse' ? '#c080c0' : d.kind === 'bless' ? '#80c0f0' : '#c0a080', COL.panel, IW); t.hot(X, yb, IW, 1, () => UI.popup(d.n, UI.fxTip(f.id).slice(1).join('\n\n')), { tip: () => UI.fxTip(f.id) }); yb++; }
+      for (const f of fx.slice(0, 4)) { const d = D.effects[f.id]; if (UI.drawFxIcon) { const yy = yb; t.post.push((ctx) => UI.drawFxIcon(ctx, f.id, X * t.cw, yy * t.ch + 1, Math.max(10, t.ch - 2))); } t.text(X, yb, '   ' + d.n, d.kind === 'curse' ? '#c080c0' : d.kind === 'bless' ? '#80c0f0' : '#c0a080', COL.panel, IW); t.hot(X, yb, IW, 1, () => UI.popup(d.n, UI.fxTip(f.id).slice(1).join('\n\n')), { tip: () => UI.fxTip(f.id) }); yb++; }
     }
     // клавиши
     t.text(X, t.rows - 1, IW >= 34 ? 'I сумка · K умения · N люди · F2 вид' : 'I сумка K умения N люди F2', COL.faint, COL.panel, IW);

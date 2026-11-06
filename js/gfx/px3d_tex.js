@@ -231,4 +231,6 @@
   T.roof_temple = (d, name, r) => { fill(d, (x, y) => { if (y % 8 === 7) return hex('#5a544a'); return mul(hex('#b0a898'), 0.85 + (r() - 0.5) * 0.12); }); for (let x = 0; x < N; x++) put(d, x, 0, hex('#e0c050')); };
   T.ceiling_wood = (d, name, r) => { T.planks(d, name, r); for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) put(d, x, y, mul(get(d, x, y), 0.75)); };
   T.ceiling_rock = (d, name, r) => noisy(d, r, hex('#1e1a16'), hex('#3e3832'), [[hex('#141210'), 0.05]], 4, 12);
+  // для js/gfx/px3d_tex2.js — другие рисунки тех же поверхностей и мелочи на них
+  P3.TEXU = { N, hex, mix, mul, put, get, fill, noisy, tileNoise, q };
 })(window.EOF);

@@ -106,9 +106,16 @@ float bayer(vec2 p){ vec2 q = mod(floor(p), 4.0); float a = q.x + q.y*4.0;
   return (a==0.0?0.0:a==1.0?8.0:a==2.0?2.0:a==3.0?10.0:a==4.0?12.0:a==5.0?4.0:a==6.0?14.0:a==7.0?6.0:a==8.0?3.0:a==9.0?11.0:a==10.0?1.0:a==11.0?9.0:a==12.0?15.0:a==13.0?7.0:a==14.0?13.0:5.0)/16.0; }
 vec3 quant(vec3 c){ if (uQL < 1.5) return c; float b = (bayer(gl_FragCoord.xy) - 0.5)*uDith; return floor(c*uQL + 0.5 + b)/uQL; }`;
   const FS_WORLD = PREC + `
-uniform sampler2D uTex; uniform float uTS; uniform vec2 uFarTile;
+uniform sampler2D uTex; uniform float uTS; uniform vec2 uFarTile; uniform vec3 uMoonW;
 varying vec2 vLoc; varying vec2 vTile; varying vec3 vN; varying vec3 vW; varying float vSky; varying float vKind; varying vec3 vTint; varying vec4 vLS;
 ${LIGHT_FN}
+// волны: несколько бегущих навстречу гряд и мелкая рябь
+float wh(vec2 p, float t, float lod){
+  float h = sin(p.x*1.3 + t*1.1)*0.45 + sin(p.y*1.7 - t*0.9 + p.x*0.53)*0.35 + sin((p.x*0.83 + p.y)*3.1 + t*2.1)*0.16;
+  return h + (sin((p.x*0.6 - p.y)*5.3 - t*2.9 + sin(p.y*0.7))*0.08 + sin((p.x*1.7 + p.y*1.3)*8.9 + t*4.0 + sin(p.x*1.1)*2.0)*0.04)*lod;
+}
+vec3 waveN(vec2 p, float t, float a, float lod){ float e = 0.07, h = wh(p, t, lod); return normalize(vec3((h - wh(p + vec2(e, 0.0), t, lod))/e*a, 1.0, (h - wh(p + vec2(0.0, e), t, lod))/e*a)); }
+float hw(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)))*43758.5453); }
 void main(){
   vec2 l = vLoc;
   bool water = (vKind > 0.5 && vKind < 1.5) || (vKind > 20.5 && vKind < 21.5);
@@ -140,13 +147,40 @@ void main(){
   float sh = shadowAt(vLS, 0.0018);
   vec3 L = lightAt(vW, n, vSky, 0.0, sh);
   vec3 c = grade(base, L);
+  float glint = 0.0;
   if (water) {
     vec3 v = normalize(vW - uCam);
-    vec3 r = reflect(v, n);
-    float fr = 0.25 + 0.6*pow(1.0 - max(dot(-v, n), 0.0), 3.0);
+    float dist = length(vW - uCam);
+    // нормаль воды: волны, у ног — крупнее, вдали — спокойнее; по ступеням, чтобы блик ложился точками
+    float lod = 1.0 - smoothstep(5.0, 22.0, dist);
+    vec3 wn = waveN(vW.xz, uTime, mix(0.14, 0.04, clamp(dist/60.0, 0.0, 1.0)), lod);
+    vec3 r = reflect(v, wn); r.y = abs(r.y);
+    float fr = 0.18 + 0.72*pow(1.0 - max(dot(-v, wn), 0.0), 3.0);
     c = mix(c, skyCol(r)*(0.55 + 0.45*vSky), fr*vSky);
-    float g = pow(max(dot(r, uSunSky), 0.0), 40.0);
-    c += uSun*g*1.2*vSky*sh;
+    // толща: под поверхностью зелёно-синяя глубина, у ног видно глубже
+    c += vec3(0.0, 0.03, 0.04)*(1.0 - fr)*(1.0 - uNight*0.75)*vSky;
+    // гребни волн чуть светлее
+    c *= 0.97 + 0.07*smoothstep(0.5, 1.0, wh(vW.xz, uTime, lod));
+    // солнце: мягкое пятно и острые искры, что мигают
+    float sd = max(dot(r, uSunSky), 0.0), day = clamp(uSunSky.y*5.0 + 0.15, 0.0, 1.0);
+    float tw = step(0.45, hw(floor(vW.xz*9.0) + floor(uTime*7.0)));
+    float sg = (pow(sd, 22.0)*0.45 + step(0.982, sd)*(0.7 + 0.9*tw))*vSky*sh*day;
+    c += uSun*sg;
+    // луна: серебряная дорожка по воде
+    float md = max(dot(r, uMoonW), 0.0);
+    float mg = (pow(md, 26.0)*0.5 + step(0.984, md)*(0.4 + 0.6*tw))*uNight*vSky*step(0.02, uMoonW.y);
+    c += vec3(0.62, 0.68, 0.86)*mg;
+    // огни на берегу — дрожащие отблески
+    for (int i=0;i<__NL__;i++){
+      if (i>=uNL) break;
+      vec3 Ld = uLP[i].xyz - vW; float dl = length(Ld);
+      float att = clamp(1.0 - dl/(uLP[i].w*2.5), 0.0, 1.0);
+      vec3 hv = normalize(Ld/max(dl, 0.001) - v);
+      float sp = pow(max(dot(wn, hv), 0.0), 36.0);
+      c += uLC[i].rgb*uLC[i].a*sp*att*1.5;
+      glint = max(glint, sp*att*uLC[i].a);
+    }
+    glint = clamp(max(glint, max(sg, mg)*0.9), 0.0, 1.0);
   }
   if (t.a < 0.6) { float em = t.a > 0.4 ? 1.0 : uNight; c = mix(c, t.rgb*1.3, em); }
   // белые точки в траве светятся сами; травинки ночью чуть видны и без огня
@@ -164,7 +198,8 @@ void main(){
   }
   // в альфе — что это (для отражений и ASCII): вода, стены и крыши, земля
   float solid = vKind > 15.5 && vKind < 16.5 ? 0.8 : (vKind > 9.5 && vKind < 10.5) || (vKind > 12.5 && vKind < 13.5) || vKind > 21.5 || n.y < 0.6 ? 0.9 : 1.0;
-  gl_FragColor = vec4(quant(fogIt(c, vW)), water ? 0.5 : solid);
+  // в альфе воды — ещё и сила блика (0.5 — без блика, 0.3 — яркий): отражения в постобработке его не гасят
+  gl_FragColor = vec4(quant(fogIt(c, vW)), water ? 0.5 - glint*0.2 : solid);
 }`;
   // спрайты-«щиты»: всегда лицом к камере, стоят на земле
   // вершина: center(3) off(2) uv(2) sky(1) = 8 float
@@ -379,12 +414,14 @@ void main(){
   vec4 c = texture2D(uScene, uv);
   if (c.a > 0.75) { gl_FragColor = c; return; }
   vec3 col = c.rgb;
+  float glint = clamp((0.5 - c.a)/0.2, 0.0, 1.0);
   if (uRefl > 0.01) {
     float y0 = -1.0;
     for (int i = 1; i < 72; i++) { vec2 q = uv + vec2(0.0, float(i)*px.y); if (q.y > 1.0) break; if (texture2D(uScene, q).a > 0.75) { y0 = q.y; break; } }
     if (y0 > 0.0) {
       float d = y0 - uv.y;
-      vec2 r = vec2(uv.x + sin(uv.y*uRes.y*0.35 + uTime*2.2)*px.x*1.5, y0 + d + px.y);
+      float wob = (vn(vec2(uv.x*uRes.x*0.04, uv.y*uRes.y*0.45 - uTime*1.8)) - 0.5)*3.5 + sin(uv.y*uRes.y*0.35 + uTime*2.2)*0.8;
+      vec2 r = vec2(uv.x + wob*px.x*(1.0 + d*uRes.y*0.02), y0 + d + px.y);
       if (r.y <= 1.0) { vec4 rc = texture2D(uScene, r); if (rc.a > 0.75) col = mix(col, rc.rgb*vec3(0.72, 0.8, 0.95) + vec3(0.0, 0.01, 0.03), uRefl*(1.0 - smoothstep(0.0, 72.0*px.y, d)*0.55)); }
     }
   }
@@ -405,6 +442,7 @@ void main(){
     float f = clamp(shore + cr*0.55, 0.0, 1.0)*uFoam;
     col = mix(col, vec3(0.86, 0.9, 0.95), f);
   }
+  col = mix(col, c.rgb, glint);
   gl_FragColor = vec4(col, 0.5);
 }`;
   // ---------- ASCII: клетка → знак. Сначала на каждую клетку — её цвет и какой знак ей подходит ----------
@@ -710,9 +748,7 @@ void main(){
     if (k == null) {
       if (aNext >= PER * PER) return [0, 0];
       k = aNext++;
-      const img = actx.createImageData(TS, TS), base = new Uint8ClampedArray(BS * BS * 4), rnd = mkRand(name);
-      (P3.TEX[name.split(':')[0]] || P3.TEX.noise)(base, name, rnd);
-      refine(base, img.data, rnd);
+      const img = P3.texImage(name, actx);
       actx.putImageData(img, (k % PER) * TS, Math.floor(k / PER) * TS);
       aPend.push([k, img]);
       aIndex.set(name, k);
@@ -721,6 +757,16 @@ void main(){
     return [(k % PER) * TS / AW, Math.floor(k / PER) * TS / AW];
   };
   P3.TS = TS / AW;
+  // «имя#s2d3»: рисунок 2 и мелочь 3 (js/gfx/px3d_tex2.js); основа мелочей та же, что у простой — без шва
+  P3.texImage = function (name, ctx) {
+    const img = (ctx || document.createElement('canvas').getContext('2d')).createImageData(TS, TS), base = new Uint8ClampedArray(BS * BS * 4);
+    const hi = name.indexOf('#'), bn = hi < 0 ? name : name.slice(0, hi), vs = hi < 0 ? '' : name.slice(hi + 1);
+    const sm = /s(\d+)/.exec(vs), dm = /d(\d+)/.exec(vs), sty = sm ? +sm[1] : 0, det = dm ? +dm[1] : 0;
+    (P3.TEX[bn.split(':')[0]] || P3.TEX.noise)(base, bn, mkRand(sty ? bn + '#s' + sty : bn), sty);
+    if (det && P3.TEXDET) P3.TEXDET(base, bn, mkRand(name), det, sty);
+    refine(base, img.data, mkRand(bn + '~' + sty));
+    return img;
+  };
   function mkRand(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return ((h >>> 0) % 100000) / 100000; }; }
   P3.mkRand = mkRand;
 
@@ -953,6 +999,7 @@ void main(){
       gl.uniform3fv(L.u.uSunDir, sk.sunDir); if (L.u.uSunSky) gl.uniform3fv(L.u.uSunSky, sk.sunSky || sk.sunDir);
       gl.uniform3fv(L.u.uSun, sk.sun); gl.uniform3fv(L.u.uAmb, sk.amb); gl.uniform3fv(L.u.uFog, sk.fog); if (L.u.uFogSun) gl.uniform3fv(L.u.uFogSun, sk.fogSun || sk.fog);
       if (L.u.uZen) gl.uniform3fv(L.u.uZen, sk.zen); if (L.u.uHor) gl.uniform3fv(L.u.uHor, sk.hor);
+      if (L.u.uMoonW) gl.uniform3fv(L.u.uMoonW, sk.moonDir || [0, -1, 0]);
       gl.uniform3f(L.u.uCam, ex, ey, ez); gl.uniform1f(L.u.uFogD, sk.fogD); if (L.u.uTime) gl.uniform1f(L.u.uTime, f.time); if (L.u.uNight) gl.uniform1f(L.u.uNight, sk.night);
       if (L.u.uCut) { const c = f.cut; gl.uniform4f(L.u.uCut, c ? c[0] : 0, c ? c[1] : -999, c ? c[2] : 0, c ? c[3] : 0); }
       if (L.u.uLP) gl.uniform4fv(L.u.uLP, lp);

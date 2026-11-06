@@ -271,15 +271,23 @@
   // ============================================================
   // Сборка куска
   // ============================================================
-  function wallTex(roofs, bk, x, y) {
+  // стена: у каждого дома свой рисунок кладки (по его месту), у каждой клетки — свои мелочи;
+  // в подземелье и на улице рисунок — по месту (mst), gx/gz — клетка в мире
+  const roofSeed = (rf) => (U.hash(rf.rect.x * 3 + 1, rf.rect.y * 5 + 2, 77) >>> 0);
+  const mapSeed = (m) => { const k = m.kind === 'over' && m.region ? 'r' + m.region.x + ',' + m.region.y : String(m.key || ''); let h = 2166136261; for (let i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+  const VARY = (t, gx, gz, st) => (Gfx.P3.vary ? Gfx.P3.vary(t, gx, gz, st) : t);
+  function wallTex(roofs, bk, x, y, gx, gz, mst) {
     if (bk === 'wall' || bk === 'window' || bk === 'door' || bk === 'boarded') {
       const rf = roofs.find((r) => x >= r.rect.x && y >= r.rect.y && x < r.rect.x + r.rect.w && y < r.rect.y + r.rect.h);
       const mw = rf ? MATWALL[rf.mat] || MATWALL.brick : MATWALL.stone;
-      if (bk === 'wall') return mw[0];
-      if (bk === 'boarded') return 'door' + mw[1] + ':b';
-      return bk + mw[1];
+      const st = rf ? roofSeed(rf) : mst;
+      if (bk === 'wall') return VARY(mw[0], gx, gz, st);
+      // окно и дверь — в рисунок своей стены
+      const ns = (Gfx.P3.TEXN || {})[mw[0].split(':')[0]] || 0, ws = ns && st != null ? (st >>> 0) % ns : 0;
+      const nm = bk === 'boarded' ? 'door' + mw[1] + ':b' : bk + mw[1];
+      return ws ? nm + '#s' + ws : nm;
     }
-    return WTEX[bk] || 'cave';
+    return VARY(WTEX[bk] || 'cave', gx, gz, mst);
   }
   const season = () => E.Gm.season();
   // коробка в мировых координатах куска (зубцы, створки)
@@ -341,6 +349,10 @@
     const hAt = (x, y) => { const t = tileAt(ox + x, oz + y); return t ? t[0].h[t[1]] : 0; };
     const bkAt = (x, y) => { const t = tileAt(ox + x, oz + y); return t ? BK[t[0].m.tiles[t[1]]] : null; };
     let gnd = m._gndKey || 'grass';
+    const mst = mapSeed(m);
+    // клетка → её дом (рисунок пола)
+    const roofIdx = new Int16Array(W * H).fill(-1);
+    roofs.forEach((rf, k) => { for (let y = rf.rect.y; y < rf.rect.y + rf.rect.h; y++) for (let x = rf.rect.x; x < rf.rect.x + rf.rect.w; x++) if (x >= 0 && y >= 0 && x < W && y < H) roofIdx[y * W + x] = k; });
     const groundKey = (x, y, tid) => {
       if (FIX[tid]) return FIX[tid];
       if (GK[tid]) return GK[tid];
@@ -352,7 +364,9 @@
     const gtex = (k, x, y) => {
       if (k === 'grass') { if (sea === 2 && m.biome !== 'desert') k = 'grass_dry'; else if (sea === 3 && cold && m.outdoor) k = 'grass_frost'; }
       const t = GTEX[k] || 'rockfloor';
-      return t === 'grass' || t === 'grass_dry' || t === 'grass_frost' ? t + ':' + (U.hash(x, y, 3) % 3) : t;
+      const t2 = t === 'grass' || t === 'grass_dry' || t === 'grass_frost' ? t + ':' + (U.hash(x, y, 3) % 3) : t;
+      const ri = x >= 0 && y >= 0 && x < W && y < H ? roofIdx[y * W + x] : -1;
+      return VARY(t2, ox + x, oz + y, ri >= 0 ? roofSeed(roofs[ri]) : mst);
     };
     const fol = sea === 2 ? ['#c08a30', '#b05a2a', '#c8a040'] : sea === 0 ? ['#5a9a40', '#4a8a3a'] : ['#3e7b34', '#4a8a3c'];
     // углы клеток (с запасом в одну клетку — для нормалей)
@@ -389,7 +403,7 @@
         const cs = corners(CL.LAND, x, y);
         const bot = Math.min(...cs) - 0.35;
         const hh = wallH(x, y, bk);
-        const top = hb + hh, tex = wallTex(roofs, bk, x, y);
+        const top = hb + hh, tex = wallTex(roofs, bk, x, y, ox + x, oz + y, mst);
         P3.quad(M, [x, top, y + 1], [x + 1, top, y + 1], [x + 1, top, y], [x, top, y], [0, 0], [1, 1], bk === 'cave' || dungeon ? tex : bk === 'townwall' ? 'arch' : 'roof_slate', [0, 1, 0], dungeon ? 0 : 1, K.TOP);
         // городская стена: зубцы поверху (шахматкой — с любой стороны видно)
         if (bk === 'townwall' && !dungeon) for (const [ax, az] of [[0.04, 0.04], [0.56, 0.56]]) cube(M, x + ax, top, y + az, x + ax + 0.4, top + 0.32, y + az + 0.4, tex, 1);
@@ -458,7 +472,7 @@
       }
       // ---- дверной проём: перемычка над проходом ----
       if (bk === 'door') {
-        const tex = wallTex(roofs, 'wall', x, y), top = hb + (dungeon ? CAVE : wallH(x, y, 'door')), lo = hb + 1.12;
+        const tex = wallTex(roofs, 'wall', x, y, ox + x, oz + y, mst), top = hb + (dungeon ? CAVE : wallH(x, y, 'door')), lo = hb + 1.12;
         const ew = clsAt(x - 1, y) === CL.BLOCK && clsAt(x + 1, y) === CL.BLOCK;
         if (ew) { P3.quad(M, [x, lo, y + 1], [x + 1, lo, y + 1], [x + 1, top, y + 1], [x, top, y + 1], [0, 0], [1, top - lo], tex, [0, 0, 1], sky); P3.quad(M, [x + 1, lo, y], [x, lo, y], [x, top, y], [x + 1, top, y], [0, 0], [1, top - lo], tex, [0, 0, -1], sky); }
         else { P3.quad(M, [x, lo, y], [x, lo, y + 1], [x, top, y + 1], [x, top, y], [0, 0], [1, top - lo], tex, [-1, 0, 0], sky); P3.quad(M, [x + 1, lo, y + 1], [x + 1, lo, y], [x + 1, top, y], [x + 1, top, y + 1], [0, 0], [1, top - lo], tex, [1, 0, 0], sky); }
@@ -501,7 +515,7 @@
       const r = rf.rect;
       if (!X.roofIntact(m, r)) continue;
       const lvl = cd.h[U.clamp(r.y, 0, H - 1) * W + U.clamp(r.x, 0, W - 1)];
-      const tex = ROOFTEX[rf.style] || 'roof_thatch', wtex = (MATWALL[rf.mat] || MATWALL.brick)[0];
+      const rs = roofSeed(rf), tex = VARY(ROOFTEX[rf.style] || 'roof_thatch', null, null, rs), wtex = VARY((MATWALL[rf.mat] || MATWALL.brick)[0], null, null, rs);
       const o = 0.2, x0 = r.x - o, x1 = r.x + r.w + o, z0 = r.y - o, z1 = r.y + r.h + o, b = lvl + (rf.tall ? TALL : WALL), pk = rf.pitch || 0.42;
       if (r.w >= r.h) {
         const zm = r.y + r.h / 2, top = b + r.h * pk, sl = Math.hypot(r.h / 2 + o, top - b);
@@ -1096,7 +1110,7 @@
     // небо и свет
     const w = E.Gm.weather();
     const hs = { time: G.S.time, outdoor: !!m.outdoor, dim: m.dimName || null, weather: m.outdoor && !m.dimName ? w : null, season: season(), cold: m.region && m.region.t < 0.55, fullMoon: E.Gm.fullMoon(), nightland: m.tint === 'night' };
-    const sky = Object.assign({}, skyOf(m, hs));
+    const sky = V3.lastSky = Object.assign({}, skyOf(m, hs));
     if (FX3.fog != null && FX3.fog !== 1) sky.fogD = sky.fogD * FX3.fog;
     const rects = X.roofsOf(m);
     const inside = rects.find((r) => P.x >= r.rect.x && P.y >= r.rect.y && P.x < r.rect.x + r.rect.w && P.y < r.rect.y + r.rect.h && X.roofIntact(m, r.rect)) || null;
