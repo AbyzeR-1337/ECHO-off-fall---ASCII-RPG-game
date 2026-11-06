@@ -372,8 +372,8 @@
       const c = D.classes[id];
       try { if (c.cond(P, G)) { Gm.unlock(id); return; } } catch (e) { /* ignore */ }
     }
-    // Странник открывается сам, если долго идти без пути
-    if (!P.cls && (P.c.regions || 0) >= 12 && !P.paths.includes('wanderer')) Gm.unlock('wanderer');
+    // Странник открывается сам, если долго идти без пути (девять земель)
+    if (!P.cls && (P.c.regions || 0) >= 9 && !P.paths.includes('wanderer')) Gm.unlock('wanderer');
   };
   Gm.learn = function (pid, how) {
     const P = G.P;

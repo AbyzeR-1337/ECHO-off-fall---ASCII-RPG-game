@@ -30,6 +30,7 @@
   o('chair', 'CHAIR'); o('bench', 'BENCH'); o('outhouse', 'OUTHOUSE');
   o('barrel', 'BARREL'); o('crate', 'CRATE'); o('stall', 'STALL'); o('hay', 'HAY'); o('lamppost', 'LAMPPOST'); o('boat', 'BOAT'); o('cart', 'CART');
   o('rack', 'RACK'); o('workbench', 'WORKBENCH'); o('rug', 'RUG');
+  o('anvil', 'JEWELER'); o('workbench', 'LOOM'); o('hearth', 'SMOKER'); o('statue', 'RUNESTONE'); o('pillar', 'MENHIR'); o('sign', 'TELESCOPE'); o('well', 'SPRING'); o('hay', 'NEST');
   o('belfry', 'BELFRY'); o('watchtower', 'WATCHTOWER'); o('gallows', 'GALLOWS'); o('pillory', 'PILLORY'); o('gibbet', 'GIBBET'); o('pike', 'PIKE'); o('banner', 'BANNER');
   o('waycross', 'WAYCROSS'); o('woodpile', 'WOODPILE'); o('trough', 'TROUGH'); o('kiln', 'KILN'); o('windmill', 'WINDMILL'); o('oven', 'OVEN'); o('vat', 'VAT'); o('sack', 'SACK'); o('palisade', 'PALISADE');
   b('boarded', 'BOARDED');
@@ -52,10 +53,13 @@
     reflection: 'm_reflection', mooncrawler: 'm_crawler', timewisp: 'm_wisp', antibody: 'm_blob', spirit: 'm_ghost', abyssal: 'm_herald',
     deepcrawler: 'm_crawler', seaguard: 'm_trident', ally_wolf: 'm_wolf', ally_spirit: 'm_ghost', ally_bones: 'm_skeleton', ally_shade: 'm_reflection',
     ally_golem: 'm_golem', ally_dragonling: 'm_dragonling',
+    griffin: 'm_griffin', owlbear: 'm_owlbear', moonstag: 'm_moonstag', bogwisp: 'm_wisp', basilisk: 'm_basilisk', frostspider: 'm_frostspider',
+    wyvern: 'm_wyvern', gravehound: 'm_gravehound', seaserpent: 'm_seaserpent', kobold: 'm_imp', mandrake: 'm_imp', migrating_elk: 'm_deer',
+    pilgrim_ghost: 'm_ghost', wildspark: 'm_wisp', champion: 'm_soldier',
   };
   const FAM = [['dragon', 'm_dragonling'], ['undead', 'm_zombie'], ['spirit', 'm_ghost'], ['plant', 'm_leshy'], ['insect', 'm_spider'], ['stone', 'm_golem'], ['water', 'm_fishman'], ['human', 'm_bandit'], ['beast', 'm_beast']];
   const BOSS = [['dragon', 'b_dragon'], ['god', 'b_god'], ['undead', 'b_undead'], ['spirit', 'b_spirit'], ['plant', 'b_plant'], ['water', 'b_water'], ['stone', 'b_stone'], ['fire', 'b_fire'], ['insect', 'b_insect'], ['human', 'b_human'], ['beast', 'b_beast']];
-  const ALWAYS = new Set(['m_bat', 'm_eagle', 'm_harpy', 'm_ghost', 'm_wisp', 'm_void', 'm_slime', 'm_snake', 'm_fish', 'npc_bard', 'm_mimic']);
+  const ALWAYS = new Set(['m_bat', 'm_eagle', 'm_harpy', 'm_griffin', 'm_wyvern', 'm_seaserpent', 'm_ghost', 'm_wisp', 'm_void', 'm_slime', 'm_snake', 'm_fish', 'npc_bard', 'm_mimic']);
   const JOB = {
     guard: 'npc_guard', veteran: 'npc_guard', priest: 'npc_hood', monk: 'npc_hood', hermit: 'npc_wander', gravedigger: 'npc_hood', mage: 'npc_mage',
     smith: 'npc_smith', miner: 'npc_smith', farmer: 'npc_hat', shepherd: 'npc_hat', laborer: 'npc_hat', woodcutter: 'npc_hat', potter: 'npc_hat', weaver: 'npc_hat',
@@ -85,7 +89,7 @@
   }
   UI.entArt = entArt;
   // облик жителя: народ, пол, «изящный юноша», настроение на лице, приметы
-  const RCODE = { human: 'h', elf: 'e', dwarf: 'd', orc: 'o', halfling: 'l', succubus: 's', darkelf: 'k', goblin: 'g', lizard: 'z', catfolk: 'c', tiefling: 't', giant: 'b', taur: 'w', femboy: 'y' };
+  const RCODE = { human: 'h', elf: 'e', dwarf: 'd', orc: 'o', halfling: 'l', succubus: 's', darkelf: 'k', goblin: 'g', lizard: 'z', catfolk: 'c', tiefling: 't', giant: 'b', taur: 'w', femboy: 'y', fae: 'a', merfolk: 'q', vampire: 'v', wolfkin: 'u' };
   UI.RCODE = RCODE;
   UI.moodOf = function (e) {
     if (e.asleep) return 'z';
@@ -233,6 +237,7 @@
     // всё, что светится, светит: горн у наковальни, грибы и кристаллы в пещерах, лунная пыль, туман духов
     [T.ANVIL]: [[1, 0.48, 0.18], 0.7, 3, 1], [T.BIGSHROOM]: [[0.45, 0.85, 0.8], 0.55, 3.2, 0],
     [T.BELFRY]: [[1, 0.7, 0.35], 0.5, 3, 1], [T.MAGETOWER]: [[0.7, 0.5, 1], 1.4, 9, 0],
+    [T.SMOKER]: [[1, 0.5, 0.2], 0.6, 2.6, 1], [T.RUNESTONE]: [[0.5, 0.65, 1], 0.7, 3.5, 0], [T.SPRING]: [[0.55, 0.85, 1], 0.6, 3.2, 0],
   };
   const OBJH = Gfx.HF ? Gfx.HF.OBJH : {};
   UI.objHeight = (k) => OBJH[k] || 0.4;

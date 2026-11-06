@@ -566,6 +566,10 @@
     b: { h: 1.28, b: 1.3, skin: ['#c89c80', '#b88a6a', '#a87a5a', '#d8b090'], hair: ['#6a4a2a', '#8a6a3a', '#3a2a1a', '#c8a060'], beardM: 1 },
     w: { h: 1.06, b: 1.12, ears: 'cow', cow: 1, skin: ['#f0d4bc', '#e2bc9c', '#c89878', '#a87858'], hair: ['#f0ece0', '#2a1a10', '#8a5a2a', '#d8c8a8', '#4a3a2a', '#c87a4a'], tail: 'cow' },
     y: { h: 0.98, b: 0.84, femb: 1, skin: ['#f4dccc', '#ecc8b0', '#d8b090', '#b88868'], hair: ['#f0c8d8', '#c8b0f0', '#f0e0a0', '#1a1418', '#a0d0f0', '#e8e8f0'] },
+    a: { h: 0.74, b: 0.8, ears: 'elf', skin: ['#f4e8f0', '#e0f0e0', '#e8e0f8', '#f0e0d0'], hair: ['#f0c0e8', '#a0e0c0', '#f0e8a0', '#c0c8ff', '#ffffff'], eyes: '#80f0c0' },
+    q: { h: 1.02, b: 0.96, ears: 'elf', skin: ['#9ac8c8', '#88b8c0', '#a8d0c8', '#7aa8b8'], hair: ['#2a8a8a', '#4ab0a0', '#1a4a6a', '#c8e8e0', '#6a3a8a'], eyes: '#40e0e0' },
+    v: { h: 1.02, b: 0.88, ears: 'elf', skin: ['#e8e4e8', '#dcd4dc', '#f0ecf0', '#d0c8d4'], hair: ['#1a1018', '#e8e8f0', '#4a1018', '#2a2030', '#c0c0c8'], eyes: '#e02030' },
+    u: { h: 1.04, b: 1.08, ears: 'cat', tail: 'cat', skin: ['#c8a080', '#a88060', '#d8b898', '#8a6a50'], hair: ['#8a8a8a', '#3a3030', '#c8c0b0', '#6a4a2a', '#e8e0d8'], eyes: '#f0c020' },
     s: { h: 1.02, b: 0.9, demon: 1, skin: ['#d890b0', '#c87898', '#b05a7a', '#e0a8c0'], hair: ['#2a1028', '#5a1030', '#1a1018', '#8a2040', '#e8d0f0'] },
   };
   HF.RACEV = RACEV;
@@ -873,6 +877,25 @@
     return q;
   });
   const aura = (P, c) => disc(0, 0, 0.004, 0.9, 0.5, mat(c || '#ff2040', 'glow', { em: 1, a: 0.35, fl: F.NOSHADOW }));
+  // ---------- новые звери (js/data/content2.js): из тех же «скелетов», свой окрас и размер ----------
+  const QN = {
+    m_griffin: Object.assign({}, QUADS.m_wolf, { len: 0.86, h: 0.8, w: 0.2, body: '#c8a060', belly: '#e8d8b0', snout: 0.1, ears: 'up', tail: 'long', wings: 1, headR: 0.15, eye: '#ffd040', fat: 1.15 }),
+    m_owlbear: Object.assign({}, QUADS.m_bear, { body: '#8a7458', snout: 0.04, ears: 'up', eye: '#ffc040' }),
+    m_moonstag: Object.assign({}, QUADS.m_deer, { body: '#d0dcf0', belly: '#ffffff', mane: '#e8f0ff', maneEm: 0.9, eye: '#a0d0ff' }),
+    m_basilisk: Object.assign({}, QUADS.m_lizard, { len: 1.0, h: 0.4, w: 0.16, body: '#6a7a3a', eye: '#ff4020', headR: 0.11, legR: 0.05 }),
+    m_wyvern: Object.assign({}, QUADS.m_dragonling, { len: 0.95, h: 0.75, w: 0.18, body: '#5a7a4a', eye: '#f0e040' }),
+    m_gravehound: Object.assign({}, QUADS.m_wolf, { body: '#24242c', belly: '#34343c', eye: '#ff3020', mane: '#40ff80', maneEm: 0.6 }),
+  };
+  const QSZ = { m_griffin: 1.35, m_owlbear: 1.2, m_moonstag: 1.05, m_basilisk: 1.2, m_wyvern: 1.6, m_gravehound: 1.05 };
+  for (const key in QN) {
+    MD[key] = (o, P) => {
+      const q = Object.assign({}, QN[key]);
+      q.body = C(q.body); if (q.belly) q.belly = C(q.belly);
+      return wrap(key + '|' + (o.moving ? o.f % 4 : 0) + (q.wings ? '|' + (o.f % 6) : '') + '|' + P.level, big(quad(o, P, q), QSZ[key]), o);
+    };
+  }
+  MD.m_frostspider = (o, P) => wrap('fspider|' + (o.moving ? o.f % 4 : 0) + '|' + P.level, big(spider(o, P, C('#c8e4f4'), 1), 1.2), o);
+  MD.m_seaserpent = (o, P) => wrap('sserp|' + (o.f % 8) + '|' + P.level, big(snake(o, P, C('#2a6a8a'), 14, 0.07, 0.5), 1.6), o);
   MD.b_dragon = (o, P) => { const q = Object.assign({}, QUADS.m_dragonling, { body: C(colOf(o, '#c04a2a')), len: 0.8 }); const out = big(quad(o, P, q), 2.1); out.push(aura(P, '#ff6020')); return wrap('bdragon|' + (o.c || '') + '|' + (o.f % 6) + '|' + P.level, out, o); };
   MD.b_beast = (o, P) => { const q = Object.assign({}, QUADS.m_bear, { body: C(colOf(o, '#5a3a2a')), eye: '#ff4020' }); const out = big(quad(o, P, q), 1.8); out.push(aura(P)); return wrap('bbeast|' + (o.c || '') + '|' + (o.moving ? o.f % 4 : 0) + '|' + P.level, out, o); };
   MD.b_undead = (o, P) => { const out = big(MD.m_barrow(Object.assign({}, o, { mode: 0, hit: false }), P).prims, 1.6); out.push(aura(P, '#a040ff')); return wrap('bundead|' + (o.moving ? o.f % 4 : 0) + '|' + P.level, out, o); };

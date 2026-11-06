@@ -244,6 +244,8 @@
       else if (id === 'ocean') { const l = Wd.regions.filter((g) => g.biome === 'ocean' && g.exist === 'always'); p.r = r.pick(l).id; }
       else if (id === 'plague' || id === 'cult') { const l = Wd.settlements.filter((st) => ['town', 'capital', 'village'].includes(st.type) && !s.sett[st.id].destroyed); if (!l.length) continue; p.s = r.pick(l).id; p.r = Wd.settlements[p.s].region; }
       else if (id === 'flood') { const l = Wd.settlements.filter((st) => st.coast && !s.sett[st.id].destroyed); if (!l.length) continue; p.s = r.pick(l).id; p.r = Wd.settlements[p.s].region; }
+      // новые события сами выбирают место (js/data/content2.js)
+      if (p.r == null && p.s == null && d.pick) { const o = d.pick(r, Wd, s); if (!o) continue; if (o.r != null) p.r = o.r; if (o.s != null) p.s = o.s; }
       s.evPlan.push(p);
     }
   }

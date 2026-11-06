@@ -143,6 +143,15 @@
   t('PALISADE', '‖', '#6a4a2a', null, 'частокол', 0, 0);
   t('BOARDED', '#', '#7a5a3a', null, 'заколоченная дверь', 0, 0, { auto: 1 });
   t('MAGETOWER', '♜', '#a890e0', null, 'башня магов', 0, 0, { use: 1, light: 4 });
+  // станции ремесла и новые места (js/game/crafts.js, js/game/places.js)
+  t('JEWELER', '♦', '#d8c070', null, 'ювелирный стол', 0, 1, { use: 1 });
+  t('LOOM', '#', '#c8a8a0', null, 'ткацкий станок', 0, 1, { use: 1 });
+  t('SMOKER', 'Ш', '#8a6a4a', null, 'коптильня', 0, 1, { use: 1, light: 2 });
+  t('RUNESTONE', 'Ω', '#80a0ff', null, 'рунный камень', 0, 1, { use: 1, light: 2 });
+  t('MENHIR', '¦', '#9a9a8a', null, 'стоячий камень', 0, 0);
+  t('TELESCOPE', 'Y', '#c0a060', null, 'звездочётная труба', 0, 1, { use: 1 });
+  t('SPRING', '◎', '#80d0ff', null, 'святой источник', 0, 1, { use: 1, waterSrc: 1, light: 2 });
+  t('NEST', '@', '#a08050', null, 'гнездо грифонов', 0, 1, { use: 1 });
 
   E.tileAt = (id) => TL[id] || TL[0];
   E.isWalk = (id) => TL[id].walk;

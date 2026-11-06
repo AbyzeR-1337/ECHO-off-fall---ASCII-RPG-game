@@ -42,7 +42,9 @@
     ctx.font = '700 ' + fpx + 'px ' + t.family;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     // прицел (от первого лица); сверху-сзади — имя над головой героя, подписи жителей, панель 1–0
-    if (v.third) { drawLabels(ctx, t, v, fpx); drawHotbar(ctx, t, v, fpx); drawTitle(ctx, t, v, fpx); drawCursor(ctx, v); }
+    if (v.third) { drawLabels(ctx, t, v, fpx); drawHotbar(ctx, t, v, fpx); drawCursor(ctx, v); }
+    // название земли при входе — в любом виде
+    drawTitle(ctx, t, v, fpx);
     if (!v.third) {
       ctx.fillStyle = 'rgba(255,240,200,0.75)';
       ctx.fillRect(Math.round(cx) - 1, Math.round(cy) - 5, 2, 3); ctx.fillRect(Math.round(cx) - 1, Math.round(cy) + 3, 2, 3);

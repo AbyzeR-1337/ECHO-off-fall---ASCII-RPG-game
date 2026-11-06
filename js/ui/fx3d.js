@@ -57,7 +57,7 @@
     { id: 'hand', n: 'Рука на экране', v: [0, 1], f: (v) => (v ? 'да' : 'нет'), d3: 1, fp: 1 },
     { id: 'reset', n: 'Сбросить всё', act: 1 },
   ];
-  const BASE = Object.assign({ pix: 0, smooth: 0, fog: 1, light: 1, lightR: 1, shadows: 1, fov: 69, dist: 1, bob: 1, hand: 1, asz: 8, adist: 10, aang: 0.95, cam: 0, grass: 1 }, P3 ? P3.FX0 : {});
+  const BASE = Object.assign({ pix: 0, smooth: 0, fog: 1, light: 1, lightR: 1, shadows: 1, fov: 69, dist: 1, bob: 1, hand: 1, asz: 8, adist: 10, aang: 0.95, cam: 1, grass: 1 }, P3 ? P3.FX0 : {});
   const PRESETS = [
     ['Ночная долина', { ql: 0, dith: 0, temp: -0.35, sat: 0.85, con: 1.12, bri: 0.9, vig: 0.65, bloom: 0.45, bth: 0.65 }],
     ['Мрачная гравюра', {}],
@@ -87,7 +87,13 @@
     ['ASCII: вид сверху', { aang: 1.25, adist: 11 }],
   ];
   const FX = UI.FX3 = Object.assign({}, BASE, PRESETS[0][1], { preset: 0 });
-  try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o) Object.assign(FX, o); } catch (e) { /* по умолчанию */ }
+  try {
+    const o = JSON.parse(localStorage.getItem(KEY) || 'null');
+    // 3D снова по умолчанию от первого лица: старые настройки переводятся один раз
+    if (o && !(o.v >= 3)) { o.cam = 1; o.v = 3; }
+    if (o) Object.assign(FX, o);
+  } catch (e) { /* по умолчанию */ }
+  FX.v = 3;
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(FX)); } catch (e) { /* не страшно */ } };
   // передать в шейдеры
   UI.fx3Apply = function () {

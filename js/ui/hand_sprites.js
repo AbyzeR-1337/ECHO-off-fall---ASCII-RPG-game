@@ -76,6 +76,7 @@
     lizard: { k: 1.04, skin: ['#5e8a6a', '#4e7a8a', '#7a8a4a'] }, catfolk: { k: 0.96, skin: ['#d8a878', '#c89058', '#e8c8a8'] },
     tiefling: { k: 1.0, skin: ['#b04848', '#9a3a5a', '#c06050'] }, giant: { k: 1.16, skin: ['#c89c80', '#b88a6a', '#a87a5a'] },
     taur: { k: 1.07, skin: ['#f0d4bc', '#e2bc9c', '#c89878', '#a87858'] }, femboy: { k: 0.9, skin: ['#f4dccc', '#ecc8b0', '#d8b090'] },
+    fae: { k: 0.78, skin: ['#f4e8f0', '#e0f0e0', '#e8e0f8'] }, merfolk: { k: 1.0, skin: ['#9ac8c8', '#88b8c0', '#a8d0c8'] }, vampire: { k: 0.95, skin: ['#e8e4e8', '#dcd4dc', '#f0ecf0'] }, wolfkin: { k: 1.05, skin: ['#c8a080', '#a88060', '#d8b898'] },
   };
   UI.HAND_RACE = RACE;
   function lookOf(P) {

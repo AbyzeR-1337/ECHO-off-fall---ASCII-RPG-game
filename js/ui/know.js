@@ -150,6 +150,9 @@
     const items = Object.keys((P.known.items) || {}).length, fx = Object.keys(P.known.fx || {}).length;
     if (items) row('Понятых вещей', String(items));
     if (fx) row('Понятых состояний', String(fx));
+    // знамения: какие скрытые пути уже зовут и что для них делать (js/game/pace.js)
+    const om = Gm.omenLines ? Gm.omenLines() : [];
+    if (om.length) { H('Знамения'); for (const l of om) L.push([l, l.startsWith('✓') ? '#a0e0a0' : '#c8b0ff']); }
     // ---- мир ----
     H('Мир');
     if (P.goddess) row('Богиня мира', P.goddess.n + ', ' + P.goddess.e.toLowerCase());

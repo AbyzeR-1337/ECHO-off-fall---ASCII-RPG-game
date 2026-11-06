@@ -5,7 +5,9 @@
   const D = E.D;
   const mk = D.mkAb;
   const C = D.classes = {};
-  const c = (P, k) => (P.c[k] || 0);
+  // скрытые пути открываются чуть раньше: счётчики «весят» на треть больше (пороги ≈ на четверть ниже)
+  D.PACE_HIDDEN = 1.35;
+  const c = (P, k) => (P.c[k] || 0) * D.PACE_HIDDEN;
   D.rankOf = (pts) => Math.floor(Math.sqrt(Math.max(0, pts) / 20)) + 1;
   D.rankPts = (r) => 20 * (r - 1) * (r - 1);
 
