@@ -127,6 +127,7 @@
         }
         s.x = nx; s.y = ny; s.z = nz;
       }
+      if (s.done && s.k === 'spell' && RT.onSpellEnd) { try { RT.onSpellEnd(s); } catch (e) { /* без эффекта */ } }
       if (s.done && !s.stuck) SHOTS.splice(i, 1);
     }
   };

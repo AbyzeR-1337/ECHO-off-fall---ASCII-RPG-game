@@ -1249,6 +1249,9 @@
     // стрелы, болты, камни и чары в полёте
     const sh = shotsMesh(now, lights, gox - RO[0], goz - RO[1]);
     if (sh) fm.push({ h: sh, off: [gox - RO[0], 0, goz - RO[1]], noShadow: true });
+    // видимая магия: искры, лучи, кольца, стены, сферы
+    const vx = UI.vfxMesh ? UI.vfxMesh(now, lights, gox - RO[0], goz - RO[1]) : null;
+    if (vx) fm.push({ h: vx, off: [gox - RO[0], 0, goz - RO[1]], noShadow: true });
     const bills = meshes.map((ms) => ({ h: ms.bh, off: [ms.cd.ox - RO[0], 0, ms.cd.oz - RO[1]] }));
     // мелкая трава у ног: в ASCII её рисуют сами знаки земли
     if (DET && DET.h && m.outdoor && !ASC) bills.push({ h: DET.h, off: [DET.cx - RO[0], 0, DET.cz - RO[1]] });
@@ -1324,7 +1327,7 @@
     if (SHOT_H) { P3.free(SHOT_H); SHOT_H = null; }
     if (!RT || !RT.shots || !RT.shots.length) return null;
     const M = P3.mesh();
-    const prism = (cx, cy, cz, d, len, th, tile, back) => {
+    const prism = (cx, cy, cz, d, len, th, tile, back, glow) => {
       // ось d (единичная), поперечные u (по земле) и v (вверх от оси)
       let ux = -d[2], uz = d[0];
       const ul = Math.hypot(ux, uz) || 1; ux /= ul; uz /= ul;
@@ -1335,21 +1338,23 @@
       for (let i = 0; i < 4; i++) {
         const c0 = C[i], c1 = C[(i + 1) % 4];
         const n = [ux * (c0[0] + c1[0]) * 0.5 + v[0] * (c0[1] + c1[1]) * 0.5, v[1] * (c0[1] + c1[1]) * 0.5, uz * (c0[0] + c1[0]) * 0.5 + v[2] * (c0[1] + c1[1]) * 0.5];
-        P3.quad(M, off(a, c0[0], c0[1]), off(b, c0[0], c0[1]), off(b, c1[0], c1[1]), off(a, c1[0], c1[1]), [0, 0], [1, 0.2], tile, n, 1, 0);
+        P3.quad(M, off(a, c0[0], c0[1]), off(b, c0[0], c0[1]), off(b, c1[0], c1[1]), off(a, c1[0], c1[1]), [0, 0], [1, 0.2], tile, n, 1, glow ? 16 : 0, glow);
       }
-      P3.quad(M, off(b, -1, -1), off(b, 1, -1), off(b, 1, 1), off(b, -1, 1), [0, 0], [0.2, 0.2], tile, d, 1, 0);
+      P3.quad(M, off(b, -1, -1), off(b, 1, -1), off(b, 1, 1), off(b, -1, 1), [0, 0], [0.2, 0.2], tile, d, 1, glow ? 16 : 0, glow);
     };
     for (const s of RT.shots) {
       const sp = Math.hypot(s.vx, s.vy, s.vz) || 1, d = [s.vx / sp, s.vy / sp, s.vz / sp];
       const gy = s.y;
       if (s.k === 'spell') {
-        const col = s.el === 'ice' ? [0.6, 0.85, 1] : s.el === 'storm' ? [0.75, 0.8, 1] : s.el === 'acid' ? [0.55, 1, 0.4] : s.el === 'holy' ? [1, 0.95, 0.7] : s.el === 'dark' || s.el === 'void' || s.el === 'arcane' ? [0.6, 0.4, 1] : [1, 0.55, 0.2];
-        // сгусток — звезда из трёх лучей, крутится на лету
-        const r = 0.05 + 0.015 * Math.sin(now / 40), a = now / 90;
+        const SCc = E.Schools && E.Schools.COL, col = (SCc && SCc[s.el]) || (s.el === 'ice' ? [0.6, 0.85, 1] : [1, 0.6, 0.25]);
+        // сгусток — светящаяся звезда, крутится на лету; за ним — след искр
+        const big = s.big ? 1.7 : 1, r = (0.06 + 0.015 * Math.sin(now / 40)) * big, a = now / 90;
+        const glow = [Math.min(2, col[0] * 1.6), Math.min(2, col[1] * 1.6), Math.min(2, col[2] * 1.6)];
         const ax = [[Math.cos(a), 0, Math.sin(a)], [0, 1, 0], [-Math.sin(a), 0, Math.cos(a)]];
-        for (const q of ax) prism(s.x, gy, s.z, q, 0.17, r, 'flame', 0.5);
-        prism(s.x, gy, s.z, d, 0.5, r * 0.6, 'flame', 0.9);
-        lights.unshift({ x: ox + s.x, y: gy, z: oz + s.z, r: 4.5, col, i: 1.5 });
+        for (const q of ax) prism(s.x, gy, s.z, q, 0.2 * big, r, 'flame', 0.5, glow);
+        prism(s.x, gy, s.z, d, 0.5 * big, r * 0.55, 'flame', 0.9, glow);
+        if (E.RT.spellTrail) E.RT.spellTrail(s);
+        lights.unshift({ x: ox + s.x, y: gy, z: oz + s.z, r: 5 * big, col, i: 1.7 });
         continue;
       }
       // особый снаряд: наконечник своего цвета, огненный — горит и светит

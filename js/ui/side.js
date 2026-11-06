@@ -189,6 +189,9 @@
     t.text(X, y++, 'Раз ' + U.pad(st.int, 3) + 'Вер ' + U.pad(st.fai, 3) + 'Уд  ' + st.luck, COL.text, COL.panel, IW);
     if (P.level >= 100) t.text(X, y++, 'Воля ' + U.pad(st.wil, 3) + 'Резонанс ' + st.res, '#d0c0ff', COL.panel, IW);
     if (P.pts > 0) t.text(X, y++, '+' + P.pts + ' очк. навыков (C)', COL.accent, COL.panel, IW);
+    // школы магии: в какой ты и какой ранг (F…S)
+    const SCl = E.Schools;
+    if (SCl && P.schools) { const ks = Object.keys(P.schools); if (ks.length) { const mn = P.school && P.schools[P.school] != null ? P.school : ks[0]; t.text(X, y++, [mn].concat(ks.filter((s) => s !== mn)).map((s) => U.cap(SCl.list[s].who[P.sex === 'f' ? 1 : 0]) + ' ' + SCl.TIERS[Math.max(0, SCl.rank(s))]).join(' · '), SCl.list[mn].c, COL.panel, IW); } }
     // в руках и на поясе
     y++; head(y++, 'Снаряжение');
     t.text(X, y++, Gm1.handsLine(P), COL.text, COL.panel, IW);

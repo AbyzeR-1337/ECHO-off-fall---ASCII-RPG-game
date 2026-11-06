@@ -136,7 +136,7 @@
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = y * W + x, t = m.tiles[i];
       if (t !== T.DOWN && t !== T.UP && t !== T.MINE && t !== T.PORTAL) continue;
-      if (ctx.dungeon && !m.ex[i] && !(G.map === m && G.vis[i])) continue;
+      // подземелье строится целиком сразу — вещи тоже, а не только уже разведанные
       const f = m.feat[i];
       const hb = cd.h[i];
       const sky = ctx.dungeon ? 0 : TL[t].indoor ? 0.3 : 1;

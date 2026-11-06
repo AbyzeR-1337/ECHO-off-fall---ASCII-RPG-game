@@ -28,7 +28,8 @@
     if (t === T.OUTHOUSE) return ['Зайти', 'нужник'];
     if (t === T.SIGN) return ['Прочесть', 'вывеска'];
     if (TL[t].stall || (m.stalls && m.stalls[i])) return ['Торговать', t === T.COUNTER ? 'стойка' : E.Gm.stallName(m, f.x, f.y)];
-    if (TL[t].ore) return ['Добыть', 'рудная жила'];
+    if (TL[t].ore) return E.Gm.toolEq('pick') ? ['Добыть киркой', 'рудная жила'] : ['Нужна кирка', 'рудная жила — или чары земли, бури, огня'];
+    if (TL[t].crystal) return E.Gm.toolEq('pick') ? ['Отколоть', 'кристалл'] : ['Нужна кирка', 'кристалл'];
     return ['Использовать', ft && ft.name ? ft.name : TL[t].name];
   }
   UI.focusLabel = () => { const v = verbOf(G.focus); return v ? v[0] + (v[1] ? ': ' + v[1] : '') : null; };
@@ -45,6 +46,8 @@
     if (v.third) { drawLabels(ctx, t, v, fpx); drawHotbar(ctx, t, v, fpx); drawCursor(ctx, v); }
     // название земли при входе — в любом виде
     drawTitle(ctx, t, v, fpx);
+    drawTips(ctx, t, v, fpx);
+    drawPops(ctx, t, v, fpx);
     if (!v.third) {
       ctx.fillStyle = 'rgba(255,240,200,0.75)';
       ctx.fillRect(Math.round(cx) - 1, Math.round(cy) - 5, 2, 3); ctx.fillRect(Math.round(cx) - 1, Math.round(cy) + 3, 2, 3);
@@ -98,7 +101,8 @@
       const lh = fpx * 1.2, x0 = v.vx0 + 8, y0 = v.vy0 + fpx * 2.4;
       const rows = list.map((x, i) => {
         const a = x.a, cd = staff && P.cd[x.id] > 0, poor = staff && P.mp < a.cost;
-        return { t: (i + 1) + ' ' + x.n + (staff ? '  ' + a.cost : x.cnt ? ' ×' + x.cnt : x.inf ? '  ∞' : ''), on: cur && x.id === cur.id, dim: cd || poor };
+        const tier = a && a.k === 'school' && E.Schools ? E.Schools.TIERS[a.tier] + ' ' : '';
+        return { t: (i + 1) + ' ' + tier + x.n + (x.lock ? '  ✕' : staff ? '  ' + a.cost : x.cnt ? ' ×' + x.cnt : x.inf ? '  ∞' : ''), on: cur && x.id === cur.id, dim: cd || poor || !!x.lock, col: a && a.k === 'school' && E.Schools ? E.Schools.list[a.school].c : null };
       });
       const w2 = Math.max(...rows.map((r) => ctx.measureText(r.t).width)) + fpx;
       ctx.fillStyle = 'rgba(10,8,6,0.55)'; ctx.fillRect(x0 - 4, y0 - 2, w2, rows.length * lh + fpx * 1.3);
@@ -108,6 +112,7 @@
         if (r.on) { ctx.fillStyle = 'rgba(200,170,90,0.35)'; ctx.fillRect(x0 - 2, y - lh / 2, w2 - 4, lh); }
         ctx.fillStyle = r.on ? '#ffe6a0' : r.dim ? '#7a7068' : '#d8cca8';
         ctx.fillText(r.t, x0 + 2, y);
+        if (r.col && !r.dim) { ctx.fillStyle = r.col; ctx.fillRect(x0 - 3, y - lh * 0.32, 2, lh * 0.64); }
       });
     }
     if (lines.length) {
@@ -173,6 +178,76 @@
     void n;
     ctx.restore();
   }
+  // всплывающие слова над местом: урон, комбо, находки, «Обвал!» — поднимаются и тают
+  const POPS = UI.pops = [];
+  UI.pop3d = function (x, y, s, col, big) {
+    const m = G.map; if (!m) return;
+    const t0 = performance.now();
+    const stack = POPS.filter((p) => p.tx === x && p.ty === y && t0 - p.t0 < 600).length;
+    if (POPS.length > 40) POPS.shift();
+    POPS.push({ tx: x, ty: y, x: x + 0.5 + (Math.random() - 0.5) * 0.35, y: y + 0.5 + (Math.random() - 0.5) * 0.35, s: String(s), col: col || '#f4ece0', t0, big: !!big, key: m.key, up: stack * 0.24 });
+  };
+  function drawPops(ctx, t, v, fpx) {
+    const m = G.map, V3 = UI.V3;
+    if (!POPS.length || !V3 || !V3.proj || !m) return;
+    const ox = m.kind === 'over' ? m.region.x * MW : 0, oz = m.kind === 'over' ? m.region.y * MH : 0;
+    const gAt = (x, z) => (UI.Hgt && UI.Hgt.groundAt ? UI.Hgt.groundAt(x, z) : 0);
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let i = POPS.length - 1; i >= 0; i--) {
+      const p = POPS[i], age = (v.now - p.t0) / 1000;
+      if (age > 1.4 || p.key !== m.key) { POPS.splice(i, 1); continue; }
+      if (age < 0) continue;
+      const wx = ox + p.x, wz = oz + p.y;
+      const q = V3.proj(wx, gAt(wx, wz) + (m.outdoor ? 1.3 : 0.95) + p.up + age * 0.4, wz);
+      if (!q || q[0] < v.vx0 || q[0] > v.vx0 + v.vw || q[1] < v.vy0 || q[1] > v.vy0 + v.vh) continue;
+      ctx.globalAlpha = age < 0.95 ? 1 : Math.max(0, 1 - (age - 0.95) / 0.45);
+      const sz = p.big ? fpx * (1.05 + Math.max(0, 0.25 - age) * 1.2) : fpx * 0.82;
+      ctx.font = (p.big ? '700 ' : '600 ') + Math.round(sz) + 'px ' + t.family;
+      stroked(ctx, p.s, Math.round(q[0]), Math.round(q[1]), p.col, p.big ? 4 : 3);
+    }
+    ctx.restore();
+  }
+  // подписи у того, что можно взять или сломать: жилы, кристаллы, тлеющие стены чар — с подсказкой, чем
+  function drawTips(ctx, t, v, fpx) {
+    const m = G.map, P = G.P, V3 = UI.V3;
+    if (!V3 || !V3.proj || !m || !P || UI.stack.length > 1) return;
+    const ox = m.kind === 'over' ? m.region.x * MW : 0, oz = m.kind === 'over' ? m.region.y * MH : 0;
+    const gAt = (x, z) => (UI.Hgt && UI.Hgt.groundAt ? UI.Hgt.groundAt(x, z) : 0);
+    const R = v.third ? 9 : 7, pick = E.Gm.toolEq('pick'), SC = E.Schools;
+    const blast = SC && G.P.abil.some((id) => { const a = E.D.ab[id]; return a && a.k === 'school' && (a.el === 'earth' || a.el === 'storm' || a.el === 'arcane' || (a.el === 'fire' && a.tier >= 1)) && !SC.why(a); });
+    const found = [];
+    for (let y = Math.max(0, P.y - R); y <= Math.min(m.h - 1, P.y + R); y++) for (let x = Math.max(0, P.x - R); x <= Math.min(m.w - 1, P.x + R); x++) {
+      const i = y * m.w + x, tl = TL[m.tiles[i]];
+      if (!(tl.ore || tl.crystal) || !G.vis[i]) continue;
+      found.push({ x, y, tl, d: Math.hypot(x - P.x, y - P.y) });
+    }
+    if (!found.length) return;
+    found.sort((a, b) => a.d - b.d);
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const f1 = Math.max(10, Math.round(fpx * 0.78)), f2 = Math.max(9, Math.round(fpx * 0.64));
+    const used = [];
+    let n = 0;
+    for (const o of found) {
+      if (n >= 4) break;
+      const wx = ox + o.x + 0.5, wz = oz + o.y + 0.5;
+      const q = V3.proj(wx, gAt(wx, wz) + 1.05, wz);
+      if (!q || q[0] < v.vx0 + 20 || q[0] > v.vx0 + v.vw - 20 || q[1] < v.vy0 + 20 || q[1] > v.vy0 + v.vh - 40) continue;
+      const nm = o.tl.ore ? 'Рудная жила' : 'Кристалл';
+      const how = pick ? 'E — добыть киркой' : o.tl.ore ? (blast ? 'кирка — или разбей чарами' : 'нужна кирка (или чары земли, бури)') : 'нужна кирка';
+      ctx.font = '600 ' + f1 + 'px ' + t.family;
+      const lw = Math.max(ctx.measureText(nm).width, ctx.measureText(how).width * f2 / f1);
+      const r = [q[0] - lw / 2, q[1] - f1, lw, f1 * 2.4];
+      if (used.some((u) => r[0] < u[0] + u[2] && u[0] < r[0] + r[2] && r[1] < u[1] + u[3] && u[1] < r[1] + r[3])) continue;
+      used.push(r); n++;
+      ctx.globalAlpha = Math.max(0.35, 1 - o.d / (R + 1));
+      stroked(ctx, nm, Math.round(q[0]), Math.round(q[1]), o.tl.ore ? '#f0b080' : '#c8b0ff');
+      ctx.font = f2 + 'px ' + t.family;
+      stroked(ctx, how, Math.round(q[0]), Math.round(q[1] + f1 * 1.1), pick ? '#e8dcc0' : '#b0a898', 2.5);
+    }
+    ctx.restore();
+  }
   // внизу: уровень и опыт, под ними — десять ячеек (1–9, 0): заклинания посоха, стрелы или умения
   function drawHotbar(ctx, t, v, fpx) {
     const P = G.P, LO = E.Loadout;
@@ -190,7 +265,7 @@
     // ячейки
     const lh = LO && LO.hand && LO.hand(), w = lh ? P.eq[lh] : null;
     let cells = [];
-    if (lh && w) cells = LO.list(w).map((x) => ({ n: x.n, cd: x.a && P.cd[x.id] > 0, poor: x.a && LO.kind(w) === 'staff' && P.mp < x.a.cost, on: LO.cur(w) && LO.cur(w).id === x.id, cnt: x.cnt }));
+    if (lh && w) cells = LO.list(w).map((x) => ({ n: x.n, cd: x.a && P.cd[x.id] > 0, poor: (x.a && LO.kind(w) === 'staff' && P.mp < x.a.cost) || !!x.lock, on: LO.cur(w) && LO.cur(w).id === x.id, cnt: x.cnt }));
     else cells = (P.abil || []).slice(0, 10).map((id) => { const a = E.D.ab[id]; return a ? { n: a.n, cd: P.cd[id] > 0, poor: a.cost && P.mp < a.cost } : null; });
     ctx.fillStyle = 'rgba(4,6,10,0.82)'; ctx.fillRect(x0, y1, W, ch);
     for (let i = 0; i < 10; i++) {

@@ -135,7 +135,7 @@ void main(){
     base = mix(base, rock, steep*max(snowy, 0.6));
     t.a = 1.0;
   }
-  else if (vKind > 13.5 && vKind < 15.5) { t = vec4(1.0); base = vTint; }
+  else if (vKind > 13.5 && vKind < 16.5) { t = vec4(1.0); base = vTint; }
   else { t = texture2D(uTex, vTile + fract(l)*uTS); base = t.rgb*vTint; }
   float sh = shadowAt(vLS, 0.0018);
   vec3 L = lightAt(vW, n, vSky, 0.0, sh);
@@ -152,8 +152,18 @@ void main(){
   // белые точки в траве светятся сами; травинки ночью чуть видны и без огня
   if (vKind > 14.5 && vKind < 15.5) c = max(c, vTint*(0.55 + 0.45*uNight));
   if (vKind > 13.5 && vKind < 14.5) c = max(c, vTint*0.5*uNight*vLoc.y);
+  // чары: светятся сами, своим цветом
+  // искра — круглая, с горячей белой серединой и рваным краем; лента (луч, молния) — гаснет к краям поперёк
+  if (vKind > 15.5 && vKind < 16.5) {
+    vec2 q = fract(vLoc) - 0.5;
+    float d = vLoc.x > 1.5 ? abs(q.x)*2.0 : length(q)*2.0;
+    float k = 1.0 - d;
+    if (k <= 0.0 || k*1.7 < bayer(gl_FragCoord.xy)) discard;
+    c = vTint*(0.6 + 0.8*k);
+    c = mix(c, vec3(1.0), smoothstep(0.5, 0.95, k)*0.55);
+  }
   // в альфе — что это (для отражений и ASCII): вода, стены и крыши, земля
-  float solid = (vKind > 9.5 && vKind < 10.5) || (vKind > 12.5 && vKind < 13.5) || vKind > 21.5 || n.y < 0.6 ? 0.9 : 1.0;
+  float solid = vKind > 15.5 && vKind < 16.5 ? 0.8 : (vKind > 9.5 && vKind < 10.5) || (vKind > 12.5 && vKind < 13.5) || vKind > 21.5 || n.y < 0.6 ? 0.9 : 1.0;
   gl_FragColor = vec4(quant(fogIt(c, vW)), water ? 0.5 : solid);
 }`;
   // спрайты-«щиты»: всегда лицом к камере, стоят на земле
@@ -190,7 +200,7 @@ void main(){
   const VS_SH_WORLD = `
 attribute vec3 aPos; attribute float aKind;
 uniform mat4 uLVP; uniform vec3 uOff;
-void main(){ if (aKind > 0.5 && (aKind < 9.5 || aKind > 19.5 || (aKind > 13.5 && aKind < 15.5))) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; } gl_Position = uLVP*vec4(aPos + uOff, 1.0); }`;
+void main(){ if (aKind > 0.5 && (aKind < 9.5 || aKind > 19.5 || (aKind > 13.5 && aKind < 16.5))) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; } gl_Position = uLVP*vec4(aPos + uOff, 1.0); }`;
   const FS_SH = PREC + `${PACK}
 void main(){ gl_FragColor = packD(gl_FragCoord.z); }`;
   const VS_SH_BB = `
@@ -648,10 +658,41 @@ void main(){
   P3.shadows = true;
 
   // ============================================================
-  // Текстуры: пиксель-арт 32×32 в атласе 1024×1024
+  // Текстуры: правило рисует пиксель-арт 32×32, потом он вдвое уточняется (64×64) —
+  // края ступенек сглаживаются (scale2x), появляется рельеф (свет сверху-слева: выпуклое светлеет
+  // по верхнему краю, швы и щели темнеют) и мелкое зерно. Атлас 2048×2048
   // ============================================================
-  const TS = 32, AW = 1024, PER = AW / TS;
-  let atlas = null, actx = null, atex = null, aIndex = new Map(), aNext = 0, aDirty = false;
+  const BS = 32, TS = 64, AW = 2048, PER = AW / TS;
+  const qz = (v) => Math.max(0, Math.min(255, Math.round(v / 6) * 6));
+  function refine(src, dst, rnd) {
+    const S = BS, D = TS;
+    const at = (x, y) => (((y + S) % S) * S + ((x + S) % S)) * 4;
+    const same = (a, b) => src[a] === src[b] && src[a + 1] === src[b + 1] && src[a + 2] === src[b + 2] && src[a + 3] === src[b + 3];
+    // 1) scale2x: ступенчатые края становятся мягче, прямые — остаются прямыми
+    const up = new Uint8ClampedArray(D * D * 4);
+    const cp = (o, i) => { up[o] = src[i]; up[o + 1] = src[i + 1]; up[o + 2] = src[i + 2]; up[o + 3] = src[i + 3]; };
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const P = at(x, y), A = at(x, y - 1), B = at(x + 1, y), C = at(x - 1, y), Dn = at(x, y + 1);
+      const o0 = ((y * 2) * D + x * 2) * 4, o1 = o0 + 4, o2 = o0 + D * 4, o3 = o2 + 4;
+      cp(o0, same(C, A) && !same(C, Dn) && !same(A, B) ? A : P);
+      cp(o1, same(A, B) && !same(A, C) && !same(B, Dn) ? B : P);
+      cp(o2, same(Dn, C) && !same(Dn, B) && !same(C, A) ? C : P);
+      cp(o3, same(B, Dn) && !same(B, A) && !same(Dn, C) ? Dn : P);
+    }
+    // 2) рельеф по яркости и 3) зерно; светящиеся точки (альфа < 255) не трогаем
+    const L = new Float32Array(D * D);
+    for (let i = 0; i < D * D; i++) L[i] = (up[i * 4] * 0.3 + up[i * 4 + 1] * 0.55 + up[i * 4 + 2] * 0.15) / 255;
+    const h = (x, y) => L[((y + D) % D) * D + ((x + D) % D)];
+    for (let y = 0; y < D; y++) for (let x = 0; x < D; x++) {
+      const i = (y * D + x) * 4;
+      dst[i + 3] = up[i + 3];
+      if (up[i + 3] < 255) { dst[i] = up[i]; dst[i + 1] = up[i + 1]; dst[i + 2] = up[i + 2]; continue; }
+      const sl = (h(x - 1, y - 1) + h(x, y - 1) * 0.5 + h(x - 1, y) * 0.5) - (h(x + 1, y + 1) + h(x, y + 1) * 0.5 + h(x + 1, y) * 0.5);
+      const k = 1 - Math.max(-0.28, Math.min(0.28, sl * 0.75)) + (rnd() - 0.5) * 0.08;
+      dst[i] = qz(up[i] * k); dst[i + 1] = qz(up[i + 1] * k); dst[i + 2] = qz(up[i + 2] * k);
+    }
+  }
+  let atlas = null, actx = null, atex = null, aIndex = new Map(), aNext = 0, aDirty = false, aPend = [];
   function initAtlas() {
     atlas = document.createElement('canvas'); atlas.width = AW; atlas.height = AW;
     actx = atlas.getContext('2d');
@@ -669,9 +710,11 @@ void main(){
     if (k == null) {
       if (aNext >= PER * PER) return [0, 0];
       k = aNext++;
-      const img = actx.createImageData(TS, TS);
-      (P3.TEX[name.split(':')[0]] || P3.TEX.noise)(img.data, name, mkRand(name));
+      const img = actx.createImageData(TS, TS), base = new Uint8ClampedArray(BS * BS * 4), rnd = mkRand(name);
+      (P3.TEX[name.split(':')[0]] || P3.TEX.noise)(base, name, rnd);
+      refine(base, img.data, rnd);
       actx.putImageData(img, (k % PER) * TS, Math.floor(k / PER) * TS);
+      aPend.push([k, img]);
       aIndex.set(name, k);
       aDirty = true;
     }
@@ -794,7 +837,13 @@ void main(){
     if (L.u.uOff) gl.uniform3f(L.u.uOff, off[0], off[1], off[2]);
   }
   function uploadAtlases() {
-    if (aDirty) { gl.bindTexture(gl.TEXTURE_2D, atex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlas); aDirty = false; }
+    // новые плитки догружаются по одной; много сразу — проще залить весь атлас
+    if (aDirty) {
+      gl.bindTexture(gl.TEXTURE_2D, atex);
+      if (aPend.length <= 48) for (const [k, img] of aPend) gl.texSubImage2D(gl.TEXTURE_2D, 0, (k % PER) * TS, Math.floor(k / PER) * TS, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlas);
+      aPend = []; aDirty = false;
+    }
     if (sDirty.length) {
       gl.bindTexture(gl.TEXTURE_2D, stex);
       for (const [x, y, w, , src] of sDirty) { if (w === SW) { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, spr); break; } gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, gl.RGBA, gl.UNSIGNED_BYTE, src); }

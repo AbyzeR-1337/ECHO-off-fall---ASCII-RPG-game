@@ -705,7 +705,7 @@
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = y * W + x, tid = m.tiles[i];
       if (!SET.has(tid)) continue;
-      if (ctx.dungeon && !m.ex[i] && !(G.map === m && G.vis[i])) continue;
+      // подземелье строится целиком сразу — вещи тоже, а не только уже разведанные
       const key = TL[tid].key;
       const indoor = !!(TL[tid].indoor || ctx.insideRoof[i]);
       const sky = ctx.dungeon ? 0 : indoor ? 0.6 : 1;

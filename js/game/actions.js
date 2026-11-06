@@ -71,7 +71,12 @@
     if (P.eq.head && P.eq.head.b === 'a_rootcrown' && m.tiles[ti] === T.COBBLE) cost *= 2;
     if (t.lava) { Gm.hurtPlayer(Math.round(P.mhp * 0.35), 'lava'); if (P.dead) return; Gm.msg('Лава обжигает ноги!', '#ff6020'); }
     if (t.fall) { Gm.fall(); return; }
-    if (f && f.k === 'link') Gm.msg('Здесь: ' + f.name + '. (Действие — пройти)', '#d0c090');
+    // вход: зашёл в него — и ты уже там (шахта, пещера, склеп, лестница, разрыв). Если путь ведёт дальше — не сворачиваем
+    if (f && f.k === 'link' && t.link) {
+      const rt = E.RT, mid = (rt && rt.path && rt.path.length && (rt.path[rt.path.length - 1][0] !== nx || rt.path[rt.path.length - 1][1] !== ny)) || (E.UI && E.UI.autoMid);
+      if (!mid) { Gm.msg((f.name ? U.cap(f.name) : 'Проход') + '.', '#d0c090'); if (rt) rt.path = null; Gm.useLink(f, nx, ny); return; }
+      Gm.msg('Здесь: ' + f.name + '.', '#d0c090');
+    }
     const its = Gm.itemsAt(nx, ny);
     if (its.length) Gm.msg('Здесь лежит: ' + its.slice(0, 3).map((o) => Items.name(o.it)).join(', ') + (its.length > 3 ? '…' : '') + '.', '#c0c0a0');
     Gm.endTurn(cost);

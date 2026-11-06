@@ -450,7 +450,8 @@
       // в живом мире шаги идут своим темпом
       if (E.RT && E.RT.on && E.RT.busy()) { path.unshift([nx, ny]); setTimeout(step, Math.max(16, E.RT.busyUntil - performance.now())); return; }
       if (E.RT) E.RT.stepping = true;
-      try { E.Gm.move(nx - G.P.x, ny - G.P.y); } finally { if (E.RT) E.RT.stepping = false; }
+      UI.autoMid = path.length > 0;
+      try { E.Gm.move(nx - G.P.x, ny - G.P.y); } finally { if (E.RT) E.RT.stepping = false; UI.autoMid = false; }
       UI.render();
       if (G.map.key !== key) return;
       if (G.P.x !== nx || G.P.y !== ny) return;

@@ -17,7 +17,7 @@
   const onload = () => {
     if (++loaded < 2) return;
     A = document.createElement('canvas'); A.width = img.width; A.height = img.height; A.getContext('2d').drawImage(img, 0, 0);
-    M = document.createElement('canvas'); M.width = msk.width; M.height = msk.height; M.getContext('2d').drawImage(msk, 0, 0);
+    M = document.createElement('canvas'); M.width = msk.width; M.height = msk.height; M.getContext('2d', { willReadFrequently: true }).drawImage(msk, 0, 0);
     ready = true;
   };
   img.onload = onload; msk.onload = onload;
@@ -86,25 +86,27 @@
     return { skin, k: r.k * mass };
   }
   // цвет кристалла посоха — по стихии выбранного заклинания
-  const ORB = { fire: [255, 130, 40], ice: [120, 210, 255], storm: [170, 190, 255], holy: [255, 220, 120], arcane: [170, 110, 255], void: [140, 80, 220], dark: [140, 80, 220], acid: [140, 230, 80] };
+  const ORB = { fire: [255, 130, 40], ice: [120, 210, 255], storm: [170, 190, 255], holy: [255, 220, 120], arcane: [170, 110, 255], void: [140, 80, 220], dark: [140, 80, 220], acid: [140, 230, 80], earth: [210, 160, 90], nature: [110, 230, 90] };
 
   // готовые варианты спрайтов: перекрашенная кожа, кристалл, светящееся отдельно
   const cache = new Map();
-  function variant(name, look, orbEl) {
-    const key = name + '|' + look.skin + '|' + (orbEl || '');
+  // wood — цвет древка (у посохов разных видов своё дерево, кость, металл)
+  function variant(name, look, orbEl, wood) {
+    const key = name + '|' + look.skin + '|' + (orbEl || '') + '|' + (wood || '');
     let v = cache.get(key);
     if (v) return v;
     const R = HA.rects[name];
     if (!R) return null;
     const cv = document.createElement('canvas'), em = document.createElement('canvas');
     cv.width = em.width = R.w; cv.height = em.height = R.h;
-    const c = cv.getContext('2d');
+    const c = cv.getContext('2d', { willReadFrequently: true });
     c.drawImage(A, R.x, R.y, R.w, R.h, 0, 0, R.w, R.h);
     const id = c.getImageData(0, 0, R.w, R.h), d = id.data;
-    const md = M.getContext('2d').getImageData(R.x, R.y, R.w, R.h).data;
+    const md = M.getContext('2d', { willReadFrequently: true }).getImageData(R.x, R.y, R.w, R.h).data;
     const ed = em.getContext('2d').createImageData(R.w, R.h), e = ed.data;
     const T = hex(look.skin), Ty = 0.3 * T[0] + 0.59 * T[1] + 0.11 * T[2];
     const O = orbEl && ORB[orbEl];
+    const WD = wood && /^staff/.test(name) ? hex(wood) : null, WY = WD ? 0.3 * WD[0] + 0.59 * WD[1] + 0.11 * WD[2] : 1;
     let top = null;
     const glowKind = /^(torch|lantern)/.test(name);
     for (let y = 0; y < R.h; y++) for (let x = 0; x < R.w; x++) {
@@ -120,6 +122,11 @@
         d[q] = clamp(nr, 0, 255); d[q + 1] = clamp(ng, 0, 255); d[q + 2] = clamp(nb, 0, 255);
       }
       const orb = md[q + 1] > 128;
+      // древко: бурое дерево листа — в цвет посоха (светлота рисунка сохраняется)
+      if (WD && !orb && md[q] <= 128 && r >= b && r - b > 12 && Y < 200) {
+        const k = Y / 110 * (130 / Math.max(50, WY));
+        d[q] = clamp(WD[0] * k, 0, 255); d[q + 1] = clamp(WD[1] * k, 0, 255); d[q + 2] = clamp(WD[2] * k, 0, 255);
+      }
       if (orb && O) {
         const k = Y / 150;
         let nr = O[0] * k, ng = O[1] * k, nb = O[2] * k;
@@ -193,7 +200,8 @@
     const one = (it, sw, mirror, side, scaleK) => {
       const punching = !it && sw >= 0 && sw < 1;
       const name = UI.handSpriteName(P, it, punching);
-      const sp = variant(name, look, orbOf(it));
+      const SCm = E.Schools, wood = it && SCm && SCm.STAFF_LOOK ? SCm.STAFF_LOOK[it.b] : null;
+      const sp = variant(name, look, orbOf(it), wood);
       if (!sp) return;
       const base = name.split('_')[0];
       const s = (fh / 300) * 1.08 * look.k * scaleK;
