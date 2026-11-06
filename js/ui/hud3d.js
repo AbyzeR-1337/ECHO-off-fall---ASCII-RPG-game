@@ -41,10 +41,15 @@
     ctx.save();
     ctx.font = '700 ' + fpx + 'px ' + t.family;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    // прицел
-    ctx.fillStyle = 'rgba(255,240,200,0.75)';
-    ctx.fillRect(Math.round(cx) - 1, Math.round(cy) - 5, 2, 3); ctx.fillRect(Math.round(cx) - 1, Math.round(cy) + 3, 2, 3);
-    ctx.fillRect(Math.round(cx) - 5, Math.round(cy) - 1, 3, 2); ctx.fillRect(Math.round(cx) + 3, Math.round(cy) - 1, 3, 2);
+    // прицел (от первого лица); сверху-сзади — имя над головой героя, подписи жителей, панель 1–0
+    if (v.third) { drawLabels(ctx, t, v, fpx); drawHotbar(ctx, t, v, fpx); drawTitle(ctx, t, v, fpx); drawCursor(ctx, v); }
+    if (!v.third) {
+      ctx.fillStyle = 'rgba(255,240,200,0.75)';
+      ctx.fillRect(Math.round(cx) - 1, Math.round(cy) - 5, 2, 3); ctx.fillRect(Math.round(cx) - 1, Math.round(cy) + 3, 2, 3);
+      ctx.fillRect(Math.round(cx) - 5, Math.round(cy) - 1, 3, 2); ctx.fillRect(Math.round(cx) + 3, Math.round(cy) - 1, 3, 2);
+    }
+    // сверху-сзади подсказки — у героя, а не в середине экрана
+    const ax = v.third && v.head ? v.head[0] : cx, ay = v.third && v.head ? v.head[1] - fpx * 1.2 : cy;
     const pill = (text, x, y, fg, bg) => {
       const w = ctx.measureText(text).width + fpx;
       ctx.fillStyle = bg || 'rgba(10,8,6,0.62)'; ctx.fillRect(Math.round(x - w / 2), Math.round(y - fpx * 0.75), Math.round(w), Math.round(fpx * 1.5));
@@ -55,16 +60,24 @@
     if (a && !a.dead) {
       const name = a.kind === 'npc' ? (E.Dlg.label ? E.Dlg.label(a) : a.n) : a.n;
       const hostile = a.hostile || a.hostileToP;
-      pill(fmt(name), cx, cy - fpx * 3.2, hostile ? '#ff9a80' : '#e8e0c8');
+      let tx = cx, ty = cy;
+      // в ASCII — над головой того, по кому ударишь
+      if (v.third && UI.V3 && UI.V3.proj) {
+        const m = G.map, ox = m.kind === 'over' ? m.region.x * MW : 0, oz = m.kind === 'over' ? m.region.y * MH : 0;
+        const gy = UI.Hgt && UI.Hgt.groundAt ? UI.Hgt.groundAt(ox + a.x + 0.5, oz + a.y + 0.5) : 0;
+        const q = UI.V3.proj(ox + a.x + 0.5, gy + 1.7, oz + a.y + 0.5);
+        if (q) { tx = q[0]; ty = q[1] + fpx * 1.6; } else { tx = ax; ty = ay; }
+      }
+      pill(fmt(name), tx, ty - fpx * 3.2, hostile ? '#ff9a80' : '#e8e0c8');
       if (a.mhp) {
-        const bw = Math.min(160, v.vw * 0.2), k = U.clamp(a.hp / a.mhp, 0, 1);
-        ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(Math.round(cx - bw / 2) - 1, Math.round(cy - fpx * 2.1) - 1, Math.round(bw) + 2, 6);
-        ctx.fillStyle = hostile ? '#c84a3a' : '#7aa860'; ctx.fillRect(Math.round(cx - bw / 2), Math.round(cy - fpx * 2.1), Math.round(bw * k), 4);
+        const bw = Math.min(160, v.vw * (v.third ? 0.1 : 0.2)), k = U.clamp(a.hp / a.mhp, 0, 1);
+        ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(Math.round(tx - bw / 2) - 1, Math.round(ty - fpx * 2.1) - 1, Math.round(bw) + 2, 6);
+        ctx.fillStyle = hostile ? '#c84a3a' : '#7aa860'; ctx.fillRect(Math.round(tx - bw / 2), Math.round(ty - fpx * 2.1), Math.round(bw * k), 4);
       }
     }
     // что перед тобой
     const lab = UI.focusLabel();
-    if (lab) pill('[E] ' + fmt(lab), cx, cy + fpx * 2.6, '#ffe6a0');
+    if (lab) pill('[E] ' + fmt(lab), v.third && v.feet ? v.feet[0] : cx, v.third && v.feet ? v.feet[1] + fpx * 1.6 : cy + fpx * 2.6, '#ffe6a0');
     // памятка в начале и когда мышь не «взята»
     const now = v.now;
     if (!started) started = now;
@@ -72,7 +85,7 @@
     const lines = [];
     if (now - started < 25000) {
       if (touch) lines.push('Кнопки — идти и поворачиваться', 'Потяни по картинке — оглядеться', 'Коснись земли — идти, человека или вещи — действие');
-      else lines.push('WASD — идти, Shift — бегом, Пробел — прыжок', 'Мышь — смотреть, ЛКМ или F — удар', 'ПКМ — удар второй рукой, E — действие');
+      else lines.push('WASD — идти, Shift — бегом, Пробел — прыжок', v.third ? 'Мышь — вращать камеру, +/− — ближе/дальше' : 'Мышь — смотреть, ЛКМ или F — удар', v.third ? 'ЛКМ или F — удар, E — действие, V — ASCII/3D' : 'ПКМ — удар второй рукой, E — действие');
     }
     if (!touch && !UI.locked) lines.push('Щёлкни по картинке, чтобы смотреть мышью');
     // обойма: посох — заклинания, лук — стрелы; цифры выбирают, удар этой рукой выпускает
@@ -98,7 +111,7 @@
     if (lines.length) {
       ctx.font = fpx * 0.9 + 'px ' + t.family; ctx.textAlign = 'left';
       const lh = fpx * 1.25, w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + fpx;
-      const x0 = v.vx0 + 10, y0 = v.vy0 + v.vh - 12 - lines.length * lh;
+      const x0 = v.vx0 + 10, y0 = v.vy0 + v.vh - 12 - lines.length * lh - (v.third ? fpx * 3.4 : 0);
       ctx.fillStyle = 'rgba(10,8,6,0.55)'; ctx.fillRect(x0 - 4, y0 - 4, w, lines.length * lh + 6);
       ctx.fillStyle = '#d8cca8';
       lines.forEach((l, i) => ctx.fillText(l, x0 + fpx * 0.3, y0 + lh * (i + 0.5)));
@@ -106,6 +119,132 @@
     ctx.restore();
     seeAround();
   };
+
+  // ---------- вид сверху-сзади: подписи, панель 1–0, название земли, курсор ----------
+  const stroked = (ctx, s, x, y, fg, lw) => { ctx.lineWidth = lw || 3; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineJoin = 'round'; ctx.strokeText(s, x, y); ctx.fillStyle = fg; ctx.fillText(s, x, y); };
+  // имена жителей над головой и чем они заняты — мелко, как подпись
+  function drawLabels(ctx, t, v, fpx) {
+    const m = G.map, P = G.P, V3 = UI.V3;
+    if (!V3 || !V3.proj) return;
+    const ox = m.kind === 'over' ? m.region.x * MW : 0, oz = m.kind === 'over' ? m.region.y * MH : 0;
+    const gAt = (x, z) => (UI.Hgt && UI.Hgt.groundAt ? UI.Hgt.groundAt(x, z) : 0);
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const f1 = Math.max(10, Math.round(fpx * 0.82)), f2 = Math.max(9, Math.round(fpx * 0.7));
+    let n = 0;
+    const used = [];
+    // имя героя — первым, его не заслоняют
+    if (v.head && P.name) { ctx.font = '600 ' + f1 + 'px ' + t.family; const w0 = ctx.measureText(P.name).width; used.push([v.head[0] - w0 / 2, v.head[1] - fpx * 0.6 - f1 * 0.6, w0, f1 * 1.2]); }
+    const near = m.ents.filter((e) => !e.dead && (e.kind === 'npc' || e.kind === 'boss')).sort((a, b) => (Math.abs(a.x - P.x) + Math.abs(a.y - P.y)) - (Math.abs(b.x - P.x) + Math.abs(b.y - P.y)));
+    for (const e of near) {
+      if (e.dead || n > 14 || (e.kind !== 'npc' && e.kind !== 'boss')) continue;
+      if (Math.abs(e.x - P.x) > 14 || Math.abs(e.y - P.y) > 14 || !G.vis[e.y * m.w + e.x]) continue;
+      if (G.aim === e) continue;
+      const s = UI.mvTiles && UI.mvTiles.track ? UI.mvTiles.track(e.id, e.x, e.y, v.now) : null;
+      const cp = s ? UI.mvTiles.curPos(s, v.now) : [e.x, e.y];
+      const wx = ox + cp[0] + 0.5, wz = oz + cp[1] + 0.5;
+      const q = V3.proj(wx, gAt(wx, wz) + 1.9, wz);
+      if (!q || q[0] < v.vx0 || q[0] > v.vx0 + v.vw || q[1] < v.vy0 || q[1] > v.vy0 + v.vh) continue;
+      // незнакомца зовут по первой примете: «Женщина в годах», а не всё описание
+      let name = fmt(e.kind === 'npc' ? (E.Dlg.label ? E.Dlg.label(e) : e.n) : e.n);
+      if (e.kind === 'npc' && !(e.npc != null && E.Gm.knows && E.Gm.knows(e.npc))) name = name.split(',')[0];
+      const hostile = e.hostile || e.hostileToP;
+      ctx.font = '600 ' + f1 + 'px ' + t.family;
+      const lw = ctx.measureText(name).width;
+      const r = [q[0] - lw / 2 - 2, q[1] - f1 * 0.6, lw + 4, f1 * 2.2];
+      if (r[0] < v.vx0 || r[0] + r[2] > v.vx0 + v.vw) continue;
+      if (used.some((u) => r[0] < u[0] + u[2] && u[0] < r[0] + r[2] && r[1] < u[1] + u[3] && u[1] < r[1] + r[3])) continue;
+      used.push(r);
+      n++;
+      stroked(ctx, name, Math.round(q[0]), Math.round(q[1]), hostile ? '#ff9a80' : e.kind === 'boss' ? '#ffcf70' : '#ece6d8');
+      let sub = null;
+      if (e.kind === 'npc' && e.npc != null && E.Gm.knows && E.Gm.knows(e.npc)) {
+        const nn = E.Gm.npc(e.npc), j = D.jobs && D.jobs[e.job];
+        if (j && nn) sub = j[nn.sex] || null;
+      }
+      if (sub) { ctx.font = f2 + 'px ' + t.family; stroked(ctx, U.cap(sub), Math.round(q[0]), Math.round(q[1] + f1 * 1.05), '#8f8a80', 2.5); }
+      // ◆ — тот, кто сам хочет с тобой поговорить
+      if (e.appr || (e.offer && e.offer.until > G.S.time)) { ctx.font = '700 ' + f1 + 'px ' + t.family; stroked(ctx, '◆', Math.round(q[0]), Math.round(q[1] - f1 * 1.2), '#ffd860'); }
+    }
+    // имя героя над головой
+    if (v.head && P.name) { ctx.font = '600 ' + f1 + 'px ' + t.family; stroked(ctx, P.name, Math.round(v.head[0]), Math.round(v.head[1] - fpx * 0.6), '#f4f0e6'); }
+    void n;
+    ctx.restore();
+  }
+  // внизу: уровень и опыт, под ними — десять ячеек (1–9, 0): заклинания посоха, стрелы или умения
+  function drawHotbar(ctx, t, v, fpx) {
+    const P = G.P, LO = E.Loadout;
+    const W = Math.min(v.vw - 20, fpx * 34), x0 = Math.round(v.vx0 + (v.vw - W) / 2), cw = W / 10;
+    const ch = Math.round(fpx * 1.9), y1 = Math.round(v.vy0 + v.vh - ch - 4), y0 = y1 - Math.round(fpx * 1.1);
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    // полоса опыта
+    const need = E.Gm.need ? E.Gm.need(P.level) : 100, k = P.level >= 999 ? 1 : U.clamp((P.xp || 0) / Math.max(1, need), 0, 1);
+    ctx.fillStyle = 'rgba(4,6,10,0.82)'; ctx.fillRect(x0, y0, W, y1 - y0);
+    ctx.fillStyle = 'rgba(150,160,190,0.35)'; ctx.fillRect(x0 + 1, y0 + 1, Math.round((W - 2) * k), y1 - y0 - 2);
+    ctx.strokeStyle = 'rgba(210,214,224,0.75)'; ctx.lineWidth = 1; ctx.strokeRect(x0 + 0.5, y0 + 0.5, W - 1, y1 - y0 - 1);
+    ctx.font = Math.max(9, Math.round(fpx * 0.66)) + 'px ' + t.family; ctx.fillStyle = '#d8dce6';
+    ctx.fillText('УР ' + (P.level >= 999 ? '—' : P.level) + ' · ' + Math.floor(P.xp || 0) + ' / ' + need + ' ОП', x0 + W / 2, (y0 + y1) / 2 + 1);
+    // ячейки
+    const lh = LO && LO.hand && LO.hand(), w = lh ? P.eq[lh] : null;
+    let cells = [];
+    if (lh && w) cells = LO.list(w).map((x) => ({ n: x.n, cd: x.a && P.cd[x.id] > 0, poor: x.a && LO.kind(w) === 'staff' && P.mp < x.a.cost, on: LO.cur(w) && LO.cur(w).id === x.id, cnt: x.cnt }));
+    else cells = (P.abil || []).slice(0, 10).map((id) => { const a = E.D.ab[id]; return a ? { n: a.n, cd: P.cd[id] > 0, poor: a.cost && P.mp < a.cost } : null; });
+    ctx.fillStyle = 'rgba(4,6,10,0.82)'; ctx.fillRect(x0, y1, W, ch);
+    for (let i = 0; i < 10; i++) {
+      const cx = x0 + i * cw, c = cells[i];
+      if (c && c.on) { ctx.fillStyle = 'rgba(200,170,90,0.3)'; ctx.fillRect(Math.round(cx) + 1, y1 + 1, Math.round(cw) - 2, ch - 2); }
+      ctx.strokeStyle = 'rgba(210,214,224,0.75)'; ctx.strokeRect(Math.round(cx) + 0.5, y1 + 0.5, Math.round(cw), ch - 1);
+      ctx.font = Math.max(9, Math.round(fpx * 0.66)) + 'px ' + t.family; ctx.fillStyle = '#e8eaf0';
+      ctx.fillText(String((i + 1) % 10), cx + cw / 2, y1 + ch * 0.27);
+      if (c) {
+        ctx.font = Math.max(8, Math.round(fpx * 0.6)) + 'px ' + t.family;
+        ctx.fillStyle = c.cd || c.poor ? '#6a6a74' : c.on ? '#ffe6a0' : '#b8bcc8';
+        let s2 = c.n; while (s2.length > 2 && ctx.measureText(s2).width > cw - 4) s2 = s2.slice(0, -1);
+        ctx.fillText(s2 + (s2.length < c.n.length ? '.' : ''), cx + cw / 2, y1 + ch * 0.7);
+      }
+    }
+    ctx.restore();
+  }
+  // название земли, когда входишь в неё: разреженные золотые буквы и строка под ними
+  let lastPlace = null, placeT = 0, placeA = '', placeB = '';
+  function drawTitle(ctx, t, v, fpx) {
+    const nm = UI.placeName ? UI.placeName() : '';
+    if (nm !== lastPlace) {
+      const first = lastPlace === null;
+      lastPlace = nm; const parts = nm.split(' · ');
+      placeA = parts[0]; placeB = parts.slice(1).join(' · ');
+      placeT = first ? v.now - 1500 : v.now;
+    }
+    const age = v.now - placeT;
+    if (age > 5200) return;
+    const a = age < 600 ? age / 600 : age > 4200 ? 1 - (age - 4200) / 1000 : 1;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, a);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const y = v.vy0 + v.vh * 0.2;
+    ctx.font = '600 ' + Math.round(fpx * 1.5) + 'px ' + t.family;
+    stroked(ctx, placeA.split('').join(' '), v.vx0 + v.vw / 2, y, '#e8c878', 4);
+    if (placeB) { ctx.font = Math.round(fpx * 0.8) + 'px ' + t.family; stroked(ctx, placeB, v.vx0 + v.vw / 2, y + fpx * 1.7, '#a89c80', 3); }
+    ctx.restore();
+  }
+  // «+» — куда направлен удар: на земле перед героем
+  function drawCursor(ctx, v) {
+    const P = G.P, m = G.map, V3 = UI.V3;
+    if (!V3 || !V3.proj || P.posX == null && !v.feet) return;
+    const ox = m.kind === 'over' ? m.region.x * MW : 0, oz = m.kind === 'over' ? m.region.y * MH : 0;
+    const px = P.posX != null ? P.posX : P.x + 0.5, pz = P.posY != null ? P.posY : P.y + 0.5;
+    const d = 2.6, wx = ox + px + Math.sin(V3.yaw) * d, wz = oz + pz - Math.cos(V3.yaw) * d;
+    const q = V3.proj(wx, (UI.Hgt && UI.Hgt.groundAt ? UI.Hgt.groundAt(wx, wz) : 0) + 0.5, wz);
+    if (!q) return;
+    const x = Math.round(q[0]) + 0.5, y = Math.round(q[1]) + 0.5, r = 7;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x - r, y); ctx.lineTo(x + r, y); ctx.moveTo(x, y - r); ctx.lineTo(x, y + r); ctx.stroke();
+    ctx.strokeStyle = 'rgba(240,242,248,0.9)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x - r, y); ctx.lineTo(x + r, y); ctx.moveTo(x, y - r); ctx.lineTo(x, y + r); ctx.stroke();
+    ctx.restore();
+  }
 
   // ---------- увиденное издалека ----------
   // каждые пару секунд: земли вокруг (их видно до горизонта) и поселения, что стоят перед глазами

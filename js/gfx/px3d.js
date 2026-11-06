@@ -28,7 +28,7 @@ precision mediump float;
   // kind: 0 земля и стены, 1 вода, 2…9 мягкий край соседней земли, 20 дальняя земля
   const VS_WORLD = `
 attribute vec3 aPos; attribute vec2 aLoc; attribute vec2 aTile; attribute vec3 aN; attribute float aSky; attribute float aKind; attribute vec3 aTint;
-uniform mat4 uVP; uniform vec3 uOff; uniform vec4 uNear; uniform mat4 uSM; uniform vec4 uHide;
+uniform mat4 uVP; uniform vec3 uOff; uniform vec4 uNear; uniform mat4 uSM; uniform vec4 uHide; uniform float uThird; uniform float uWT;
 varying vec2 vLoc; varying vec2 vTile; varying vec3 vN; varying vec3 vW; varying float vSky; varying float vKind; varying vec3 vTint; varying vec4 vLS;
 void main(){
   vec3 p = aPos + uOff;
@@ -36,7 +36,9 @@ void main(){
   if (aKind > 19.5 && p.x > uNear.x && p.x < uNear.z && p.z > uNear.y && p.z < uNear.w) p.y -= aKind > 21.5 ? 200.0 : 8.0;
   // дом, где ты: крыши нет, потолок есть; в других домах — наоборот
   bool inH = p.x > uHide.x && p.x < uHide.z && p.z > uHide.y && p.z < uHide.w;
-  if ((aKind > 9.5 && aKind < 10.5 && inH) || (aKind > 10.5 && aKind < 11.5 && !inH)) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  if ((aKind > 9.5 && aKind < 10.5 && inH) || (aKind > 10.5 && aKind < 11.5 && (!inH || uThird > 0.5)) || (aKind > 11.5 && aKind < 12.5 && uThird > 0.5)) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  // травинки качает ветер (верх сильнее низа)
+  if (aKind > 13.5 && aKind < 14.5) { float k = aLoc.y*aLoc.y; p.x += sin(uWT*1.7 + p.x*0.9 + p.z*0.6)*0.07*k; p.z += cos(uWT*1.3 + p.x*0.5 - p.z*0.8)*0.05*k; }
   vLoc=aLoc; vTile=aTile; vN=aN; vW=p; vSky=aSky; vKind=aKind; vTint=aTint;
   vLS = uSM * vec4(p + aN*0.05, 1.0);
   gl_Position = uVP*vec4(p,1.0);
@@ -45,7 +47,16 @@ void main(){
 uniform vec3 uSunDir; uniform vec3 uSunSky; uniform vec3 uSun; uniform vec3 uAmb; uniform vec3 uFog; uniform vec3 uFogSun; uniform vec3 uCam; uniform float uFogD; uniform float uTime; uniform float uNight;
 uniform vec3 uZen; uniform vec3 uHor;
 uniform vec4 uLP[__NL__]; uniform vec4 uLC[__NL__]; uniform int uNL; uniform float uQL; uniform float uDith;
-uniform sampler2D uShadow; uniform float uShOn; uniform float uShTex;
+uniform sampler2D uShadow; uniform float uShOn; uniform float uShTex; uniform vec4 uCut;
+// вырез: что стоит между камерой и героем (крыши, стены, деревья), становится сквозным в мелкую точку
+float cutK(vec3 w){
+  if (uCut.w <= 0.0) return 0.0;
+  vec3 ab = uCut.xyz - uCam;
+  float t = clamp(dot(w - uCam, ab)/dot(ab, ab), 0.0, 1.0);
+  if (t > 0.9) return 0.0;
+  float d = length(w - (uCam + ab*t));
+  return 1.0 - smoothstep(uCut.w*0.55, uCut.w, d);
+}
 float unpackD(vec4 c){ return dot(c, vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0)); }
 float shadowAt(vec4 ls, float bias){
   if (uShOn < 0.5) return 1.0;
@@ -110,6 +121,7 @@ void main(){
   }
   if (water) l += vec2(uTime*0.03 + sin(uTime*0.6 + vW.z*0.9)*0.05, uTime*0.012);
   vec3 n = normalize(vN);
+  if (vW.y > uCut.y - 0.9 && !water && vKind < 13.5 && (vKind > 9.5 || n.y < 0.6 || vKind < 0.5)) { float ck = cutK(vW); if (ck > 0.0 && bayer(gl_FragCoord.xy) < ck*0.88) discard; }
   vec4 t;
   vec3 base;
   if (vKind > 19.5 && vKind < 20.5) {
@@ -123,6 +135,7 @@ void main(){
     base = mix(base, rock, steep*max(snowy, 0.6));
     t.a = 1.0;
   }
+  else if (vKind > 13.5 && vKind < 15.5) { t = vec4(1.0); base = vTint; }
   else { t = texture2D(uTex, vTile + fract(l)*uTS); base = t.rgb*vTint; }
   float sh = shadowAt(vLS, 0.0018);
   vec3 L = lightAt(vW, n, vSky, 0.0, sh);
@@ -136,7 +149,12 @@ void main(){
     c += uSun*g*1.2*vSky*sh;
   }
   if (t.a < 0.6) { float em = t.a > 0.4 ? 1.0 : uNight; c = mix(c, t.rgb*1.3, em); }
-  gl_FragColor = vec4(quant(fogIt(c, vW)), 1.0);
+  // белые точки в траве светятся сами; травинки ночью чуть видны и без огня
+  if (vKind > 14.5 && vKind < 15.5) c = max(c, vTint*(0.55 + 0.45*uNight));
+  if (vKind > 13.5 && vKind < 14.5) c = max(c, vTint*0.5*uNight*vLoc.y);
+  // в альфе — что это (для отражений и ASCII): вода, стены и крыши, земля
+  float solid = (vKind > 9.5 && vKind < 10.5) || (vKind > 12.5 && vKind < 13.5) || vKind > 21.5 || n.y < 0.6 ? 0.9 : 1.0;
+  gl_FragColor = vec4(quant(fogIt(c, vW)), water ? 0.5 : solid);
 }`;
   // спрайты-«щиты»: всегда лицом к камере, стоят на земле
   // вершина: center(3) off(2) uv(2) sky(1) = 8 float
@@ -159,19 +177,20 @@ void main(){
   vec4 t = texture2D(uSpr, vUV);
   // всё сплошное: точка либо есть, либо её нет
   if (t.a < 0.5) discard;
+  if (vW.y > uCut.y - 1.1) { float ck = cutK(vW); if (ck > 0.0 && bayer(gl_FragCoord.xy) < ck*0.8) discard; }
   vec3 toCam = normalize(vec3(uCam.x - vW.x, 0.0, uCam.z - vW.z) + vec3(0.0,0.001,0.0));
   vec3 n = normalize(vec3(0.0, 0.55, 0.0) + toCam*0.6 + uSunDir*0.25);
   float sh = shadowAt(vLS, 0.004);
   vec3 L = lightAt(vW, n, vSky, 0.65, sh);
   vec3 c = t.a > 0.96 && t.a < 0.99 ? t.rgb*1.15 : grade(t.rgb*uTintAll, L);
-  gl_FragColor = vec4(quant(fogIt(c, vW)), 1.0);
+  gl_FragColor = vec4(quant(fogIt(c, vW)), 0.8);
 }`;
   // тени: глубина от солнца, упакованная в цвет
   const PACK = `vec4 packD(float d){ vec4 e = fract(d * vec4(1.0, 255.0, 65025.0, 16581375.0)); e -= e.yzww * vec4(1.0/255.0, 1.0/255.0, 1.0/255.0, 0.0); return e; }`;
   const VS_SH_WORLD = `
 attribute vec3 aPos; attribute float aKind;
 uniform mat4 uLVP; uniform vec3 uOff;
-void main(){ if (aKind > 0.5 && (aKind < 9.5 || aKind > 19.5)) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; } gl_Position = uLVP*vec4(aPos + uOff, 1.0); }`;
+void main(){ if (aKind > 0.5 && (aKind < 9.5 || aKind > 19.5 || (aKind > 13.5 && aKind < 15.5))) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; } gl_Position = uLVP*vec4(aPos + uOff, 1.0); }`;
   const FS_SH = PREC + `${PACK}
 void main(){ gl_FragColor = packD(gl_FragCoord.z); }`;
   const VS_SH_BB = `
@@ -198,7 +217,7 @@ float bayer(vec2 p){ vec2 q = mod(floor(p), 4.0); float a = q.x + q.y*4.0;
   return (a==0.0?0.0:a==1.0?8.0:a==2.0?2.0:a==3.0?10.0:a==4.0?12.0:a==5.0?4.0:a==6.0?14.0:a==7.0?6.0:a==8.0?3.0:a==9.0?11.0:a==10.0?1.0:a==11.0?9.0:a==12.0?15.0:a==13.0?7.0:a==14.0?13.0:5.0)/16.0; }
 vec3 quant(vec3 c){ if (uQL < 1.5) return c; float b = (bayer(gl_FragCoord.xy) - 0.5)*uDith; float q = uQL*0.82; return floor(c*q + 0.5 + b)/q; }
 void main(){
-  if (uIn > 0.5) { gl_FragColor = vec4(uHor, 1.0); return; }
+  if (uIn > 0.5) { gl_FragColor = vec4(uHor, 0.95); return; }
   vec3 d = normalize(uF + uR*vP.x*uTan*uAsp + uU*vP.y*uTan);
   float y = d.y;
   vec3 c = mix(uHor, uZen, pow(smoothstep(-0.03, 0.62, y), 0.75));
@@ -238,7 +257,7 @@ void main(){
     a *= smoothstep(-0.02, 0.06, y);
     c = mix(c, cc, a);
   }
-  gl_FragColor = vec4(quant(c), 1.0);
+  gl_FragColor = vec4(quant(c), 0.95);
 }`;
   const FS_WX = PREC + `
 varying vec2 vP; uniform float uTime; uniform float uKind; uniform vec2 uRes; uniform vec3 uCol; uniform float uDens;
@@ -338,6 +357,153 @@ void main(){
   gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }`;
 
+  // ---------- отражения в воде: зеркало по первой «сухой» точке выше по экрану, с рябью ----------
+  const FS_REFL = PREC + `
+varying vec2 vP;
+uniform sampler2D uScene; uniform vec2 uRes; uniform float uTime; uniform float uRefl; uniform float uFoam;
+float hh(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)))*43758.5453); }
+float isL(float a){ return (a > 0.85 && a < 0.925) || a > 0.975 ? 1.0 : 0.0; }
+float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f); return mix(mix(hh(i), hh(i + vec2(1.0,0.0)), f.x), mix(hh(i + vec2(0.0,1.0)), hh(i + vec2(1.0,1.0)), f.x), f.y); }
+void main(){
+  vec2 uv = vP*0.5 + 0.5, px = 1.0/uRes;
+  vec4 c = texture2D(uScene, uv);
+  if (c.a > 0.75) { gl_FragColor = c; return; }
+  vec3 col = c.rgb;
+  if (uRefl > 0.01) {
+    float y0 = -1.0;
+    for (int i = 1; i < 72; i++) { vec2 q = uv + vec2(0.0, float(i)*px.y); if (q.y > 1.0) break; if (texture2D(uScene, q).a > 0.75) { y0 = q.y; break; } }
+    if (y0 > 0.0) {
+      float d = y0 - uv.y;
+      vec2 r = vec2(uv.x + sin(uv.y*uRes.y*0.35 + uTime*2.2)*px.x*1.5, y0 + d + px.y);
+      if (r.y <= 1.0) { vec4 rc = texture2D(uScene, r); if (rc.a > 0.75) col = mix(col, rc.rgb*vec3(0.72, 0.8, 0.95) + vec3(0.0, 0.01, 0.03), uRefl*(1.0 - smoothstep(0.0, 72.0*px.y, d)*0.55)); }
+    }
+  }
+  if (uFoam > 0.01) {
+    // пена у берега: как близко суша (земля или камень, не фигуры)
+    float kd = 99.0;
+    for (int k = 1; k <= 7; k++) {
+      float fk = float(k);
+      float a1 = texture2D(uScene, uv + vec2(fk*px.x, 0.0)).a, a2 = texture2D(uScene, uv - vec2(fk*px.x, 0.0)).a;
+      float a3 = texture2D(uScene, uv + vec2(0.0, fk*px.y)).a, a4 = texture2D(uScene, uv - vec2(0.0, fk*px.y)).a;
+      if (isL(a1) + isL(a2) + isL(a3) + isL(a4) > 0.5) { kd = fk; break; }
+    }
+    vec2 sp = uv*uRes;
+    float n = vn(sp*vec2(0.09, 0.22) + vec2(uTime*0.4, uTime*0.9));
+    float shore = (1.0 - smoothstep(1.0, 7.0, kd))*smoothstep(0.25, 0.6, n + 0.35*sin(kd*1.9 - uTime*2.6));
+    // гребни волн в открытой воде — тонкие белые чёрточки
+    float cr = smoothstep(0.8, 0.93, vn(sp*vec2(0.035, 0.16) + vec2(uTime*0.12, uTime*0.55)))*smoothstep(0.4, 0.8, vn(sp*0.02 + uTime*0.05));
+    float f = clamp(shore + cr*0.55, 0.0, 1.0)*uFoam;
+    col = mix(col, vec3(0.86, 0.9, 0.95), f);
+  }
+  gl_FragColor = vec4(col, 0.5);
+}`;
+  // ---------- ASCII: клетка → знак. Сначала на каждую клетку — её цвет и какой знак ей подходит ----------
+  // знаки атласа: 0 « » 1 «.» 2 «,» 3 «:» 4 «;» 5 «-» 6 «=» 7 «+» 8 «o» 9 «a» 10 «d» 11 «Q» 12 «B» 13 «0» 14 «$» 15 «@»
+  //               16 «/» 17 «\» 18 «|» 19 «_» 20 «~» 21 «'» 22 «#» 23 «*» 24 «%» 25 «&» 26 «q» 27 «8»
+  P3.GLYPHS = ' .,:;-=+oadQB0$@/\\|_~\'#*%&q8HMWN';
+  // классы по альфе сцены: вода 0.5, фигуры-«щиты» (деревья, люди, вещи) 0.8, стены и крыши 0.9, небо 0.95, земля 1.0
+  const FS_CELL = PREC + `
+varying vec2 vP;
+uniform sampler2D uScene; uniform vec2 uCells; uniform vec2 uSS; uniform float uTime; uniform vec4 uGrade; uniform float uTemp; uniform float uSet;
+float h2(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)))*43758.5453); }
+float lum(vec3 c){ return dot(c, vec3(0.299,0.587,0.114)); }
+void main(){
+  vec2 cell = floor(gl_FragCoord.xy);
+  vec2 tex = 1.0/(uCells*uSS);
+  vec3 s0 = vec3(0.0), s1 = vec3(0.0), s2 = vec3(0.0), s3 = vec3(0.0), s4 = vec3(0.0);
+  float n0 = 0.0, n1 = 0.0, n2 = 0.0, n3 = 0.0, n4 = 0.0;
+  vec2 g = vec2(0.0); float lmin = 9.0, lmax = 0.0;
+  for (int j = 0; j < 5; j++) for (int i = 0; i < 3; i++) {
+    vec4 c = texture2D(uScene, (cell*uSS + vec2(float(i), float(j)) + 0.5)*tex);
+    float a = c.a;
+    if (a < 0.7) { s0 += c.rgb; n0 += 1.0; }
+    else if (a < 0.85) { s1 += c.rgb; n1 += 1.0; }
+    else if (a < 0.925) { s2 += c.rgb; n2 += 1.0; }
+    else if (a < 0.975) { s3 += c.rgb; n3 += 1.0; }
+    else { s4 += c.rgb; n4 += 1.0; }
+    float l = lum(c.rgb);
+    g += vec2(float(i) - 1.0, float(j) - 2.0)*l; lmin = min(lmin, l); lmax = max(lmax, l);
+  }
+  // кто в клетке главный: фигуры и стены «весят» больше — так их очертания читаются
+  float w0 = n0*1.1, w1 = n1*1.7, w2 = n2*1.3, w3 = n3*0.7, w4 = n4;
+  float cls = 4.0; float wb = w4; vec3 avg = s4/max(n4, 1.0);
+  if (w3 > wb) { cls = 3.0; wb = w3; avg = s3/n3; }
+  if (w2 > wb) { cls = 2.0; wb = w2; avg = s2/n2; }
+  if (w0 > wb) { cls = 0.0; wb = w0; avg = s0/n0; }
+  if (w1 > wb) { cls = 1.0; wb = w1; avg = s1/n1; }
+  // краски, как в настройках
+  avg = max((avg*uGrade.x - 0.5)*uGrade.y + 0.5, 0.0);
+  float L0 = lum(avg); avg = mix(vec3(L0), avg, uGrade.z); avg = pow(avg, vec3(1.0/uGrade.w));
+  avg *= vec3(1.0 + 0.14*uTemp, 1.0 + 0.02*uTemp, 1.0 - 0.16*uTemp);
+  float L = lum(avg);
+  float hs = h2(cell + vec2(17.0, 3.0)), hs2 = h2(cell.yx + vec2(5.0, 41.0));
+  float d = clamp(pow(L*1.55, 0.78) + (hs - 0.5)*0.08, 0.0, 0.999);
+  float idx = 0.0; float white = 0.0;
+  if (uSet > 1.5) {
+    // простые знаки
+    idx = d < 0.07 ? 0.0 : d < 0.16 ? 1.0 : d < 0.26 ? 3.0 : d < 0.36 ? 5.0 : d < 0.46 ? 6.0 : d < 0.56 ? 7.0 : d < 0.66 ? 23.0 : d < 0.78 ? 22.0 : d < 0.9 ? 24.0 : 15.0;
+    if (cls < 0.5 && d >= 0.07) idx = d < 0.4 ? 5.0 : 6.0;
+  } else if (cls < 0.5) {
+    // вода: чёрточки; рябь бежит; отражения ярче — «=»
+    float rp = h2(vec2(floor(cell.x/3.0 + uTime*1.7 + hs2*3.0), cell.y));
+    idx = d < 0.05 ? (hs < 0.75 ? 0.0 : 1.0) : d > 0.42 ? (rp < 0.7 ? 6.0 : 5.0) : rp < 0.55 ? 5.0 : rp < 0.78 ? 19.0 : rp < 0.92 ? 6.0 : 20.0;
+  } else if (cls < 1.5) {
+    // деревья, люди, звери, вещи — плотные буквы
+    idx = d < 0.05 ? 0.0 : d < 0.11 ? 1.0 : d < 0.18 ? 8.0 : d < 0.27 ? 9.0 : d < 0.36 ? (hs < 0.5 ? 10.0 : 26.0) : d < 0.46 ? 11.0 : d < 0.56 ? 12.0 : d < 0.66 ? (hs < 0.5 ? 13.0 : 27.0) : d < 0.77 ? (hs < 0.5 ? 25.0 : 24.0) : d < 0.88 ? 15.0 : 14.0;
+  } else if (cls < 2.5) {
+    // стены и крыши — тяжёлые буквы
+    idx = d < 0.05 ? 0.0 : d < 0.12 ? 1.0 : d < 0.2 ? 3.0 : d < 0.3 ? 7.0 : d < 0.4 ? 22.0 : d < 0.5 ? 28.0 : d < 0.6 ? 31.0 : d < 0.72 ? 29.0 : d < 0.86 ? 30.0 : 15.0;
+  } else if (cls < 3.5) {
+    // небо — редкие точки
+    idx = d < 0.35 ? 0.0 : d < 0.55 ? (hs < 0.6 ? 0.0 : 1.0) : d < 0.75 ? 1.0 : 3.0;
+  } else {
+    bool veg = avg.g > avg.r*1.04 && avg.g > avg.b*1.02;
+    if (veg) {
+      // трава — косые штрихи, кое-где белые точки
+      float r = hs2;
+      idx = d < 0.07 ? (r < 0.75 ? 0.0 : 2.0) : r < 0.3 ? 16.0 : r < 0.58 ? 17.0 : r < 0.8 ? 18.0 : r < 0.9 ? 21.0 : 2.0;
+      if (hs > 0.965 && d > 0.12) { idx = 1.0; white = 0.75; }
+    } else {
+      // голая земля, дороги, полы — мелкие знаки
+      idx = d < 0.06 ? 0.0 : d < 0.14 ? 1.0 : d < 0.24 ? (hs < 0.5 ? 2.0 : 3.0) : d < 0.36 ? (hs < 0.5 ? 4.0 : 5.0) : d < 0.5 ? (hs < 0.6 ? 3.0 : 6.0) : d < 0.66 ? (hs < 0.5 ? 6.0 : 21.0) : (hs < 0.5 ? 7.0 : 23.0);
+    }
+  }
+  // контуры (набор «с контурами»): на резком переходе — штрих вдоль края
+  if (uSet > 0.5 && uSet < 1.5 && cls > 0.5 && cls != 3.0) {
+    float e = length(g)/(0.06 + L*1.5) + (lmax - lmin)*0.6;
+    if (e > 1.6 && L > 0.04) {
+      float a = atan(g.y, g.x);
+      float k = mod(floor((a + 3.14159*1.125)/(3.14159/4.0)), 4.0);
+      idx = k < 0.5 ? 18.0 : k < 1.5 ? 17.0 : k < 2.5 ? 5.0 : 16.0;
+    }
+  }
+  // цвет знака: тон клетки, ярче и чище
+  float m = max(max(avg.r, avg.g), avg.b);
+  vec3 col = avg/max(m, 0.05)*clamp(m*1.9 + 0.08, 0.12, 1.0);
+  col = mix(col, vec3(0.95, 0.96, 0.9), white);
+  gl_FragColor = vec4(col, (idx + 0.5)/32.0);
+}`;
+  // ...а потом каждый пиксель берёт знак из атласа
+  const FS_ASCII = PREC + `
+varying vec2 vP;
+uniform sampler2D uCell; uniform sampler2D uAtlas; uniform vec2 uCells; uniform vec2 uGlyph; uniform float uBg; uniform float uMono; uniform float uVig; uniform vec2 uRes; uniform float uScan; uniform float uGain;
+float lum(vec3 c){ return dot(c, vec3(0.299,0.587,0.114)); }
+void main(){
+  vec2 cf = gl_FragCoord.xy/uGlyph, cell = floor(cf), lp = fract(cf);
+  vec4 cd = texture2D(uCell, (cell + 0.5)/uCells);
+  float idx = floor(cd.a*32.0);
+  vec2 tile = vec2(mod(idx, 8.0), floor(idx/8.0));
+  vec2 ap = (tile*uGlyph + vec2(floor(lp.x*uGlyph.x), floor((1.0 - lp.y)*uGlyph.y)) + 0.5)/(uGlyph*vec2(8.0, 4.0));
+  float m = texture2D(uAtlas, ap).r;
+  vec3 c = cd.rgb*uGain;
+  if (uMono > 0.5) { float l = lum(c)*1.25; c = uMono < 1.5 ? vec3(0.25, 1.0, 0.4)*l : uMono < 2.5 ? vec3(1.0, 0.68, 0.2)*l : uMono < 3.5 ? vec3(l) : vec3(0.55, 0.85, 1.0)*l; }
+  vec3 bg = cd.rgb*uBg + vec3(0.008, 0.01, 0.018);
+  vec3 col = mix(bg, c, m);
+  if (uScan > 0.001) col *= 1.0 - uScan*0.35*step(0.5, fract(gl_FragCoord.y*0.5));
+  if (uVig > 0.001) { vec2 q = gl_FragCoord.xy/uRes - 0.5; col *= 1.0 - uVig*smoothstep(0.3, 0.85, length(q*vec2(1.0, 0.9))*1.35); }
+  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
   function compile(vs, fs) {
     vs = vs.replace(/__NL__/g, String(P3.NL)); fs = fs.replace(/__NL__/g, String(P3.NL));
     const mk = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + '\n' + src.slice(0, 300)); return s; };
@@ -373,6 +539,7 @@ void main(){
       S.shB = compile(VS_SH_BB, FS_SH_BB);
     } catch (e) { console.warn('px3d shaders', e); gl = null; return (ok = false); }
     try { S.post = compile(VS_SKY, FS_POST); } catch (e) { console.warn('px3d post', e); S.post = null; }
+    try { S.refl = compile(VS_SKY, FS_REFL); S.cell = compile(VS_SKY, FS_CELL); S.ascii = compile(VS_SKY, FS_ASCII); } catch (e) { console.warn('px3d ascii', e); S.refl = S.cell = S.ascii = null; }
     S.depthExt = gl.getExtension('WEBGL_depth_texture');
     S.quad = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, S.quad);
@@ -434,8 +601,45 @@ void main(){
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     return sc.ok;
   }
+  // простая цель для прохода: текстура нужного размера
+  function colorFB(o, w, h) {
+    if (o.w === w && o.h === h && o.fb) return o.ok;
+    o.w = w; o.h = h;
+    try {
+      if (!o.tex) o.tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, o.tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+      if (!o.fb) o.fb = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, o.fb);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, o.tex, 0);
+      o.ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    } catch (e) { o.ok = false; }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return o.ok;
+  }
+  // атлас знаков ровно того размера, каким их рисуем (чётко, без размытия)
+  P3.font = '"JetBrains Mono", "DejaVu Sans Mono", Consolas, monospace';
+  function glyphAtlas(gw, gh) {
+    const key = gw + 'x' + gh + P3.font;
+    if (S.atlasKey === key) return S.atlasTex;
+    const c2 = document.createElement('canvas'); c2.width = gw * 8; c2.height = gh * 4;
+    const x2 = c2.getContext('2d');
+    x2.fillStyle = '#000'; x2.fillRect(0, 0, c2.width, c2.height);
+    x2.fillStyle = '#fff'; x2.textAlign = 'center'; x2.textBaseline = 'middle';
+    const fs = Math.max(6, Math.round(Math.min(gh * 0.86, gw * 1.6)));
+    x2.font = '600 ' + fs + 'px ' + P3.font;
+    const G2 = P3.GLYPHS;
+    for (let i = 0; i < G2.length && i < 32; i++) x2.fillText(G2[i], (i % 8) * gw + gw / 2, Math.floor(i / 8) * gh + gh / 2 + 1);
+    if (!S.atlasTex) S.atlasTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, S.atlasTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c2);
+    for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+    S.atlasKey = key;
+    return S.atlasTex;
+  }
   // настройки картинки (их правит окно «Настройки 3D»)
-  const FX0 = { ql: 22, dith: 0.95, bri: 1, con: 1, sat: 1, gam: 1, temp: 0, tint: [1, 1, 1], pal: 0, bloom: 0.35, bth: 0.72, out: 0, sharp: 0, vig: 0.55, grain: 0, scan: 0, ca: 0, curve: 0 };
+  const FX0 = { ql: 22, dith: 0.95, bri: 1, con: 1, sat: 1, gam: 1, temp: 0, tint: [1, 1, 1], pal: 0, bloom: 0.35, bth: 0.72, out: 0, sharp: 0, vig: 0.55, grain: 0, scan: 0, ca: 0, curve: 0, refl: 0.6, foam: 1, abg: 0.1, amono: 0, aset: 0, again: 1.15 };
   P3.fx = Object.assign({}, FX0);
   P3.FX0 = FX0;
   P3.postOn = () => !!(S.post && S.sc && S.sc.ok);
@@ -619,6 +823,8 @@ void main(){
   P3.render = function (f) {
     if (!init()) return null;
     if (cv.width !== f.w || cv.height !== f.h) { cv.width = f.w; cv.height = f.h; }
+    const A = f.ascii && S.cell && S.ascii ? f.ascii : null;
+    const SW = A ? A.cols * A.ssx : f.w, SH = A ? A.rows * A.ssy : f.h;
     uploadAtlases();
     const c = f.cam, sk = f.sky;
     const cy = Math.cos(c.yaw), sy = Math.sin(c.yaw), cp = Math.cos(c.pitch || 0), sp = Math.sin(c.pitch || 0);
@@ -667,11 +873,11 @@ void main(){
     } else smat.set(ID);
     // ---------- куда рисуем: в текстуру для постобработки или прямо на холст ----------
     const FX = P3.fx;
-    const post = !!S.post && sceneFB(f.w, f.h);
-    const sQL = post ? 0 : FX.ql, sDith = FX.dith;
+    const post = !!S.post && sceneFB(SW, SH);
+    const sQL = post || A ? 0 : FX.ql, sDith = FX.dith;
     gl.bindFramebuffer(gl.FRAMEBUFFER, post ? S.sc.fb : null);
     // ---------- небо ----------
-    gl.viewport(0, 0, f.w, f.h);
+    gl.viewport(0, 0, post ? SW : f.w, post ? SH : f.h);
     gl.clearColor(sk.fog[0], sk.fog[1], sk.fog[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.disable(gl.DEPTH_TEST);
@@ -699,6 +905,7 @@ void main(){
       gl.uniform3fv(L.u.uSun, sk.sun); gl.uniform3fv(L.u.uAmb, sk.amb); gl.uniform3fv(L.u.uFog, sk.fog); if (L.u.uFogSun) gl.uniform3fv(L.u.uFogSun, sk.fogSun || sk.fog);
       if (L.u.uZen) gl.uniform3fv(L.u.uZen, sk.zen); if (L.u.uHor) gl.uniform3fv(L.u.uHor, sk.hor);
       gl.uniform3f(L.u.uCam, ex, ey, ez); gl.uniform1f(L.u.uFogD, sk.fogD); if (L.u.uTime) gl.uniform1f(L.u.uTime, f.time); if (L.u.uNight) gl.uniform1f(L.u.uNight, sk.night);
+      if (L.u.uCut) { const c = f.cut; gl.uniform4f(L.u.uCut, c ? c[0] : 0, c ? c[1] : -999, c ? c[2] : 0, c ? c[3] : 0); }
       if (L.u.uLP) gl.uniform4fv(L.u.uLP, lp);
       if (L.u.uLC) gl.uniform4fv(L.u.uLC, lc);
       gl.uniform1i(L.u.uNL, ls.length);
@@ -715,6 +922,8 @@ void main(){
     gl.uniform4f(L.u.uNear, nr[0], nr[1], nr[2], nr[3]);
     const hd = f.hide || [1e9, 1e9, -1e9, -1e9];
     gl.uniform4f(L.u.uHide, hd[0], hd[1], hd[2], hd[3]);
+    if (L.u.uThird) gl.uniform1f(L.u.uThird, f.third ? 1 : 0);
+    if (L.u.uWT) gl.uniform1f(L.u.uWT, f.time % 1000);
     for (const m of meshes) { if (!m.h) continue; bindWorld(L, m.h, m.off); gl.drawArrays(gl.TRIANGLES, 0, m.h.n); }
     if (f.far && f.far.h) { bindWorld(L, f.far.h, f.far.off); gl.drawArrays(gl.TRIANGLES, 0, f.far.h.n); }
     unbind(L);
@@ -733,14 +942,44 @@ void main(){
     unbind(L);
     // ---------- погода — тихая, поверх всего ----------
     if (f.wx) {
-      gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ZERO, gl.ONE);
       L = S.wx; gl.useProgram(L.p);
       gl.bindBuffer(gl.ARRAY_BUFFER, S.quad);
       gl.enableVertexAttribArray(L.a.aP); gl.vertexAttribPointer(L.a.aP, 2, gl.FLOAT, false, 0, 0);
-      gl.uniform1f(L.u.uTime, f.time); gl.uniform1f(L.u.uKind, f.wx.kind); gl.uniform2f(L.u.uRes, f.w, f.h); gl.uniform3fv(L.u.uCol, f.wx.col); gl.uniform1f(L.u.uDens, f.wx.dens);
+      gl.uniform1f(L.u.uTime, f.time); gl.uniform1f(L.u.uKind, f.wx.kind); gl.uniform2f(L.u.uRes, post ? SW : f.w, post ? SH : f.h); gl.uniform3fv(L.u.uCol, f.wx.col); gl.uniform1f(L.u.uDens, f.wx.dens);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.disableVertexAttribArray(L.a.aP);
       gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST);
+    }
+    // ---------- отражения в воде ----------
+    let srcTex = post ? S.sc.tex : null;
+    const fullQuad = (L2) => { gl.bindBuffer(gl.ARRAY_BUFFER, S.quad); gl.enableVertexAttribArray(L2.a.aP); gl.vertexAttribPointer(L2.a.aP, 2, gl.FLOAT, false, 0, 0); };
+    if (post && S.refl && (FX.refl > 0.01 || FX.foam > 0.01) && colorFB(S.rf || (S.rf = {}), SW, SH)) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, S.rf.fb); gl.viewport(0, 0, SW, SH); gl.disable(gl.DEPTH_TEST);
+      L = S.refl; gl.useProgram(L.p); fullQuad(L);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, S.sc.tex); gl.uniform1i(L.u.uScene, 0);
+      gl.uniform2f(L.u.uRes, SW, SH); gl.uniform1f(L.u.uTime, f.time); gl.uniform1f(L.u.uRefl, FX.refl); gl.uniform1f(L.u.uFoam, FX.foam == null ? 1 : FX.foam);
+      gl.drawArrays(gl.TRIANGLES, 0, 3); gl.disableVertexAttribArray(L.a.aP);
+      srcTex = S.rf.tex;
+    }
+    // ---------- ASCII: клетки → знаки ----------
+    if (post && A && colorFB(S.cf || (S.cf = {}), A.cols, A.rows)) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, S.cf.fb); gl.viewport(0, 0, A.cols, A.rows); gl.disable(gl.DEPTH_TEST);
+      L = S.cell; gl.useProgram(L.p); fullQuad(L);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, srcTex); gl.uniform1i(L.u.uScene, 0);
+      gl.uniform2f(L.u.uCells, A.cols, A.rows); gl.uniform2f(L.u.uSS, A.ssx, A.ssy); gl.uniform1f(L.u.uTime, f.time);
+      gl.uniform4f(L.u.uGrade, FX.bri, FX.con, FX.sat, FX.gam); gl.uniform1f(L.u.uTemp, FX.temp); if (L.u.uSet) gl.uniform1f(L.u.uSet, FX.aset || 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 3); gl.disableVertexAttribArray(L.a.aP);
+      const at = glyphAtlas(A.gw, A.gh);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, f.w, f.h);
+      L = S.ascii; gl.useProgram(L.p); fullQuad(L);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, S.cf.tex); gl.uniform1i(L.u.uCell, 0);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, at); gl.uniform1i(L.u.uAtlas, 1); gl.activeTexture(gl.TEXTURE0);
+      gl.uniform2f(L.u.uCells, A.cols, A.rows); gl.uniform2f(L.u.uGlyph, A.gw, A.gh); gl.uniform2f(L.u.uRes, f.w, f.h);
+      gl.uniform1f(L.u.uBg, FX.abg); gl.uniform1f(L.u.uMono, FX.amono || 0); gl.uniform1f(L.u.uVig, FX.vig); gl.uniform1f(L.u.uScan, FX.scan); gl.uniform1f(L.u.uGain, FX.again || 1.15);
+      gl.drawArrays(gl.TRIANGLES, 0, 3); gl.disableVertexAttribArray(L.a.aP);
+      gl.enable(gl.DEPTH_TEST);
+      return cv;
     }
     // ---------- постобработка ----------
     if (post) {
@@ -750,7 +989,7 @@ void main(){
       L = S.post; gl.useProgram(L.p);
       gl.bindBuffer(gl.ARRAY_BUFFER, S.quad);
       gl.enableVertexAttribArray(L.a.aP); gl.vertexAttribPointer(L.a.aP, 2, gl.FLOAT, false, 0, 0);
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, S.sc.tex); gl.uniform1i(L.u.uScene, 0);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, srcTex); gl.uniform1i(L.u.uScene, 0);
       if (L.u.uDepth) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, S.sc.hasD ? S.sc.dtex : S.sc.tex); gl.uniform1i(L.u.uDepth, 1); gl.activeTexture(gl.TEXTURE0); }
       const u = L.u, fv = (n, v) => { if (u[n]) gl.uniform1f(u[n], v); };
       fv('uHasD', S.sc.hasD ? 1 : 0); if (u.uRes) gl.uniform2f(u.uRes, f.w, f.h); fv('uTime', f.time); if (u.uNF) gl.uniform2f(u.uNF, near, far);

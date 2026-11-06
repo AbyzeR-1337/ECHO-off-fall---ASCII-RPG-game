@@ -1,5 +1,6 @@
 'use strict';
-// Мир от первого лица (уровень графики 6, «Пиксели 3D»).
+// Мир в 3D: от первого лица (графика «3D») или сверху-сзади над героем, весь из знаков (графика «ASCII»:
+// тот же мир, та же сцена, но px3d.js переводит картинку в знаки — трава штрихами, вода чёрточками с отражениями).
 // Земля — с холмами и горами: высота идёт из карты мира (высота региона, горы, море) и мелкого шума.
 // Видно далеко: вокруг — соседние земли во всех подробностях (каждая — свой кусок-«чанк»),
 // дальше — весь мир целиком: снежные хребты, леса, море и замки на горизонте.
@@ -14,7 +15,8 @@
   const EYE = 0.82, WALL = 1.5, CAVE = 2.0, K_ENT = 0.7, SEA = -0.15;
   const NEAR = 110;  // в стольких клетках земля рисуется во всех подробностях
   const FARSPR = 130; // люди, звери и вещи видны так далеко
-  UI.is3D = () => UI.gfxLevel === 6 && !!Gfx.P3 && Gfx.P3.supported();
+  UI.is3D = () => UI.gfxLevel >= 5 && !!Gfx.P3 && Gfx.P3.supported();
+  UI.isAscii = () => UI.gfxLevel === 5 && UI.is3D();
   const live = () => !!(E.RT && E.RT.on);
   const turnTo = (f) => { V3.face = (f + 8) % 8; const t = V3.face * Math.PI / 4; let d = t - V3.yawT; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; V3.yawT += d; UI.animUntil = performance.now() + 400; };
   V3.turn = (k) => { if (live()) { V3.yaw += k * Math.PI / 4; V3.yawT = V3.yaw; UI.render(); return; } turnTo(V3.face + k); UI.render(); };
@@ -42,7 +44,7 @@
   // природная земля «перетекает» в соседнюю с меньшим рангом — мягкий край вместо квадратов
   const SPILL = { grass: 1, grass_dry: 1, grass_frost: 1, nightgrass: 1, flowers: 1, tallgrass: 1, field: 2, soil: 2, swamp: 2, roots: 2, dirt: 3, stones: 3, ash: 4, moondust: 4, sand: 4, dune: 4, snow: 5, blacksnow: 5 };
   const EDGES = [[0, -1, 2], [1, 0, 3], [0, 1, 4], [-1, 0, 5], [1, -1, 6], [1, 1, 7], [-1, 1, 8], [-1, -1, 9]];
-  const K = { GROUND: 0, WATER: 1, ROOF: 10, CEIL: 11, FAR: 20, FARSEA: 21, FAROBJ: 22 };
+  const K = { GROUND: 0, WATER: 1, ROOF: 10, CEIL: 11, DCEIL: 12, TOP: 13, FAR: 20, FARSEA: 21, FAROBJ: 22 };
 
   // ============================================================
   // Рельеф: одна функция высоты на весь мир
@@ -162,7 +164,8 @@
     const ewat = new Uint8Array(EW * EH), ewl = new Float32Array(EW * EH);
     const coastalOf = (mm) => ['coast', 'ocean', 'volcanic'].includes(mm.biome) || (mm.region && ['coast', 'ocean', 'volcanic'].includes(mm.region.biome));
     const coastal = coastalOf(m);
-    const levelOf = (t, gx, gz, cst) => { const fl = HGT.land(gx, gz, 0.15); return TL[t].lava ? fl - 0.2 : TL[t].water === 2 && cst ? SEA : Math.max(SEA, fl - (TL[t].water === 1 ? 0.1 : 0.2)); };
+    // глубокая вода у моря — на уровне моря; река на возвышенности течёт по земле (иначе глубокие места реки проваливаются до моря)
+    const levelOf = (t, gx, gz, cst) => { const fl = HGT.land(gx, gz, 0.15); return TL[t].lava ? fl - 0.2 : TL[t].water === 2 && cst && fl < 1.2 ? SEA : Math.max(SEA, fl - (TL[t].water === 1 ? 0.1 : 0.2)); };
     for (let ey = 0; ey < EH; ey++) for (let ex = 0; ex < EW; ex++) {
       const x = ex - R, y = ey - R;
       let t, cst = coastal;
@@ -209,7 +212,9 @@
           const d = Math.hypot(dx, dy);
           if (d < bd) { bd = d; bl = ewl[k]; }
         }
+        // берег сходит к воде; а если земля в ложбине ниже воды — поднимается к ней (иначе река висит над землёй столбами)
         if (bd < R && land > bl + 0.12) { const f = U.clamp((bd - 0.5) / (R - 0.5), 0, 1); land = bl + 0.12 + (land - bl - 0.12) * f * f * (3 - 2 * f); }
+        else if (bd < R + 2 && land < bl + 0.06) { const f = U.clamp((bd - 0.5) / (R + 1.5), 0, 1); land = bl + 0.06 - (bl + 0.06 - land) * f * f * (3 - 2 * f); }
       }
       const wli = cls[i] === CL.WATER ? ewl[(y + R) * EW + x + R] : 0;
       let ws = 0;
@@ -385,7 +390,7 @@
         const bot = Math.min(...cs) - 0.35;
         const hh = wallH(x, y, bk);
         const top = hb + hh, tex = wallTex(roofs, bk, x, y);
-        P3.quad(M, [x, top, y + 1], [x + 1, top, y + 1], [x + 1, top, y], [x, top, y], [0, 0], [1, 1], bk === 'cave' || dungeon ? tex : bk === 'townwall' ? 'arch' : 'roof_slate', [0, 1, 0], dungeon ? 0 : 1);
+        P3.quad(M, [x, top, y + 1], [x + 1, top, y + 1], [x + 1, top, y], [x, top, y], [0, 0], [1, 1], bk === 'cave' || dungeon ? tex : bk === 'townwall' ? 'arch' : 'roof_slate', [0, 1, 0], dungeon ? 0 : 1, K.TOP);
         // городская стена: зубцы поверху (шахматкой — с любой стороны видно)
         if (bk === 'townwall' && !dungeon) for (const [ax, az] of [[0.04, 0.04], [0.56, 0.56]]) cube(M, x + ax, top, y + az, x + ax + 0.4, top + 0.32, y + az + 0.4, tex, 1);
         for (const [dx, dy, nx, nz] of [[0, -1, 0, -1], [1, 0, 1, 0], [0, 1, 0, 1], [-1, 0, -1, 0]]) {
@@ -444,9 +449,11 @@
           if (a0 + a1 <= b0 + b1 + 0.02) continue; // уступ рисует тот, кто выше
           const t0 = Math.max(a0, b0), t1 = Math.max(a1, b1), u0 = Math.min(a0, b0), u1 = Math.min(a1, b1);
           const rockFace = c === CL.ROCK || nc === CL.ROCK || !nb;
-          const tex = rockFace ? (c === CL.ROCK ? ROCKTEX[bk] || 'mountain' : 'cliff') : (m.biome === 'desert' || gk === 'sand' ? 'sand' : 'bank');
+          // порог внутри реки — тоже вода (маленький водопад), а не берег
+          const wf = c === CL.WATER && nc === CL.WATER;
+          const tex = wf ? gtex(gk, x, y) : rockFace ? (c === CL.ROCK ? ROCKTEX[bk] || 'mountain' : 'cliff') : (m.biome === 'desert' || gk === 'sand' ? 'sand' : 'bank');
           const n = [-dy === 0 ? -dx : 0, 0, dx === 0 ? -dy : 0];
-          P3.quad(M, [p0[0], u0, p0[1]], [p1[0], u1, p1[1]], [p1[0], t1, p1[1]], [p0[0], t0, p0[1]], [0, Math.max(t0 - u0, t1 - u1)], [1, 0], tex, [dx, 0, dy], sky);
+          P3.quad(M, [p0[0], u0, p0[1]], [p1[0], u1, p1[1]], [p1[0], t1, p1[1]], [p0[0], t0, p0[1]], [0, Math.max(t0 - u0, t1 - u1)], [1, 0], tex, wf ? [0, 1, 0] : [dx, 0, dy], sky, wf ? K.WATER : undefined);
         }
       }
       // ---- дверной проём: перемычка над проходом ----
@@ -460,7 +467,7 @@
         if (!dungeon) { if (ew) cube(M, x + 0.08, hb, y + 0.12, x + 0.13, lo - 0.03, y + 0.88, 'planks', sky); else cube(M, x + 0.12, hb, y + 0.08, x + 0.88, lo - 0.03, y + 0.13, 'planks', sky); }
       }
       // ---- потолки: в подземельях всегда, в доме — только когда ты внутри ----
-      if (dungeon) P3.quad(M, [x, CAVE, y], [x + 1, CAVE, y], [x + 1, CAVE, y + 1], [x, CAVE, y + 1], [0, 0], [1, 1], 'ceiling_rock', [0, -1, 0], 0);
+      if (dungeon) P3.quad(M, [x, CAVE, y], [x + 1, CAVE, y], [x + 1, CAVE, y + 1], [x, CAVE, y + 1], [0, 0], [1, 1], 'ceiling_rock', [0, -1, 0], 0, K.DCEIL);
       else if (insideRoof[i]) P3.quad(M, [x, hb + WALL, y], [x + 1, hb + WALL, y], [x + 1, hb + WALL, y + 1], [x, hb + WALL, y + 1], [0, 0], [1, 1], 'ceiling_wood', [0, -1, 0], 0.3, K.CEIL);
       // ---- вещи на клетке ----
       if (OK[tid] && tid !== T.DOWN && tid !== T.UP && tid !== T.MINE && tid !== T.PORTAL && !(UI.V3furn && UI.V3furn.has(tid))) {
@@ -557,7 +564,69 @@
     sand: [['dry', 0.25], ['pebble', 0.3]], dune: [['dry', 0.1]], swamp: [['reed', 1.6], ['grass', 1.2]], roots: [['fern', 1.2], ['mush', 0.4]],
     snow: [['dry', 0.15]], rock: [['pebble', 0.8]], ash: [['pebble', 0.4]], nightgrass: [['grass', 2.5], ['flower', 0.6]], rubble: [['pebble', 2]],
   };
-  function buildDetail(gcx, gcz) {
+  // ---------- густая трава: отдельные травинки, которые качает ветер, и светлые точки цветов ----------
+  // [травинок на клетку, высота]
+  const BLADES = { grass: [18, 0.5], hill: [14, 0.42], tallgrass: [24, 0.8], flowers: [14, 0.46], nightgrass: [16, 0.5], swamp: [10, 0.6], roots: [5, 0.32], grass_dry: [14, 0.42], grass_frost: [9, 0.32], nightflower: [14, 0.46] };
+  const SPECK = [[1, 1, 0.94], [1, 1, 0.94], [1, 0.93, 0.55], [0.95, 0.7, 0.85], [0.7, 0.8, 1]];
+  let BL = null;
+  function buildBlades(gcx, gcz, R, dens) {
+    const P3 = Gfx.P3, X = UI.mvTiles;
+    const sea = season();
+    // вершины пишутся прямо в массив чисел: так в десятки раз меньше мусора, чем через quad()
+    let cap = 6 * 15 * 4096, A = new Float32Array(cap), n = 0;
+    const tg = P3.tex('grass');
+    const grow = () => { const B = new Float32Array(cap * 2); B.set(A); A = B; cap *= 2; };
+    const V = (x, y, z, lu, lv, kind, r, g, b) => { if (n + 15 > cap) grow(); A[n++] = x; A[n++] = y; A[n++] = z; A[n++] = lu; A[n++] = lv; A[n++] = tg[0]; A[n++] = tg[1]; A[n++] = 0; A[n++] = 1; A[n++] = 0; A[n++] = 1; A[n++] = kind; A[n++] = r; A[n++] = g; A[n++] = b; };
+    for (let gz = gcz - R; gz <= gcz + R; gz++) for (let gx = gcx - R; gx <= gcx + R; gx++) {
+      const dd = (gx - gcx) ** 2 + (gz - gcz) ** 2;
+      if (dd > R * R) continue;
+      const t = tileAt(gx, gz);
+      if (!t) continue;
+      const cd = t[0], i = t[1];
+      if (cd.cls[i] !== CL.LAND || !cd.cL) continue;
+      const m = cd.m, tid = m.tiles[i];
+      if (TL[tid].indoor || X.OK[tid] || !m.outdoor) continue;
+      const gk = X.GK[tid] || X.FIX[tid], bd = gk && BLADES[gk];
+      if (!bd) continue;
+      const cold = m.region && m.region.t < 0.55;
+      if (sea === 3 && cold && gk !== 'nightgrass') continue;
+      // цвет: тёмный низ, светлее верх; осенью желтеет, ночная трава — синеватая
+      let tip = gk === 'nightgrass' || gk === 'nightflower' ? [0.2, 0.36, 0.52] : gk === 'swamp' ? [0.26, 0.36, 0.15] : gk === 'grass_dry' || sea === 2 ? [0.5, 0.46, 0.2] : gk === 'grass_frost' ? [0.46, 0.52, 0.46] : [0.26, 0.56, 0.2];
+      if (m.biome === 'desert') tip = [0.46, 0.42, 0.2];
+      const far = dd > 11 * 11 ? 0.5 : 1;
+      const nf = bd[0] * dens * far;
+      const nb = Math.floor(nf) + (hash2(gx, gz, 3) < nf - Math.floor(nf) ? 1 : 0);
+      // высота земли в клетке — по четырём углам (без поиска куска на каждую травинку)
+      const h00 = HGT.groundAt(gx + 0.25, gz + 0.25), h10 = HGT.groundAt(gx + 0.75, gz + 0.25), h01 = HGT.groundAt(gx + 0.25, gz + 0.75), h11 = HGT.groundAt(gx + 0.75, gz + 0.75);
+      const gyAt = (jx, jz) => { const u = U.clamp((jx - 0.25) * 2, 0, 1), v = U.clamp((jz - 0.25) * 2, 0, 1); return (h00 * (1 - u) + h10 * u) * (1 - v) + (h01 * (1 - u) + h11 * u) * v - 0.02; };
+      for (let k = 0; k < nb; k++) {
+        const jx = hash2(gx, gz, k * 7 + 11), jz = hash2(gx, gz, k * 7 + 12), a = hash2(gx, gz, k * 7 + 13) * Math.PI;
+        const v = hash2(gx, gz, k * 7 + 14), h = bd[1] * (0.6 + v * 0.8);
+        const gy = gyAt(jx, jz);
+        const la = hash2(gx, gz, k * 7 + 15) * Math.PI * 2, lean = h * (0.15 + v * 0.25);
+        const ca = Math.cos(a) * 0.026, sa = Math.sin(a) * 0.026;
+        const lx = gx + jx - gcx, lz = gz + jz - gcz, tx = lx + Math.cos(la) * lean, tz = lz + Math.sin(la) * lean;
+        const kv = 0.75 + v * 0.5, tr = tip[0] * kv, tgc = tip[1] * kv, tb = tip[2] * kv, br = tip[0] * 0.22, bg = tip[1] * 0.25, bb = tip[2] * 0.22;
+        // два треугольника: низ узкой полоской, верх сходится в кончик
+        V(lx - ca, gy, lz - sa, 0, 0, 14, br, bg, bb); V(lx + ca, gy, lz + sa, 1, 0, 14, br, bg, bb); V(tx + ca * 0.12, gy + h, tz + sa * 0.12, 1, 1, 14, tr, tgc, tb);
+        V(lx - ca, gy, lz - sa, 0, 0, 14, br, bg, bb); V(tx + ca * 0.12, gy + h, tz + sa * 0.12, 1, 1, 14, tr, tgc, tb); V(tx - ca * 0.12, gy + h, tz - sa * 0.12, 0, 1, 14, tr, tgc, tb);
+      }
+      // светлые точки: цветы и светлячки в траве
+      const ns = gk === 'flowers' || gk === 'nightflower' ? 3 : gk === 'nightgrass' ? 1 : hash2(gx, gz, 91) < 0.22 * far ? 1 : 0;
+      for (let k = 0; k < ns; k++) {
+        const jx = hash2(gx, gz, k + 51), jz = hash2(gx, gz, k + 52), y = gyAt(jx, jz) + 0.2 + hash2(gx, gz, k + 53) * 0.25;
+        const c = gk === 'nightgrass' || gk === 'nightflower' ? [0.6, 0.85, 1] : SPECK[Math.floor(hash2(gx >> 1, gz >> 1, k + 54) * SPECK.length)];
+        const lx = gx + jx - gcx, lz = gz + jz - gcz, r = 0.028;
+        V(lx - r, y, lz - r, 0, 0, 15, c[0], c[1], c[2]); V(lx + r, y, lz - r, 1, 0, 15, c[0], c[1], c[2]); V(lx + r, y, lz + r, 1, 1, 15, c[0], c[1], c[2]);
+        V(lx - r, y, lz - r, 0, 0, 15, c[0], c[1], c[2]); V(lx + r, y, lz + r, 1, 1, 15, c[0], c[1], c[2]); V(lx - r, y, lz + r, 0, 1, 15, c[0], c[1], c[2]);
+        V(lx - r, y - r, lz, 0, 0, 15, c[0], c[1], c[2]); V(lx + r, y - r, lz, 1, 0, 15, c[0], c[1], c[2]); V(lx + r, y + r, lz, 1, 1, 15, c[0], c[1], c[2]);
+        V(lx - r, y - r, lz, 0, 0, 15, c[0], c[1], c[2]); V(lx + r, y + r, lz, 1, 1, 15, c[0], c[1], c[2]); V(lx - r, y + r, lz, 0, 1, 15, c[0], c[1], c[2]);
+      }
+    }
+    return { h: n ? P3.upload({ a: A.subarray(0, n), n: n / 15 }) : null, cx: gcx, cz: gcz, sea, R, dens };
+  }
+  V3.buildBlades = buildBlades;
+  function buildDetail(gcx, gcz, noGrass) {
     const P3 = Gfx.P3, TF = Gfx.Tufts, X = UI.mvTiles, B = P3.bmesh();
     const sea = season();
     for (let gz = gcz - DETR; gz <= gcz + DETR; gz++) for (let gx = gcx - DETR; gx <= gcx + DETR; gx++) {
@@ -576,6 +645,7 @@
       if (!list) continue;
       const far = dd > 14 * 14 ? 0.45 : 1;
       for (const [kind, dens] of list) {
+        if (noGrass && (kind === 'grass' || kind === 'tall' || kind === 'flower')) continue;
         let n = dens * far;
         const base = Math.floor(n); n = base + (hash2(gx * 3 + kind.length, gz, 5) < n - base ? 1 : 0);
         if (sea === 3 && (kind === 'flower' || kind === 'fern' || kind === 'tall') && cd.m.region && cd.m.region.t < 0.55) continue;
@@ -985,8 +1055,22 @@
     const dpr = t.dpr || 1;
     const vx0 = L.mx * t.cw, vy0 = L.my * t.ch, vw = L.mw * t.cw, vh = L.mh * t.ch;
     const FX3 = UI.FX3 || {};
-    const KP = FX3.pix ? Math.max(1, FX3.pix) : Math.max(2, Math.round(vh * dpr / 260));
-    const fw = Math.max(64, Math.ceil(vw * dpr / KP)), fh = Math.max(48, Math.ceil(vh * dpr / KP));
+    // ASCII: кадр — во весь экран, поделённый на знаки; сцена рисуется мельче (по 3×5 точек на знак)
+    const ASC = UI.isAscii();
+    // камера сверху-сзади (как в ASCII) или от первого лица — выбирается в настройках 3D
+    const THIRD = ASC || FX3.cam !== 1;
+    const gdens = FX3.grass == null ? 1 : +FX3.grass;
+    let KP, fw, fh, AS = null;
+    if (ASC) {
+      const gw = Math.max(4, Math.round((FX3.asz || 8) * dpr)), gh = Math.max(7, Math.round(gw * 1.8));
+      const cols = Math.max(24, Math.ceil(vw * dpr / gw)), rows = Math.max(12, Math.ceil(vh * dpr / gh));
+      KP = 1; fw = cols * gw; fh = rows * gh;
+      AS = { cols, rows, gw, gh, ssx: 3, ssy: 5 };
+    } else {
+      KP = FX3.pix ? Math.max(1, FX3.pix) : THIRD ? Math.max(1, Math.round(vh * dpr / 520)) : Math.max(2, Math.round(vh * dpr / 260));
+      fw = Math.max(64, Math.ceil(vw * dpr / KP)); fh = Math.max(48, Math.ceil(vh * dpr / KP));
+    }
+    const dw = fw * KP / dpr, dh = fh * KP / dpr;
     // голова: в живом мире — куда смотришь; по ходам — плавный поворот к стороне света
     if (live()) { V3.yawT = V3.yaw; V3.face = faceOf(V3.yaw); }
     else { let d = V3.yawT - V3.yaw; V3.yaw += d * Math.min(1, dt * 14); if (Math.abs(d) > 0.002) UI.animUntil = Math.max(UI.animUntil || 0, now + 60); V3.pitch = 0; }
@@ -1023,25 +1107,37 @@
     V3.camY = V3.camY == null || Math.abs(V3.camY - ground) > 2 ? ground : V3.camY + (ground - V3.camY) * Math.min(1, dt * 12);
     const jy = RT && RT.jy > 0 ? RT.jy : 0;
     const land = RT && RT.landed ? Math.max(0, 1 - (now - RT.landed) / 160) : 0;
-    const cam = { x: gx - RO[0], y: V3.camY + EYE + bob + jy - land * 0.05, z: gz - RO[1], yaw: V3.yaw, pitch: (V3.pitch || 0) - 0.04, fov: (FX3.fov || 69) * Math.PI / 180 };
-    // глаза в координатах этой карты (для выстрелов и прицела)
-    V3.camPos = { x: px, y: cam.y, z: py };
     const fx = Math.sin(V3.yaw), fz = -Math.cos(V3.yaw);
+    // глаза героя (в координатах кадра)
+    const eye = { x: gx - RO[0], y: V3.camY + EYE + (THIRD ? 0 : bob) + jy - land * 0.05, z: gz - RO[1] };
+    let cam;
+    if (THIRD) {
+      // камера сверху-сзади: мышь вверх-вниз меняет наклон, колесо и +/− — даль
+      const ang = U.clamp((FX3.aang || 0.78) - (V3.pitch || 0) * 0.9, 0.22, 1.4), dist = FX3.adist || 8.5;
+      const hor = Math.cos(ang) * dist, ver = Math.sin(ang) * dist;
+      const cx = eye.x - fx * hor, cz = eye.z - fz * hor;
+      let cy = V3.camY + 0.9 + jy * 0.5 + ver;
+      cy = Math.max(cy, HGT.groundAt(cx + RO[0], cz + RO[1]) + 1.2);
+      cam = { x: cx, y: cy, z: cz, yaw: V3.yaw, pitch: -Math.atan2(cy - (V3.camY + 0.9), hor), fov: (55 + ((FX3.fov || 69) - 69) * 0.5) * Math.PI / 180 };
+    } else cam = { x: eye.x, y: eye.y, z: eye.z, yaw: V3.yaw, pitch: (V3.pitch || 0) - 0.04, fov: (FX3.fov || 69) * Math.PI / 180 };
+    // глаза в координатах этой карты (для выстрелов и прицела)
+    V3.camPos = { x: px, y: eye.y, z: py };
+    V3.third = THIRD;
     // огни: ближние к камере + факел
     const lights = [];
     const dayK = m.outdoor ? U.clamp((Time.light(G.S.time) - 0.15) / 0.6, 0, 1) : 0;
     for (const ms of meshes) for (const l of ms.lights) {
-      const lx = ms.cd.ox + l.x - RO[0], lz = ms.cd.oz + l.z - RO[1], d = (lx - cam.x) ** 2 + (lz - cam.z) ** 2;
+      const lx = ms.cd.ox + l.x - RO[0], lz = ms.cd.oz + l.z - RO[1], d = (lx - eye.x) ** 2 + (lz - eye.z) ** 2;
       if (d >= 900 || (l.day && dayK < 0.05) || (l.night && dayK > 0.6)) continue;
       lights.push({ x: lx, y: l.y, z: lz, r: l.r * (FX3.lightR || 1), col: l.col, i: (l.day ? l.i * dayK : l.fl ? l.i * (0.85 + 0.15 * Math.sin(now / 90 + l.x * 3)) : l.i) * (l.night ? 1 - dayK : 1) * (FX3.light || 1), d: l.day || l.night ? d * 1.5 : d });
     }
-    if (UI.extraLights) for (const l of UI.extraLights(now, cam, gox, goz, RO, dayK)) { const d = (l.x - cam.x) ** 2 + (l.z - cam.z) ** 2; if (d < 900) { l.d = d; l.r *= FX3.lightR || 1; l.i *= FX3.light || 1; lights.push(l); } }
+    if (UI.extraLights) for (const l of UI.extraLights(now, eye, gox, goz, RO, dayK)) { const d = (l.x - eye.x) ** 2 + (l.z - eye.z) ** 2; if (d < 900) { l.d = d; l.r *= FX3.lightR || 1; l.i *= FX3.light || 1; lights.push(l); } }
     lights.sort((a, b) => a.d - b.d);
     lights.length = Math.min(lights.length, (P3.NL || 8) - 1);
     const dark = !m.outdoor || m.dimName ? 1 : Math.max(0, 1 - Time.light(G.S.time) * 1.4);
-    if (E.Gm.lanternHeld && E.Gm.lanternHeld() && !(P.light > 0)) lights.unshift({ x: cam.x + fx * 0.3 + Math.cos(V3.yaw) * 0.25, y: cam.y + 0.05, z: cam.z + fz * 0.3 + Math.sin(V3.yaw) * 0.25, r: 7, col: [1, 0.82, 0.55], i: 1.25 });
-    else if (P.light > 0) lights.unshift({ x: cam.x + fx * 0.3 + Math.cos(V3.yaw) * 0.25, y: cam.y + 0.1, z: cam.z + fz * 0.3 + Math.sin(V3.yaw) * 0.25, r: 7.5, col: [1, 0.66, 0.36], i: 1.4 * (0.9 + 0.1 * Math.sin(now / 70)) });
-    else if (dark > 0.15) lights.unshift({ x: cam.x, y: cam.y + 0.3, z: cam.z, r: 5, col: [0.5, 0.55, 0.78], i: 0.6 * dark });
+    if (E.Gm.lanternHeld && E.Gm.lanternHeld() && !(P.light > 0)) lights.unshift({ x: eye.x + fx * 0.3 + Math.cos(V3.yaw) * 0.25, y: eye.y + 0.05, z: eye.z + fz * 0.3 + Math.sin(V3.yaw) * 0.25, r: 7, col: [1, 0.82, 0.55], i: 1.25 });
+    else if (P.light > 0) lights.unshift({ x: eye.x + fx * 0.3 + Math.cos(V3.yaw) * 0.25, y: eye.y + 0.1, z: eye.z + fz * 0.3 + Math.sin(V3.yaw) * 0.25, r: 7.5, col: [1, 0.66, 0.36], i: 1.4 * (0.9 + 0.1 * Math.sin(now / 70)) });
+    else if (dark > 0.15) lights.unshift({ x: eye.x, y: eye.y + (THIRD ? 1.2 : 0.3), z: eye.z, r: THIRD ? 6.5 : 5, col: [0.5, 0.55, 0.78], i: 0.6 * dark });
     // спрайты этого кадра
     const PX = Gfx.PX, dyn = P3.bmesh();
     const budget = now + 18;
@@ -1062,7 +1158,7 @@
       const pk = key + '|' + yaw.toFixed(2) + '|' + (o.c || '') + '|' + (o.f || 0) + '|' + (o.moving ? 1 : 0) + '|' + (o.mode || 0) + '|' + (o.hit ? 1 : 0) + '|' + (o.seed || 0);
       let r = V3.sprCache && V3.sprCache.get(pk);
       if (!r || r.gen !== P3.sprGen) {
-        if (performance.now() > budget) { V3.pending = true; return; }
+        if (performance.now() > budget && !o.must) { V3.pending = true; return; }
         const sp = PX.sprite(key, o, { yaw, pitch: 0.12, ppu: 44 });
         if (!sp) return;
         r = P3.sprite(sp);
@@ -1080,7 +1176,7 @@
       add(ob.k, { c: ob.c, seed: ob.seed % 3, f: ob.k === 'campfire' || ob.k === 'hearth' || ob.k === 'flame3d' ? Math.floor(now / 160 + ob.x * 3) % 4 : 0, season: season() }, wx, wz, Math.PI / 2, K_ENT, ob.sky);
     }
     // вещи на земле
-    for (const it of m.items) { if (!G.vis[it.y * m.w + it.x] && (m.outdoor || Math.abs(it.x - P.x) + Math.abs(it.y - P.y) > 22)) continue; add(X.itemArt(it.it), {}, gox + it.x + 0.5 - RO[0], goz + it.y + 0.5 - RO[1], Math.PI / 2, K_ENT, skyKAt(it.x, it.y)); }
+    for (const it of m.items) { if (!G.vis[it.y * m.w + it.x] && (m.outdoor || THIRD || Math.abs(it.x - P.x) + Math.abs(it.y - P.y) > 22)) continue; add(X.itemArt(it.it), {}, gox + it.x + 0.5 - RO[0], goz + it.y + 0.5 - RO[1], Math.PI / 2, K_ENT, skyKAt(it.x, it.y)); }
     // существа
     const reveal = G.revealUntil && G.turn < G.revealUntil;
     // на улице видно всех, кто не заслонён (заслоняет сама картинка); в подземелье — только в поле зрения
@@ -1088,7 +1184,7 @@
     for (const e of m.ents) {
       if (e.dead) continue;
       // в подземелье видно всех поблизости: заслоняют стены, а не «туман неизведанного»
-      const vis = G.vis[e.y * m.w + e.x] || (openAir && !e.hidden && !e.asleep) || (!m.outdoor && !e.hidden && Math.abs(e.x - P.x) + Math.abs(e.y - P.y) <= 26);
+      const vis = G.vis[e.y * m.w + e.x] || (openAir && !e.hidden && !e.asleep) || (!m.outdoor && !e.hidden && Math.abs(e.x - P.x) + Math.abs(e.y - P.y) <= (THIRD ? 2 : 26));
       if (!vis && !(reveal && e.kind !== 'npc')) continue;
       const s = X.track(e.id, e.x, e.y, now);
       const [ex, ey, moving] = X.curPos(s, now);
@@ -1108,6 +1204,14 @@
       const hit = G.hitEnt === e.id && now - (G.hitEntT || 0) < 160;
       add(key, { c, f, moving, mode, hit }, gox + ex + 0.5 - RO[0], goz + ey + 0.5 - RO[1], hd, K_ENT, skyKAt(e.x, e.y));
     }
+    // сам герой: камера за спиной — его видно
+    if (THIRD) {
+      const XC = X.CLS || {}, code = (UI.RCODE || {})[P.race || 'human'] || 'h';
+      const pkey = (P.sex === 'f' ? 'npc_f' : 'npc_m') + '~' + code + (P.sex === 'f' ? 'f' : 'm') + (P.race === 'femboy' ? '1' : '0') + 'n' + ((P.skin || 0) % 10);
+      const pf = pmov ? (Math.floor((live() ? walked * 2.6 : now / 160)) % 2 ? 1 : 3) : 0;
+      const phit = G.hitFlash && now - G.hitFlash < 160;
+      add(pkey, { c: XC[P.cls || 'wanderer'] || '#b09060', f: pf, moving: !!pmov, hit: phit, must: 1 }, eye.x, eye.z, V3.yaw - Math.PI / 2, K_ENT, skyKAt(P.x, P.y));
+    }
     // в соседних посёлках тоже живут: издали видно людей на площадях и улицах
     if (over) for (const ms of meshes) {
       const cd = ms.cd;
@@ -1126,18 +1230,28 @@
     }
     // мелочь у ног: пересобрать, если ушли или появились новые куски
     const dcx = Math.floor(gx), dcz = Math.floor(gz);
-    const detKey = m.key + '|' + meshes.length;
+    const detKey = m.key + '|' + meshes.length + '|' + (gdens > 0 ? 1 : 0);
     if (!DET || Math.abs(DET.cx - dcx) > 6 || Math.abs(DET.cz - dcz) > 6 || DET.gen !== P3.sprGen || DET.sea !== season() || DET.key !== detKey) {
-      if (performance.now() < now + 40 || !DET) { if (DET) P3.free(DET.h); DET = buildDetail(dcx, dcz); DET.key = detKey; }
+      if (performance.now() < now + 40 || !DET) { if (DET) P3.free(DET.h); DET = buildDetail(dcx, dcz, gdens > 0); DET.key = detKey; }
     }
+    // травинки: пересобрать, если отошёл или сменилась земля
+    const blR = THIRD ? 15 + Math.round((FX3.adist || 10) * 0.6) : 16;
+    if (gdens > 0 && m.outdoor && !m.dimName) {
+      const bk = detKey + '|' + season() + '|' + gdens + '|' + blR;
+      if (!BL || Math.abs(BL.cx - dcx) > 4 || Math.abs(BL.cz - dcz) > 4 || BL.key !== bk) {
+        if (!BL || performance.now() < now + 60 || BL.key !== bk) { if (BL) P3.free(BL.h); BL = buildBlades(dcx, dcz, blR, gdens); BL.key = bk; }
+      }
+    } else if (BL) { P3.free(BL.h); BL = null; }
     // сетки кадра
     const fm = [];
     for (const ms of meshes) fm.push({ h: ms.h, off: [ms.cd.ox - RO[0], 0, ms.cd.oz - RO[1]] });
+    if (BL && BL.h) fm.push({ h: BL.h, off: [BL.cx - RO[0], 0, BL.cz - RO[1]], noShadow: true });
     // стрелы, болты, камни и чары в полёте
     const sh = shotsMesh(now, lights, gox - RO[0], goz - RO[1]);
     if (sh) fm.push({ h: sh, off: [gox - RO[0], 0, goz - RO[1]], noShadow: true });
     const bills = meshes.map((ms) => ({ h: ms.bh, off: [ms.cd.ox - RO[0], 0, ms.cd.oz - RO[1]] }));
-    if (DET && DET.h && m.outdoor) bills.push({ h: DET.h, off: [DET.cx - RO[0], 0, DET.cz - RO[1]] });
+    // мелкая трава у ног: в ASCII её рисуют сами знаки земли
+    if (DET && DET.h && m.outdoor && !ASC) bills.push({ h: DET.h, off: [DET.cx - RO[0], 0, DET.cz - RO[1]] });
     if (over && !m.dimName && !V3.noFarWood) for (const b of farForest(now, meshes, gx, gz)) bills.push(b);
     // дом, где ты: крыша прячется, потолок видно (крыши и потолки — особые вершины в сетке)
     const hide = inside ? [gox + inside.rect.x - RO[0] - 0.6, goz + inside.rect.y - RO[1] - 0.6, gox + inside.rect.x + inside.rect.w - RO[0] + 0.6, goz + inside.rect.y + inside.rect.h - RO[1] + 0.6] : null;
@@ -1145,18 +1259,19 @@
       w: fw, h: fh, time: now / 1000, cam, sky, lights, meshes: fm, bills, dyn, wx, near, hide,
       far: over && FAR ? { h: FAR.h, off: [-RO[0], 0, -RO[1]] } : null,
       farClip: over ? 1500 : 80,
-      shadow: m.outdoor && !m.dimName ? { center: [cam.x + fx * 18, V3.camY, cam.z + fz * 18], size: 46, k: inside ? 1 : 1 } : null,
+      shadow: m.outdoor && !m.dimName ? { center: THIRD ? [eye.x + fx * 6, V3.camY, eye.z + fz * 6] : [cam.x + fx * 18, V3.camY, cam.z + fz * 18], size: THIRD ? 34 : 46, k: inside ? 1 : 1 } : null,
+      ascii: AS, third: THIRD, cut: THIRD ? [eye.x, V3.camY + 1.55 + jy, eye.z, 2.3] : null,
     };
     const gcv = P3.render(frame);
-    V3.view = { vx0, vy0, vw, vh, fw, fh, K: KP, dpr, gox, goz };
+    V3.view = { vx0, vy0, vw, vh, fw, fh, dw, dh, K: KP, dpr, gox, goz, asc: ASC, third: THIRD };
     UI.mv3 = V3.view;
     // подсказки [E] старого вида: проекция центра клетки
     UI.mvRect3 = (x, y) => {
-      if (x === P.x && y === P.y) return { x: vx0 + vw / 2 - 20, y: vy0 + vh - 60, w: 40, h: 20 };
+      if (x === P.x && y === P.y && !THIRD) return { x: vx0 + vw / 2 - 20, y: vy0 + vh - 60, w: 40, h: 20 };
       const gy2 = HGT.groundAt(gox + x + 0.5, goz + y + 0.5);
       const p = P3.project(gox + x + 0.5 - RO[0], gy2 + 1.0, goz + y + 0.5 - RO[1]);
       if (!p) return null;
-      const sx = vx0 + p[0] / fw * vw, sy = vy0 + p[1] / fh * vh;
+      const sx = vx0 + p[0] / fw * dw, sy = vy0 + p[1] / fh * dh;
       if (sx < vx0 || sx > vx0 + vw || sy < vy0 || sy > vy0 + vh) return null;
       return { x: sx - 20, y: sy, w: 40, h: 20 };
     };
@@ -1164,30 +1279,43 @@
       ctx.save();
       ctx.beginPath(); ctx.rect(vx0, vy0, vw, vh); ctx.clip();
       ctx.imageSmoothingEnabled = !!FX3.smooth;
-      if (gcv) ctx.drawImage(gcv, vx0, vy0, fw * KP / dpr, fh * KP / dpr);
+      if (gcv) ctx.drawImage(gcv, vx0, vy0, dw, dh);
       ctx.imageSmoothingEnabled = false;
       // тёмные края кадра — как на старой гравюре (если нет постобработки — она делает это сама)
-      if (!P3.postOn() && (FX3.vig == null || FX3.vig > 0)) {
+      if (!P3.postOn() && !ASC && (FX3.vig == null || FX3.vig > 0)) {
         const vg = ctx.createRadialGradient(vx0 + vw / 2, vy0 + vh * 0.48, Math.min(vw, vh) * 0.38, vx0 + vw / 2, vy0 + vh * 0.48, Math.hypot(vw, vh) * 0.62);
         vg.addColorStop(0, 'rgba(8,6,10,0)'); vg.addColorStop(1, 'rgba(8,6,10,' + (FX3.vig == null ? 0.55 : FX3.vig) + ')');
         ctx.fillStyle = vg; ctx.fillRect(vx0, vy0, vw, vh);
       }
       // рука с оружием — в тех же красках, что и кадр
-      if (UI.drawHand3D && FX3.hand !== 0) {
+      if (UI.drawHand3D && FX3.hand !== 0 && !THIRD) {
         const flt = UI.fx3Filter ? UI.fx3Filter() : 'none';
         if (flt !== 'none') ctx.filter = flt;
         UI.drawHand3D(ctx, { vx0, vy0, vw, vh, px: KP / dpr, fw, fh, now, moving: pmov, walked, sky, lights, cam, inside: !m.outdoor || !!inside });
         ctx.filter = 'none';
       }
-      if (UI.drawHUD3D) UI.drawHUD3D(ctx, t, { vx0, vy0, vw, vh, now, cam, RO, gox, goz, fw, fh });
-      drawCompass(ctx, t, vx0, vy0, vw);
-      drawMinimap(ctx, m, P, vx0 + vw - 8, vy0 + 8, Math.round(Math.min(vw, vh) * 0.22), KP / dpr);
+      // где голова и ноги героя на экране (для имени над головой и подсказок в ASCII)
+      let head = null, feet = null;
+      if (THIRD) {
+        const ph = P3.project(eye.x, V3.camY + 1.85 + jy, eye.z), pf2 = P3.project(eye.x, V3.camY + jy, eye.z);
+        if (ph) head = [vx0 + ph[0] / fw * dw, vy0 + ph[1] / fh * dh];
+        if (pf2) feet = [vx0 + pf2[0] / fw * dw, vy0 + pf2[1] / fh * dh];
+      }
+      if (UI.drawHUD3D) UI.drawHUD3D(ctx, t, { vx0, vy0, vw, vh, now, cam, RO, gox, goz, fw, fh, asc: ASC, third: THIRD, head, feet });
+      if (!THIRD) drawCompass(ctx, t, vx0, vy0, vw);
+      drawMinimap(ctx, m, P, vx0 + vw - 8, vy0 + 8, Math.round(Math.min(vw, vh) * 0.22), THIRD ? 2 : KP / dpr);
       // попадание по тебе — красная вспышка по краям
       if (G.hitFlash && now - G.hitFlash < 200) { ctx.fillStyle = 'rgba(200,30,20,' + (0.25 * (1 - (now - G.hitFlash) / 200)) + ')'; ctx.fillRect(vx0, vy0, vw, vh); }
       ctx.restore();
     };
-    V3.proj = (lx, ly, lz) => { const p = P3.project(lx - RO[0], ly, lz - RO[1]); if (!p) return null; return [vx0 + p[0] / fw * vw, vy0 + p[1] / fh * vh, p[2]]; };
+    V3.proj = (lx, ly, lz) => { const p = P3.project(lx - RO[0], ly, lz - RO[1]); if (!p) return null; return [vx0 + p[0] / fw * dw, vy0 + p[1] / fh * dh, p[2]]; };
     if (!live() && (V3.pending || Math.abs(V3.yawT - V3.yaw) > 0.002) && !rafOn) { rafOn = true; requestAnimationFrame(() => { rafOn = false; UI.render(); }); }
+  };
+  // для карты мира (js/ui/map3d.js): весь мир одной сеткой и небо
+  V3.mapKit = function () {
+    fields();
+    if (!FAR || FAR.key !== G.W.seed + ':' + G.W.regions.length) { if (FAR) Gfx.P3.free(FAR.h); buildFar(); }
+    return { FAR, skyOf };
   };
   // ---------- снаряды: тонкие брусочки по ходу полёта ----------
   let SHOT_H = null;
@@ -1307,7 +1435,7 @@
   UI.mvTileAt3 = function (px, py) {
     const v = V3.view, P3 = Gfx.P3;
     if (!v) return null;
-    const r = P3.ray((px - v.vx0) / v.vw * v.fw, (py - v.vy0) / v.vh * v.fh);
+    const r = P3.ray((px - v.vx0) / (v.dw || v.vw) * v.fw, (py - v.vy0) / (v.dh || v.vh) * v.fh);
     if (!r) return null;
     const l = Math.hypot(...r.d), d = r.d.map((q) => q / l);
     for (let t = 0.3; t < 60; t += 0.08) {

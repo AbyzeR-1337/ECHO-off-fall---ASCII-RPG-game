@@ -18,7 +18,8 @@
   RT.viewRay = function () {
     const V3 = UI.V3, c = V3 && V3.camPos;
     if (!c) return null;
-    const p = (V3.pitch || 0) - 0.04, cp = Math.cos(p);
+    // в ASCII камера сверху-сзади: стреляешь вперёд от себя, почти ровно
+    const p = V3.third ? -0.03 : (V3.pitch || 0) - 0.04, cp = Math.cos(p);
     return { o: [c.x, c.y, c.z], d: [Math.sin(V3.yaw) * cp, Math.sin(p), -Math.cos(V3.yaw) * cp] };
   };
   const ground = (x, z) => { const m = G.map, ox = m.kind === 'over' ? m.region.x * E.C.MW : 0, oz = m.kind === 'over' ? m.region.y * E.C.MH : 0; return UI.Hgt && UI.Hgt.groundAt ? UI.Hgt.groundAt(ox + x, oz + z) : 0; };

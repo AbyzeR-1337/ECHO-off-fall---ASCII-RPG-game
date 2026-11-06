@@ -541,7 +541,14 @@
   };
 
   // ---------- карта мира ----------
+  // карта мира: в ASCII и 3D — объёмная (js/ui/map3d.js), без WebGL и в иных мирах — знаками
   UI.worldMap = function () {
+    const m = G.map;
+    const inDim = m.dim && m.dimGrid > 1;
+    if (!inDim && UI.worldMap3D && UI.is3D && UI.is3D()) { try { return UI.worldMap3D(); } catch (e) { console.warn('map3d', e); } }
+    return UI.worldMap2D();
+  };
+  UI.worldMap2D = function () {
     const P = G.P;
     const m = G.map;
     const inDim = m.dim && m.dimGrid > 1 && m.dimName !== 'mirror';
@@ -693,7 +700,11 @@
         const [cx, cy] = UI.cam || UI.camera(L);
         const sx = L.mx + s.x - cx, sy = L.my + s.y - cy;
         const i = s.y * G.map.w + s.x;
-        if (UI.view3d) UI.mvCursor = [s.x, s.y]; else t.bg(sx, sy, '#806020');
+        // в ASCII и 3D — рамка вокруг клетки на картинке, в плоском виде — подсветка клетки
+        if (UI.is3D && UI.is3D()) {
+          const r = UI.mvRect3 ? UI.mvRect3(s.x, s.y) : null;
+          if (r) t.over = (ctx) => { ctx.strokeStyle = '#ffd860'; ctx.lineWidth = 2; ctx.strokeRect(Math.round(r.x) + 6, Math.round(r.y) + 4, r.w - 12, r.h + 8); ctx.fillStyle = 'rgba(255,216,96,0.18)'; ctx.fillRect(Math.round(r.x) + 6, Math.round(r.y) + 4, r.w - 12, r.h + 8); };
+        } else t.bg(sx, sy, '#806020');
         const desc = UI.lookText(s.x, s.y);
         t.text(0, L.my, ' ' + desc + ' ', '#fff0c0', '#2a2010', t.cols);
       },
@@ -747,34 +758,35 @@
       ['Игра сохраняется сама.', COL.dim],
     ]);
   };
-  // ---------- ползунок графики ----------
+  // ---------- выбор графики: ASCII или 3D ----------
   UI.gfxScreen = function () {
     const s = {
       name: 'gfx',
       draw(t) {
         const L = UI.layout(t);
-        const lv = UI.gfxLevel || 0;
-        const W = Math.min(L.mw - 2, 66), H = 8;
+        const lv = UI.gfxLevel || 0, ok = UI.has3D ? UI.has3D() : true;
+        const W = Math.min(L.mw - 2, 66), H = 10;
         const x0 = L.mx + Math.floor((L.mw - W) / 2), y0 = L.my + L.mh - H - 1;
         t.box(x0, y0, W, H, COL.border, COL.panel, 'Графика');
-        const left = 'ASCII', right = 'пиксели 3D';
-        const tw = Math.max(18, W - left.length - right.length - 8), step = Math.floor(tw / 6);
-        const tx = x0 + 3 + left.length + 1;
-        t.text(x0 + 2, y0 + 2, left, COL.dim, COL.panel);
-        for (let i = 0; i <= 6 * step; i++) t.put(tx + i, y0 + 2, i % step === 0 ? (i / step === lv ? '●' : '○') : '─', i <= lv * step ? COL.accent : COL.faint, COL.panel);
-        t.text(tx + 6 * step + 2, y0 + 2, right, COL.dim, COL.panel);
-        for (let k = 0; k <= 6; k++) {
-          t.put(tx + k * step, y0 + 3, String(k), k === lv ? COL.selfg : COL.dim, COL.panel);
-          t.hot(tx + k * step - 1, y0 + 2, 3, 2, () => { UI.setGfx(k, true); });
+        if (!ok) {
+          UI.wrapText(t, x0 + 2, y0 + 2, W - 4, UI.GFX[0][1], COL.text, 3);
+          t.text(x0 + 2, y0 + H - 2, 'Enter — закрыть', COL.dim, COL.panel, W - 4);
+          return;
         }
-        t.text(x0 + 2, y0 + 4, lv + ' · ' + UI.GFX[lv][0], COL.title, COL.panel, W - 4);
-        UI.wrapText(t, x0 + 2, y0 + 5, W - 4, UI.GFX[lv][1], COL.text, 1);
-        t.text(x0 + 2, y0 + H - 2, '←/→ или 0–6 — менять · Enter — готово' + (lv === 6 && UI.fx3Screen ? ' · F2 — настройки 3D' : ''), COL.dim, COL.panel, W - 4);
+        const half = Math.floor((W - 6) / 2);
+        [[5, '1  ASCII', '/\\|.= Qa@'], [6, '2  3D', 'от первого лица']].forEach(([k, n, d], i) => {
+          const bx = x0 + 2 + i * (half + 2), on = lv === k;
+          t.fill(bx, y0 + 2, half, 3, ' ', COL.text, on ? COL.sel : COL.panel);
+          t.text(bx + 1, y0 + 2, (on ? '● ' : '○ ') + n, on ? COL.selfg : COL.title, on ? COL.sel : COL.panel, half - 2);
+          t.text(bx + 3, y0 + 3, d, on ? COL.selfg : COL.dim, on ? COL.sel : COL.panel, half - 4);
+          t.hot(bx, y0 + 2, half, 3, () => { UI.setGfx(k, true); });
+        });
+        UI.wrapText(t, x0 + 2, y0 + 5, W - 4, UI.GFX[lv >= 5 ? lv : 5][1], COL.text, 3);
+        t.text(x0 + 2, y0 + H - 1 - 1, '←/→, 1/2 или [ ] — менять · F2 — настройки картинки · Enter — готово', COL.dim, COL.panel, W - 4);
       },
       key(c) {
-        if (c.k === 'left' || c.k === 'right') { UI.setGfx((UI.gfxLevel || 0) + (c.k === 'right' ? 1 : -1), true); return; }
-        if (c.n != null && c.n >= 0 && c.n <= 6) { UI.setGfx(c.n, true); return; }
-        if (c.k === 'gup' || c.k === 'gdown') { UI.setGfx((UI.gfxLevel || 0) + (c.k === 'gup' ? 1 : -1), true); return; }
+        if (c.k === 'left' || c.k === 'right' || c.k === 'gup' || c.k === 'gdown' || c.k === 'tab') { UI.toggleGfx(true); return; }
+        if (c.n === 1 || c.n === 2) { UI.setGfx(c.n === 1 ? 5 : 6, true); return; }
         if (c.k === 'fx3d' && UI.fx3Screen) { UI.pop(); UI.fx3Screen(); return; }
         if (c.k === 'esc' || c.k === 'enter' || c.k === 'view' || c.k === 'act') { UI.pop(); E.Gm.msg('Графика: ' + UI.GFX[UI.gfxLevel || 0][0] + '.', '#808090'); }
       },
@@ -790,8 +802,8 @@
     if (so.length) opts.push({ t: G.map.sett >= 0 ? 'Остаться здесь навсегда' : 'Остаться в этих краях навсегда', f: () => UI.settle(so) });
     opts.push({ t: 'Уйти навсегда', f: () => UI.confirm('Уйти, не оглядываясь? Эта жизнь закончится.', () => Gm.ending(G.P.flags.nameless ? 'hidden_nobody' : 'walk_away')) });
     opts.push({ t: 'Графика: ' + UI.GFX[UI.gfxLevel || 0][0] + ' (V)', f: () => UI.gfxScreen() });
-    if (UI.fx3Screen) opts.push({ t: 'Настройки 3D-картинки (F2)', f: () => UI.fx3Screen() });
-    if (UI.view3d) { opts.push({ t: 'Карта крупнее (+)', f: () => UI.zoom(1) }); opts.push({ t: 'Карта мельче (−)', f: () => UI.zoom(-1) }); }
+    if (UI.fx3Screen) opts.push({ t: 'Настройки картинки (F2)', f: () => UI.fx3Screen() });
+    if (UI.isAscii && UI.isAscii()) { opts.push({ t: 'Камера ближе (+)', f: () => UI.ascZoom(1) }); opts.push({ t: 'Камера дальше (−)', f: () => UI.ascZoom(-1) }); }
     opts.push({ t: 'Журнал сообщений', f: () => UI.logScreen() });
     opts.push({ t: 'Как играть', f: () => UI.help() });
     opts.push({ t: 'Летопись концовок', f: () => UI.endingsGallery() });

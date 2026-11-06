@@ -90,7 +90,7 @@
     for (const c of cells) c.w = Math.max(fpx * 3.4, ctx.measureText(c.s).width + fpx * 0.9);
     const gap = fpx * 0.35, total = cells.reduce((s, c) => s + c.w + gap, 0) + fpx * 0.8;
     let x = v.vx0 + v.vw / 2 - total / 2;
-    const y = v.vy0 + v.vh - fpx * 2.6, h = fpx * 1.6;
+    const y = v.vy0 + v.vh - fpx * (v.third ? 6.2 : 2.6), h = fpx * 1.6;
     const cur = P.eq.hand || null;
     cells.forEach((c, i) => {
       // разделители: пояс | спина

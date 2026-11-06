@@ -135,51 +135,54 @@
     if (m.h <= L.mh) cy = -Math.floor((L.mh - m.h) / 2); else cy = U.clamp(P.y - (L.mh >> 1), 0, m.h - L.mh);
     return [cx, cy];
   };
-  // вид карты: рисованный ASCII 2.5D (движок js/gfx) или классический плоский; выбор помнится в этом браузере
-  // Уровень графики — ползунок от классического ASCII до «почти реальности» (но всё равно символами):
-  // 0 — символы, 1 — рисунок, 2 — свет и тень, 3 — объём, 4 — детально, 5 — почти реальность.
+  // Графика: два режима. ASCII — тот же 3D-мир, камера сверху-сзади над героем, всё нарисовано знаками;
+  // 3D — от первого лица, пиксельная картинка. Уровень 0 (плоские символы) — только запасной, когда браузер не даёт WebGL.
+  // Старые уровни 1–4 убраны: их номера из сохранённых настроек ведут в ASCII.
   UI.GFX = [
-    ['Символы', 'Классический ASCII: одна клетка — один знак.'],
-    ['Рисунок', 'Каждая вещь и существо нарисованы несколькими символами, стены и крыши — объёмные.'],
-    ['Свет и тень', 'Рисунки плюс тени от солнца, бегущие облака, затенение у стен и тёплый вечерний свет.'],
-    ['Объём', 'Каждая вещь — объёмная фигура, нарисованная символами по форме: контур — «/ ( d», свет — «# %», тень — «: .». Видно дальше всего.'],
-    ['Детально', 'Камера ближе: люди, звери, деревья, дома — подробные рисунки из символов; облака, мягкие тени, огни.'],
-    ['Почти реальность', 'Камера совсем близко: каждая фигура — как ASCII-картина. Тяжелее для слабых устройств; «−» отодвигает камеру.'],
-    ['Пиксели 3D', 'Мир от первого лица, как живописный пиксель-арт: холмы и горы, соседние земли и горизонт, тени от солнца, облака, рука с оружием. WASD — идти, мышь или палец — смотреть.'],
+    ['Символы', 'Запасной вид: браузер не даёт WebGL, поэтому карта плоская — одна клетка, один знак.'],
+    null, null, null, null,
+    ['ASCII', 'Мир сверху-сзади, весь из знаков: трава — штрихи «/ \\ |», вода — «- =» с отражениями, деревья и дома — плотные буквы. Мышь — вращать камеру, колесо или +/− — ближе и дальше.'],
+    ['3D', 'Мир от первого лица, как живописный пиксель-арт: холмы и горы, соседние земли и горизонт, тени, отражения в воде, облака, рука с оружием. WASD — идти, мышь — смотреть.'],
   ];
+  UI.GFX[1] = UI.GFX[2] = UI.GFX[3] = UI.GFX[4] = UI.GFX[5];
   UI.gfxLevel = (() => {
     try {
       const v = localStorage.getItem('eotf_gfx');
-      if (v != null && /^[0-6]$/.test(v)) return +v;
+      if (v != null && /^[0-6]$/.test(v)) return +v >= 1 && +v <= 4 ? 5 : +v;
       if (localStorage.getItem('eotf_view') === 'flat') return 0;
     } catch (e) { /* без хранилища — выберем по экрану */ }
     return null;
   })();
   // готовая сборка для Windows (её выкладывает .github/workflows/windows-exe.yml)
   UI.EXE_URL = 'https://github.com/AbyzeR-1337/ECHO-off-fall---ASCII-RPG-game/releases/tag/windows-build';
-  Object.defineProperty(UI, 'view3d', { get: () => UI.gfxLevel > 0 });
-  // без WebGL пиксельного 3D нет — лучший из остальных уровней
+  // старый рисованный вид (уровни 1–4) больше не включается
+  Object.defineProperty(UI, 'view3d', { get: () => false });
+  // без WebGL ни ASCII, ни 3D нет — остаются плоские символы
   const has3D = () => !!(E.Gfx && E.Gfx.P3 && E.Gfx.P3.supported());
+  UI.has3D = has3D;
   UI.setGfx = function (lv, quiet) {
-    UI.gfxLevel = U.clamp(lv, 0, 6);
-    if (UI.gfxLevel === 6 && !has3D()) { UI.gfxLevel = 5; if (!quiet && E.G.P) E.Gm.msg('Пиксельное 3D недоступно: браузер не даёт WebGL.', '#a08080'); }
+    lv = U.clamp(lv | 0, 0, 6);
+    if (lv >= 1 && lv <= 4) lv = 5;
+    UI.gfxLevel = lv;
+    if (UI.gfxLevel >= 5 && !has3D()) { UI.gfxLevel = 0; if (!quiet && E.G.P) E.Gm.msg('ASCII и 3D недоступны: браузер не даёт WebGL.', '#a08080'); }
     if (UI.syncPad) UI.syncPad();
     try { localStorage.setItem('eotf_gfx', String(UI.gfxLevel)); } catch (e) { /* только на эту сессию */ }
     if (!quiet && E.G.P) E.Gm.msg('Графика: ' + UI.GFX[UI.gfxLevel][0] + '.', '#808090');
     UI.render();
   };
-  UI.setView = (d3) => UI.setGfx(d3 ? Math.max(1, UI._lastGfx || 4) : 0);
+  UI.setView = (d3) => UI.setGfx(d3 ? 6 : 5);
+  // переключить ASCII ↔ 3D
+  UI.toggleGfx = (quiet) => UI.setGfx(UI.gfxLevel === 6 ? 5 : 6, quiet);
   UI.drawMap = function (t, L) {
     const m = G.map, P = G.P;
     if (!m) return;
     const clip = { x: L.mx * t.cw, y: L.my * t.ch, w: L.mw * t.cw, h: L.mh * t.ch };
     let rect;
-    if (UI.gfxLevel == null) UI.gfxLevel = 6;
-    if (UI.gfxLevel === 6 && !has3D()) UI.gfxLevel = 5;
-    if (UI.gfxLevel > 0) UI._lastGfx = UI.gfxLevel;
+    if (UI.gfxLevel == null) UI.gfxLevel = 5;
+    if (UI.gfxLevel >= 1 && UI.gfxLevel <= 4) UI.gfxLevel = 5;
+    if (UI.gfxLevel >= 5 && !has3D()) UI.gfxLevel = 0;
     const fp = UI.is3D && UI.is3D();
     if (fp) { UI.drawMap3D(t, L); rect = UI.mvRect3; }
-    else if (UI.view3d) { UI.drawMapGfx(t, L); rect = UI.mvRect; }
     else {
       UI.drawMapFlat(t, L);
       const [cx, cy] = UI.cam;
@@ -196,7 +199,6 @@
     }
     t.hot(L.mx, L.my, L.mw, L.mh, (h, cx2, cy2, btn, px, py) => {
       if (fp && px != null) { const p = UI.mvTileAt3(px, py); if (p) UI.mapClick(p[0], p[1], btn); return; }
-      if (UI.view3d && px != null) { const p = UI.mvTileAt(px, py); if (p) UI.mapClick(p[0], p[1], btn); return; }
       const [cx, cy] = UI.cam;
       UI.mapClick(cx2 - L.mx + cx, cy2 - L.my + cy, btn);
     });
@@ -282,9 +284,9 @@
   };
 
   // ---------- верхняя строка ----------
-  UI.drawTop = function (t, L) {
+  // где ты: «Посёлок · Земля», «Под землёй, уровень 3»…
+  UI.placeName = function () {
     const m = G.map, S = G.S;
-    t.fill(0, 0, t.cols, 1, ' ', COL.text, COL.bar);
     let place;
     if (m.kind === 'over') {
       const g = m.region;
@@ -292,6 +294,12 @@
       if (m.sett >= 0) place = (S.sett[m.sett].destroyed ? 'Руины. ' : '') + G.W.settlements[m.sett].nom + ' · ' + place;
     } else if (m.kind === 'dun') place = (m.dtype === 'abyss' && m.depth >= 10 ? 'Бездна' : 'Под землёй') + ', уровень ' + m.depth;
     else place = D.dims[m.dimName] ? D.dims[m.dimName].n : '...';
+    return place;
+  };
+  UI.drawTop = function (t, L) {
+    const m = G.map, S = G.S;
+    t.fill(0, 0, t.cols, 1, ' ', COL.text, COL.bar);
+    const place = UI.placeName();
     const time = Time.fmt(S.time) + ' ' + Time.dayWord(S.time);
     const date = Time.date(S.time);
     const w = E.Gm.weather();
@@ -514,10 +522,9 @@
         case 'esc': UI.pause(); break;
         case 'log': UI.logScreen(); break;
         case 'view': UI.gfxScreen(); break;
-        case 'gdown': UI.setGfx((UI.gfxLevel || 0) - 1); break;
-        case 'gup': UI.setGfx((UI.gfxLevel || 0) + 1); break;
-        case 'zin': if (UI.view3d) UI.zoom(1); break;
-        case 'zout': if (UI.view3d) UI.zoom(-1); break;
+        case 'gdown': case 'gup': UI.toggleGfx(); break;
+        case 'zin': if (UI.isAscii && UI.isAscii()) UI.ascZoom(1); break;
+        case 'zout': if (UI.isAscii && UI.isAscii()) UI.ascZoom(-1); break;
         default:
           // посох или лук в руке — цифры выбирают заклинание или снаряд; иначе — быстрые умения
           if (c.n >= 1 && c.n <= 9) { if (E.Loadout && E.Loadout.active()) E.Loadout.select(c.n); else { const id = P.abil[c.n - 1]; if (id) UI.useAbility(id); } }

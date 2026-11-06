@@ -108,6 +108,8 @@
     UI.vcur = null;
     document.addEventListener('mousemove', (ev) => {
       if (document.pointerLockElement !== cv || !UI.V3) return;
+      const tp = UI.top();
+      if (tp && tp.drag && (ev.buttons & 1)) { tp.drag(ev.movementX, ev.movementY); return; }
       if (!liveGame()) {
         const W = cv.clientWidth, H = cv.clientHeight;
         if (!UI.vcur) UI.vcur = [W / 2, H * 0.6];
@@ -181,13 +183,24 @@
       if (!UI.mouse || UI.mouse[0] !== c[0] || UI.mouse[1] !== c[1]) { UI.mouse = c; UI.render(); }
     });
     cv.addEventListener('pointerleave', () => { if (UI.mouse) { UI.mouse = null; UI.render(); } });
-    // колесо: от первого лица — сменить оружие (пояс и спина), на карте — масштаб, в списках — прокрутка
+    // окна, которые тянут мышью (карта мира): тянуть — двигать, двойной щелчок — к себе
+    let dragLast = null;
+    cv.addEventListener('pointermove', (ev) => {
+      const r = cv.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
+      UI.mpx = [x, y];
+      const tp = UI.top();
+      if (tp && tp.drag && (ev.buttons & 1) && document.pointerLockElement !== cv) { if (dragLast) tp.drag(x - dragLast[0], y - dragLast[1]); dragLast = [x, y]; }
+      else dragLast = null;
+    });
+    cv.addEventListener('dblclick', () => { const tp = UI.top(); if (tp && tp.dbl) tp.dbl(); });
+    // колесо: сменить оружие (пояс и спина); если менять нечего, в ASCII — камера ближе/дальше; в списках — прокрутка
     let wheelT = 0;
     cv.addEventListener('wheel', (ev) => {
       ev.preventDefault();
       const top = UI.top();
+      if (top && top.wheel) { top.wheel(ev.deltaY); return; }
       if (top && top.name === 'game' && UI.wheel) { const now = performance.now(); if (now - wheelT < 90) return; if (UI.wheel(ev.deltaY)) { wheelT = now; return; } }
-      if (top && top.name === 'game') { if (UI.view3d) UI.zoom(ev.deltaY > 0 ? -1 : 1); return; }
+      if (top && top.name === 'game') { if (UI.isAscii && UI.isAscii()) UI.ascZoom(ev.deltaY > 0 ? -1 : 1); return; }
       UI.key({ k: ev.deltaY > 0 ? 'down' : 'up' });
     }, { passive: false });
     // сенсорные кнопки
@@ -235,7 +248,7 @@
       if (G.map && G.P && UI.stack.some((s) => s.name === 'game')) {
         const w = E.Gm.weather();
         if (['rain', 'storm', 'snow', 'blizzard', 'blacksnow', 'ashrain', 'sandstorm'].includes(w) || (G.fxFlash && now - G.fxFlash.t < 400) || (G.hitFlash && now - G.hitFlash < 250) || G.map.dimName || G.map.kind === 'dun') UI.render();
-        else if (now - (UI.lastIdle || 0) > (UI.gfxLevel >= 3 ? 200 : UI.view3d ? 280 : 600)) { UI.lastIdle = now; UI.render(); }
+        else if (now - (UI.lastIdle || 0) > (UI.gfxLevel >= 5 ? 200 : 600)) { UI.lastIdle = now; UI.render(); }
       }
     }, 140);
     UI.push(UI.titleScreen());
