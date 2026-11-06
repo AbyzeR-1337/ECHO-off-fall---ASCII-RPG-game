@@ -155,7 +155,7 @@
             const f1 = '700 ' + Math.round(fpx * (big ? 1.1 : 0.85)) + 'px ' + t.family, f2 = (big ? '600 ' : '') + Math.round(fpx * (big ? 0.78 : 0.66)) + 'px ' + t.family;
             if (fits(sym, p[0], p[1], f1, 2)) lab(sym, p[0], p[1], f1, dead ? '#9a7070' : '#f0d898', 3);
             const nm = spaced(st.nom);
-            if ((big || s.D < 420) && fits(nm, p[0], p[1] - fpx * 1.05, f2, 8)) lab(nm, p[0], p[1] - fpx * 1.05, f2, known(g) ? '#e8e2d2' : '#8a90a0', 3);
+            if ((big || s.D < 420) && fits(nm, p[0], p[1] - fpx * 1.05, f2, fpx * 1.6)) lab(nm, p[0], p[1] - fpx * 1.05, f2, known(g) ? '#e8e2d2' : '#8a90a0', 3);
           }
           // названия земель (герцогств) — крупно, разреженно, бледно
           if (s.D > 180 && G.W.titles) {
