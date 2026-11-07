@@ -78,15 +78,18 @@
   function layout() {
     const touch = document.getElementById('touch');
     const coarse = window.matchMedia('(pointer: coarse)').matches;
-    const showTouch = coarse || window.innerWidth < 720 || document.body.classList.contains('force-touch');
+    // телефон горизонтально — картинка во весь экран, управление поверх (js/ui/phone.js)
+    const phone = !!(UI.phone && UI.phone.update());
+    const showTouch = !phone && (coarse || window.innerWidth < 720 || document.body.classList.contains('force-touch'));
     touch.style.display = showTouch ? 'grid' : 'none';
     const th = showTouch ? touch.getBoundingClientRect().height + 4 : 0;
-    const W = window.innerWidth - 4, H = window.innerHeight - th - 4;
+    const W = window.innerWidth - (phone ? 0 : 4), H = window.innerHeight - th - (phone ? 0 : 4);
     let fs;
-    if (showTouch && W < 900) fs = U.clamp(Math.floor(W / 44 / 0.6), 9, 17);
+    if (phone) fs = U.clamp(Math.floor(H / 21), 11, 16);
+    else if (showTouch && W < 900) fs = U.clamp(Math.floor(W / 44 / 0.6), 9, 17);
     else fs = U.clamp(Math.floor(H / 40), 12, 22);
     // хотя бы 96 колонок на широком экране
-    if (!showTouch || W >= 900) while (fs > 11 && W / (fs * 0.6) < 98) fs--;
+    if (!phone && (!showTouch || W >= 900)) while (fs > 11 && W / (fs * 0.6) < 98) fs--;
     term.resize(W, H, fs, FAMILY);
     UI.render();
   }
@@ -96,8 +99,10 @@
     if (E.Gfx) E.Gfx.applyOverrides();
     term = new E.Term(cv);
     UI.t = term;
+    if (UI.phone) UI.phone.init();
     layout();
     window.addEventListener('resize', layout);
+    window.addEventListener('orientationchange', () => setTimeout(layout, 120));
     window.addEventListener('keydown', onKey);
     window.addEventListener('keyup', (ev) => { const RT = E.RT; if (!RT) return; const hk = HOLD[ev.code]; if (hk) RT.held.delete(hk); if (ev.key === 'Shift') RT.run = false; });
     window.addEventListener('blur', () => { const RT = E.RT; if (RT) { RT.held.clear(); RT.run = false; } });
@@ -158,6 +163,7 @@
       const h = term.hit(cx, cy);
       const r = cv.getBoundingClientRect();
       const top = UI.top();
+      if (liveGame() && UI.hudHit && UI.hudHit(ev.clientX - r.left, ev.clientY - r.top)) { UI.render(); return; }
       if (h && UI.is3D && UI.is3D() && top && top.name === 'game' && UI.mv3 && ev.clientX - r.left >= UI.mv3.vx0 && ev.clientX - r.left < UI.mv3.vx0 + UI.mv3.vw && ev.clientY - r.top >= UI.mv3.vy0 && ev.clientY - r.top < UI.mv3.vy0 + UI.mv3.vh) {
         pend = { h, cx, cy, b: ev.button, x: ev.clientX - r.left, y: ev.clientY - r.top };
         UI.V3.dragStart(ev.clientX, ev.clientY);

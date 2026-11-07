@@ -20,6 +20,7 @@
     "copyright": "AbyzeR-1337",
     "files": [
       "index.html",
+      "manifest.webmanifest",
       "css/**",
       "js/**",
       "fonts/**",

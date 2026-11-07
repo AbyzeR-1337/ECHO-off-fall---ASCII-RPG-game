@@ -62,6 +62,8 @@
 
   // ---------- раскладка экрана игры ----------
   UI.layout = function (t) {
+    // телефон горизонтально: вся площадь — картинке; полоски, журнал и кнопки рисуются поверх
+    if (UI.phone && UI.phone.on) return { wide: false, phone: true, top: 0, mx: 0, my: 1, mw: t.cols, mh: t.rows - 1, sx: t.cols, sw: 0, sy: t.rows, lx: 0, ly: t.rows, lw: t.cols, lh: 0 };
     const wide = t.cols >= 92 && t.rows >= 26;
     if (wide) {
       const sw = t.cols >= 120 ? 34 : 30;
@@ -155,6 +157,8 @@
   })();
   // готовая сборка для Windows (её выкладывает .github/workflows/windows-exe.yml)
   UI.EXE_URL = 'https://github.com/AbyzeR-1337/ECHO-off-fall---ASCII-RPG-game/releases/tag/windows-build';
+  // приложение для Android (.github/workflows/android-apk.yml)
+  UI.APK_URL = 'https://github.com/AbyzeR-1337/ECHO-off-fall---ASCII-RPG-game/releases/tag/android-build';
   // старый рисованный вид (уровни 1–4) больше не включается
   Object.defineProperty(UI, 'view3d', { get: () => false });
   // без WebGL ни ASCII, ни 3D нет — остаются плоские символы
@@ -178,7 +182,8 @@
     if (!m) return;
     const clip = { x: L.mx * t.cw, y: L.my * t.ch, w: L.mw * t.cw, h: L.mh * t.ch };
     let rect;
-    if (UI.gfxLevel == null) UI.gfxLevel = 5;
+    // по умолчанию — 3D от первого лица
+    if (UI.gfxLevel == null) UI.gfxLevel = 6;
     if (UI.gfxLevel >= 1 && UI.gfxLevel <= 4) UI.gfxLevel = 5;
     if (UI.gfxLevel >= 5 && !has3D()) UI.gfxLevel = 0;
     const fp = UI.is3D && UI.is3D();
@@ -395,6 +400,7 @@
     if (near) t.text(13 + bw * 2, y + 2, 'враги: ' + near, '#e0a0a0', COL.panel, t.cols - 13 - bw * 2);
   };
   UI.drawLog = function (t, L) {
+    if (L.phone || L.lh <= 0) return;
     const x = L.lx, y0 = L.ly, w = L.lw - 1, h = L.lh;
     t.fill(x, y0, L.lw, h, ' ', COL.text, COL.logbg);
     t.hline(x, y0, L.lw, COL.border, '─');

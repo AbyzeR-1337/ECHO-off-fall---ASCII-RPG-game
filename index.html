@@ -2,7 +2,14 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0a0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="desktop/icon.png">
+<link rel="apple-touch-icon" href="desktop/icon.png">
 <title>Echoes of the Fall</title>
 <meta name="description" content="ASCII-RPG с живым открытым миром, который никогда ничего не объясняет.">
 <link rel="stylesheet" href="css/fonts.css">
@@ -35,6 +42,37 @@
     <button data-k="look">Осмотр</button>
   </div>
 </nav>
+<!-- телефон горизонтально: всё управление поверх картинки (js/ui/phone.js) -->
+<div id="phone" aria-label="Управление на телефоне">
+  <div class="ptop">
+    <button data-p="menu" title="Меню">☰</button>
+    <button data-p="inv"><span>Сумка</span></button>
+    <button data-p="map"><span>Карта</span></button>
+    <button data-p="char"><span>Я</span></button>
+    <button data-p="more">…</button>
+  </div>
+  <div class="pmoregrid">
+    <button data-p="skills">Умения</button><button data-p="pray">Молитвы</button><button data-p="rest">Отдых</button>
+    <button data-p="rel">Люди</button><button data-p="mem">Память</button><button data-p="look">Осмотр</button>
+    <button data-p="log">Журнал</button><button data-p="know">Знания</button><button data-p="wait">Ждать</button>
+    <button data-p="view">3D / ASCII</button><button data-p="fx3d">Картинка</button>
+  </div>
+  <div id="joy"><div class="knob"></div></div>
+  <div class="pacts">
+    <button data-p="fire" class="b-fire"><span>Удар</span></button>
+    <button data-p="act" class="b-act"><b>E</b></button>
+    <button data-p="jump" class="b-jump"><span>Прыжок</span></button>
+    <button data-p="off" class="b-off"><span>2-й рукой</span></button>
+    <button data-p="next" class="b-next"><span>Чары</span></button>
+  </div>
+  <div class="pnav">
+    <button data-p="up">▲</button>
+    <button data-p="down">▼</button>
+    <button data-p="enter"><span>OK</span></button>
+    <button data-p="back"><span>Назад</span></button>
+  </div>
+</div>
+<div id="rotate"><div><div class="rph">📱</div>Поверни телефон горизонтально<small>или коснись, чтобы играть так</small></div></div>
 <script src="js/core/util.js"></script>
 <script src="js/core/term.js"></script>
 <script src="js/data/tiles.js"></script>
@@ -92,6 +130,7 @@
 <script src="js/ui/map3d.js"></script>
 <script src="js/ui/vfx3d.js"></script>
 <script src="js/ui/icons.js"></script>
+<script src="js/ui/phone.js"></script>
 <script src="js/ui/view3d_props.js"></script>
 <script src="js/ui/view3d_furn.js"></script>
 <script src="js/ui/hand3d.js"></script>

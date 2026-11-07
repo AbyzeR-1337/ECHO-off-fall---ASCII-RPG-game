@@ -153,6 +153,7 @@
 
   // ---------- панель ----------
   UI.drawSide = function (t, L) {
+    if (L.phone) return;
     const P = G.P, m = G.map, Gm1 = E.Gm;
     if (!L.wide) return UI.drawStatusNarrow(t, L);
     const x = L.sx, w = L.sw, TH = UI.THEME;

@@ -241,6 +241,8 @@
         if (E.UI.hostilesVisible() > (RT.pathSeen || 0)) { RT.path = null; Gm.msg('Ты замечаешь опасность.', '#ffb080'); }
       }
     } else if (fwd || str) RT.path = null;
+    // стоишь на земле и никуда не идёшь — прыжок будет на месте (старый разбег не в счёт)
+    if (!fwd && !str && RT.jy <= 0 && !RT.jv) RT.airV = null;
     // в прыжке тело летит дальше, даже если отпустил клавиши
     if (!fwd && !str && RT.jy > 0 && RT.airV) { fwd = RT.airV[0]; str = RT.airV[1]; }
     if (!fwd && !str) { RT.moving = false; return; }

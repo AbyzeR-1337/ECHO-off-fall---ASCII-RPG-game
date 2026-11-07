@@ -1,0 +1,15 @@
+{
+  "name": "Echoes of the Fall",
+  "short_name": "Echoes",
+  "description": "RPG с живым открытым миром, который никогда ничего не объясняет.",
+  "lang": "ru",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0a0f",
+  "theme_color": "#0b0a0f",
+  "icons": [
+    { "src": "desktop/icon.png", "sizes": "256x256", "type": "image/png", "purpose": "any" }
+  ]
+}

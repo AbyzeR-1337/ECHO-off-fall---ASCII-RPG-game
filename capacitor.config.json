@@ -1,0 +1,11 @@
+{
+  "appId": "io.github.abyzer1337.echoesofthefall",
+  "appName": "Echoes of the Fall",
+  "webDir": "www",
+  "backgroundColor": "#0b0a0f",
+  "android": {
+    "backgroundColor": "#0b0a0f",
+    "allowMixedContent": false,
+    "captureInput": true
+  }
+}

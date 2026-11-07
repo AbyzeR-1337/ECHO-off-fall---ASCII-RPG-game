@@ -43,7 +43,12 @@
     ctx.font = '700 ' + fpx + 'px ' + t.family;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     // прицел (от первого лица); сверху-сзади — имя над головой героя, подписи жителей, панель 1–0
-    if (v.third) { drawLabels(ctx, t, v, fpx); drawHotbar(ctx, t, v, fpx); drawCursor(ctx, v); }
+    const phone = !!(UI.phone && UI.phone.on);
+    UI.hudHits = [];
+    if (v.third) { drawLabels(ctx, t, v, fpx); drawCursor(ctx, v); }
+    // на телефоне панель 1–0 всегда внизу (её можно нажимать), полоски и журнал — поверх картинки
+    if (v.third || phone) drawHotbar(ctx, t, v, fpx);
+    if (phone) { drawPhoneBars(ctx, t, v, fpx); drawPhoneLog(ctx, t, v, fpx); const ms = Math.round(Math.min(v.vw, v.vh) * 0.22); UI.hudHits.push({ x: v.vx0 + v.vw - 8 - ms, y: v.vy0 + 8, w: ms, h: ms, fn: () => UI.key({ k: 'map' }) }); }
     // название земли при входе — в любом виде
     drawTitle(ctx, t, v, fpx);
     drawTips(ctx, t, v, fpx);
@@ -93,14 +98,15 @@
     if (!started) started = now;
     const touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
     const lines = [];
-    if (now - started < 25000) {
+    if (now - started < 25000 && phone) lines.push('Левый палец — джойстик: идти, до упора вперёд — бегом', 'Правый палец по картинке — оглядеться', 'Удар, E — действие, прыжок — справа внизу');
+    else if (now - started < 25000) {
       if (touch) lines.push('Кнопки — идти и поворачиваться', 'Потяни по картинке — оглядеться', 'Коснись земли — идти, человека или вещи — действие');
       else lines.push('WASD — идти, Shift — бегом, Пробел — прыжок', v.third ? 'Мышь — вращать камеру, +/− — ближе/дальше' : 'Мышь — смотреть, ЛКМ или F — удар', v.third ? 'ЛКМ или F — удар, E — действие, V — ASCII/3D' : 'ПКМ — удар второй рукой, E — действие');
     }
     if (!touch && !UI.locked) lines.push('Щёлкни по картинке, чтобы смотреть мышью');
-    // обойма: посох — заклинания, лук — стрелы; цифры выбирают, удар этой рукой выпускает
+    // обойма: посох — заклинания, лук — стрелы; цифры выбирают, удар этой рукой выпускает (на телефоне — панель внизу)
     const LO = E.Loadout, lh0 = LO && LO.hand();
-    if (lh0) {
+    if (lh0 && !phone) {
       const w = P.eq[lh0], list = LO.list(w), cur = LO.cur(w), staff = LO.kind(w) === 'staff';
       ctx.font = fpx * 0.85 + 'px ' + t.family; ctx.textAlign = 'left';
       const lh = fpx * 1.2, x0 = v.vx0 + 8, y0 = v.vy0 + fpx * 2.4;
@@ -125,7 +131,7 @@
     if (lines.length) {
       ctx.font = fpx * 0.9 + 'px ' + t.family; ctx.textAlign = 'left';
       const lh = fpx * 1.25, w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + fpx;
-      const x0 = v.vx0 + 10, y0 = v.vy0 + v.vh - 12 - lines.length * lh - (v.third ? fpx * 3.4 : 0);
+      const x0 = phone ? v.vx0 + (v.vw - w) / 2 : v.vx0 + 10, y0 = phone ? v.vy0 + v.vh * 0.3 : v.vy0 + v.vh - 12 - lines.length * lh - (v.third ? fpx * 3.4 : 0);
       ctx.fillStyle = 'rgba(10,8,6,0.55)'; ctx.fillRect(x0 - 4, y0 - 4, w, lines.length * lh + 6);
       ctx.fillStyle = '#d8cca8';
       lines.forEach((l, i) => ctx.fillText(l, x0 + fpx * 0.3, y0 + lh * (i + 0.5)));
@@ -185,6 +191,54 @@
     void n;
     ctx.restore();
   }
+  // ---------- телефон: полоски здоровья, духа, сытости и жажды слева сверху ----------
+  function drawPhoneBars(ctx, t, v, fpx) {
+    const P = G.P;
+    const x0 = v.vx0 + 8, w = Math.min(150, v.vw * 0.2);
+    let y = v.vy0 + 5;
+    const bar = (k, col, h, lab) => {
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x0 - 1, y - 1, w + 2, h + 2);
+      ctx.fillStyle = col; ctx.fillRect(x0, y, Math.round(w * U.clamp(k, 0, 1)), h);
+      if (lab) { ctx.font = '600 ' + Math.max(9, h - 1) + 'px ' + t.family; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText(lab, x0 + 3, y + h / 2 + 0.5); }
+      y += h + 3;
+    };
+    const fh = Math.max(10, Math.round(fpx * 0.82));
+    bar(P.hp / Math.max(1, P.mhp), '#b8342c', fh, Math.ceil(P.hp) + ' / ' + P.mhp);
+    bar(P.mp / Math.max(1, P.mmp || 1), '#3a62c0', Math.round(fh * 0.8), Math.ceil(P.mp) + ' / ' + (P.mmp || 0));
+    const food = P.hunger != null ? P.hunger / 100 : null, drink = P.thirst != null ? 1 - P.thirst / 100 : null;
+    if (food != null) bar(food, '#c08a30', 4);
+    if (drink != null) bar(drink, '#3aa0b0', 4);
+    document.documentElement.style.setProperty('--ptop', Math.round(y + 4) + 'px');
+    UI.hudHits.push({ x: x0, y: v.vy0 + 4, w, h: y - v.vy0, fn: () => UI.key({ k: 'char' }) });
+  }
+  // журнал: последние строки поверх картинки, гаснут через несколько секунд; касание — весь журнал
+  const seen = new WeakMap();
+  function drawPhoneLog(ctx, t, v, fpx) {
+    const now = performance.now(), L = G.log, out = [];
+    for (let i = L.length - 1; i >= 0 && out.length < 4; i--) { const e = L[i]; if (!seen.has(e)) seen.set(e, now); const age = now - seen.get(e); if (age > 7000) break; out.push([e, age]); }
+    if (!out.length) return;
+    const fs = Math.max(10, Math.round(fpx * 0.78)), lh = fs * 1.3;
+    ctx.save();
+    ctx.font = fs + 'px ' + t.family; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const pl = Math.max(UI.phone.padL || 0, 150), pr = Math.max(UI.phone.padR || 0, 150), maxW = v.vw - pl - pr, cx = v.vx0 + pl + maxW / 2, side = pl;
+    let y = v.vy0 + v.vh - fpx * 3.4 - 8;
+    for (const [e, age] of out) {
+      let s2 = e.s + (e.n > 1 ? ' (×' + e.n + ')' : '');
+      while (s2.length > 8 && ctx.measureText(s2).width > maxW) s2 = s2.slice(0, -2);
+      if (s2.length < e.s.length) s2 += '…';
+      ctx.globalAlpha = age > 5500 ? Math.max(0, 1 - (age - 5500) / 1500) : 1;
+      const w = ctx.measureText(s2).width + 10;
+      ctx.fillStyle = 'rgba(8,6,10,0.55)'; ctx.fillRect(cx - w / 2, y - lh / 2, w, lh);
+      ctx.fillStyle = e.c || '#d8d0c0'; ctx.fillText(s2, cx, y + 0.5);
+      y -= lh;
+    }
+    ctx.restore();
+    UI.hudHits.push({ x: v.vx0 + side, y: y, w: maxW, h: v.vy0 + v.vh - fpx * 3.4 - y, fn: () => UI.key({ k: 'log' }) });
+  }
+  UI.hudHit = function (x, y) {
+    for (const h of UI.hudHits || []) if (x >= h.x && x < h.x + h.w && y >= h.y && y < h.y + h.h) { h.fn(); return true; }
+    return false;
+  };
   // твои эффекты — значки под компасом; полоска под значком — сколько осталось
   function drawFxRow(ctx, t, v, fpx) {
     const P = G.P;
@@ -296,8 +350,9 @@
   }
   // внизу: уровень и опыт, под ними — десять ячеек (1–9, 0): заклинания посоха, стрелы или умения
   function drawHotbar(ctx, t, v, fpx) {
-    const P = G.P, LO = E.Loadout;
-    const W = Math.min(v.vw - 20, fpx * 34), x0 = Math.round(v.vx0 + (v.vw - W) / 2), cw = W / 10;
+    const P = G.P, LO = E.Loadout, phone = !!(UI.phone && UI.phone.on);
+    const pl = phone ? Math.max(UI.phone.padL || 0, 150) : 10, pr = phone ? Math.max(UI.phone.padR || 0, 150) : 10;
+    const W = Math.min(v.vw - pl - pr, fpx * 34), x0 = Math.round(phone ? v.vx0 + pl + (v.vw - pl - pr - W) / 2 : v.vx0 + (v.vw - W) / 2), cw = W / 10;
     const ch = Math.round(fpx * 1.9), y1 = Math.round(v.vy0 + v.vh - ch - 4), y0 = y1 - Math.round(fpx * 1.1);
     ctx.save();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -316,6 +371,7 @@
     ctx.fillStyle = 'rgba(4,6,10,0.82)'; ctx.fillRect(x0, y1, W, ch);
     for (let i = 0; i < 10; i++) {
       const cx = x0 + i * cw, c = cells[i];
+      if (phone && c) UI.hudHits.push({ x: cx, y: y1, w: cw, h: ch, fn: () => UI.key({ n: i + 1 }) });
       if (c && c.on) { ctx.fillStyle = 'rgba(200,170,90,0.3)'; ctx.fillRect(Math.round(cx) + 1, y1 + 1, Math.round(cw) - 2, ch - 2); }
       ctx.strokeStyle = 'rgba(210,214,224,0.75)'; ctx.strokeRect(Math.round(cx) + 0.5, y1 + 0.5, Math.round(cw), ch - 1);
       ctx.font = Math.max(9, Math.round(fpx * 0.66)) + 'px ' + t.family; ctx.fillStyle = '#e8eaf0';

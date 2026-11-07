@@ -473,7 +473,7 @@
   UI.syncAct = function (on) {
     if (actOn === on) return;
     actOn = on;
-    if (!actBtn) actBtn = document.querySelector('#touch [data-k="act"]');
-    if (actBtn) actBtn.classList.toggle('ready', on);
+    if (!actBtn) actBtn = document.querySelectorAll('#touch [data-k="act"], #phone [data-p="act"]');
+    for (const b of actBtn) b.classList.toggle('ready', on);
   };
 })(window.EOF);

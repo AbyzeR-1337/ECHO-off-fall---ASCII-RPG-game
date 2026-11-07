@@ -16,10 +16,12 @@
         const W = Math.min(t.cols - 2, o.w || 72);
         const header = typeof o.header === 'function' ? o.header() : o.header;
         const hl = header ? U.wrap(fmt(header), W - 4) : [];
-        const maxH = t.rows - 2;
+        // на телефоне верхняя строка — под кнопками «▲ ▼ OK Назад»
+        const ph = UI.phone && UI.phone.on ? 1 : 0;
+        const maxH = t.rows - 2 - ph;
         const listH = Math.max(3, Math.min(items.length, maxH - hl.length - 5 - (o.footer ? 1 : 0)));
         const H = Math.min(maxH, hl.length + listH + 4 + (hl.length ? 1 : 0) + (o.footer ? 1 : 0));
-        const x0 = Math.floor((t.cols - W) / 2), y0 = Math.max(0, Math.floor((t.rows - H) / 2));
+        const x0 = Math.floor((t.cols - W) / 2), y0 = Math.max(ph, Math.floor((t.rows - H + ph) / 2));
         t.box(x0, y0, W, H, COL.border, COL.panel, o.title ? fmt(o.title) : '');
         let y = y0 + 1;
         for (const l of hl) t.rich(x0 + 2, y++, l, COL.text, W - 4);
@@ -914,6 +916,8 @@
         it.push({ t: 'Как играть', f: () => UI.help() });
         // в браузере на компьютере — ссылка на версию для Windows (в самой .exe она не нужна)
         if (!/Electron/.test(navigator.userAgent) && !window.matchMedia('(pointer: coarse)').matches) it.push({ t: 'Скачать для Windows (.exe)', f: () => { window.open(UI.EXE_URL, '_blank', 'noopener'); return 'keep'; } });
+        // телефон в браузере (не в приложении) — предложить приложение для Android
+        if (/Android/.test(navigator.userAgent) && !(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) it.push({ t: 'Скачать для Android (.apk)', f: () => { window.open(UI.APK_URL, '_blank', 'noopener'); return 'keep'; } });
         return it;
       },
       cont() {

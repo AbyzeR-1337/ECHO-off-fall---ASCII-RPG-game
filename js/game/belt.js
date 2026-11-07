@@ -81,7 +81,9 @@
     const now = performance.now(), age = now - BL.showT;
     const list = BL.cycle();
     if (list.length < 2) return;
-    const a = age < 2200 ? 1 : age < 2600 ? 1 - (age - 2200) / 400 * 0.45 : 0.55;
+    const ph = E.UI.phone && E.UI.phone.on;
+    const a = age < 2200 ? 1 : age < 2600 ? 1 - (age - 2200) / 400 * (ph ? 1 : 0.45) : ph ? 0 : 0.55;
+    if (a <= 0) return;
     const fpx = Math.max(10, Math.round(t.fpx * 0.78));
     ctx.save();
     ctx.globalAlpha = a;
@@ -90,7 +92,8 @@
     for (const c of cells) c.w = Math.max(fpx * 3.4, ctx.measureText(c.s).width + fpx * 0.9);
     const gap = fpx * 0.35, total = cells.reduce((s, c) => s + c.w + gap, 0) + fpx * 0.8;
     let x = v.vx0 + v.vw / 2 - total / 2;
-    const y = v.vy0 + v.vh - fpx * (v.third ? 6.2 : 2.6), h = fpx * 1.6;
+    // над панелью 1–0 (сверху-сзади и на телефоне), иначе — у нижнего края
+    const y = v.vy0 + v.vh - fpx * (v.third || (E.UI.phone && E.UI.phone.on) ? 6.2 : 2.6), h = fpx * 1.6;
     const cur = P.eq.hand || null;
     cells.forEach((c, i) => {
       // разделители: пояс | спина
