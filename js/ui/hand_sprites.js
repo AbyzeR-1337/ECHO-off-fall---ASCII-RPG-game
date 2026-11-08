@@ -63,6 +63,7 @@
   UI.handSpriteName = function (P, it, punching) {
     const s = P.sex === 'f' ? 'f' : 'm';
     if (!it) return punching ? 'idle_' + s + '7' : 'idle_' + s + idleIndex(P);
+    if (it.b === 'lantern_crystal') return 'lantern_' + s;
     const k = UI.handKindOf ? UI.handKindOf(it) : 'sword';
     return (KIND2[k] || 'pouch') + '_' + s;
   };
@@ -91,8 +92,8 @@
   // готовые варианты спрайтов: перекрашенная кожа, кристалл, светящееся отдельно
   const cache = new Map();
   // wood — цвет древка (у посохов разных видов своё дерево, кость, металл)
-  function variant(name, look, orbEl, wood) {
-    const key = name + '|' + look.skin + '|' + (orbEl || '') + '|' + (wood || '');
+  function variant(name, look, orbEl, wood, glow) {
+    const key = name + '|' + look.skin + '|' + (orbEl || '') + '|' + (wood || '') + '|' + (glow || '');
     let v = cache.get(key);
     if (v) return v;
     const R = HA.rects[name];
@@ -135,6 +136,8 @@
       }
       // светится само: кристалл, пламя факела, стекло фонаря
       const hot = orb || (glowKind && r > 200 && g > 110 && b < 150 && r - b > 90);
+      // кристальный фонарь: вместо пламени — холодный голубой свет
+      if (hot && glow === 'crystal' && !orb) { const Y2 = (r + g + b) / 3; d[q] = clamp(Y2 * 0.55, 0, 255); d[q + 1] = clamp(Y2 * 0.85 + 20, 0, 255); d[q + 2] = clamp(Y2 * 1.1 + 40, 0, 255); }
       if (hot) { e[q] = d[q]; e[q + 1] = d[q + 1]; e[q + 2] = d[q + 2]; e[q + 3] = 255; }
     }
     c.putImageData(id, 0, 0);
@@ -165,7 +168,8 @@
   }
 
   // ---------- кадр ----------
-  let HC = null, TC = null;
+  let HC = null, TC = null, partsT = 0;
+  const parts = [], shk = { t: 0, yaw: 0, pitch: 0 };
   const drawHand0 = UI.drawHand3D;
   UI.drawHand3D = function (ctx, v) {
     const P = G.P;
@@ -179,6 +183,18 @@
     const swp = UI.swapT ? (v.now - UI.swapT) / 300 : 9, sdy = swp >= 0 && swp < 1 ? Math.sin(swp * Math.PI) * fh * 0.45 : 0;
     if (sdy) UI.animUntil = Math.max(UI.animUntil || 0, v.now + 40);
     const left = P.hand === 'L', look = lookOf(P);
+    const HO = E.Hold, CP = HO ? HO.frame(v.now) : null;
+    if (CP) UI.animUntil = Math.max(UI.animUntil || 0, v.now + 40);
+    // тряска: как быстро крутится взгляд (и прыжок) — для кружки и хлеба в руке
+    if (HO && E.RT && E.RT.on) {
+      const V3 = UI.V3, dt = shk.t ? Math.min(0.1, (v.now - shk.t) / 1000) : 0;
+      if (dt > 0 && V3) {
+        let dy = Math.abs(V3.yaw - shk.yaw); if (dy > Math.PI) dy = Math.PI * 2 - dy;
+        const rate = (dy + Math.abs((V3.pitch || 0) - shk.pitch)) / dt + (E.RT.jv ? Math.abs(E.RT.jv) * 0.6 : 0) + (E.RT.run && v.moving ? 1.5 : 0);
+        HO.shake(rate, dt);
+      }
+      shk.t = v.now; shk.yaw = V3 ? V3.yaw : 0; shk.pitch = V3 ? V3.pitch || 0 : 0;
+    }
     const orbOf = (it) => { if (!it || !E.Loadout || E.Loadout.kind(it) !== 'staff') return null; const x = E.Loadout.cur(it); return x && x.a ? x.a.el : 'arcane'; };
     // свет вокруг: небо, солнце, огни
     const sk = v.sky;
@@ -197,15 +213,17 @@
     const hc = HC.getContext('2d'), tc = TC.getContext('2d');
     hc.clearRect(0, 0, fw, fh); hc.imageSmoothingEnabled = false; tc.imageSmoothingEnabled = false;
     // одна рука: локоть (правый нижний угол спрайта) у края кадра; mirror — левая рука
-    const one = (it, sw, mirror, side, scaleK) => {
+    const one = (it, sw, mirror, side, scaleK, cp) => {
       const punching = !it && sw >= 0 && sw < 1;
       const name = UI.handSpriteName(P, it, punching);
       const SCm = E.Schools, wood = it && SCm && SCm.STAFF_LOOK ? SCm.STAFF_LOOK[it.b] : null;
-      const sp = variant(name, look, orbOf(it), wood);
+      const sp = variant(name, look, orbOf(it), wood, it && it.b === 'lantern_crystal' ? 'crystal' : null);
       if (!sp) return;
       const base = name.split('_')[0];
-      const s = (fh / 300) * 1.08 * look.k * scaleK;
+      const s = (fh / 300) * 1.08 * look.k * scaleK * (cp ? 1 + 0.12 * cp.e : 1);
       const mo = motion(base, sw, u);
+      // ко рту: к середине и вверх, с укусами; кружку — наклонить
+      if (cp) { mo.dx += -fw * 0.2 * cp.e; mo.dy += -fh * 0.2 * cp.e + cp.bob * 7 * u; mo.a += cp.drink ? -0.55 * cp.tilt - 0.12 * cp.e : -0.18 * cp.e; }
       // локоть — за краем кадра справа снизу
       const ex = mirror ? fw * (1 - side) : fw * side, ey = fh + sp.h * s * 0.06;
       const draw = (c, im) => {
@@ -230,14 +248,33 @@
       tc.globalCompositeOperation = 'destination-in'; draw(tc, sp.cv);
       tc.globalCompositeOperation = 'source-over';
       hc.drawImage(TC, 0, 0);
-      draw(hc, sp.em);
+      const gk = HO ? HO.glowK(it) : 1;
+      if (gk > 0) { hc.globalAlpha = gk; draw(hc, sp.em); hc.globalAlpha = 1; }
+      // где верх вещи: оттуда сыплются крошки и капли
+      const tx = -sp.w * s + sp.top[0] * s * 0.6 + sp.w * s * 0.25, ty = -sp.h * s + sp.top[1] * s + sp.h * s * 0.12, ca = Math.cos(mo.a), sa = Math.sin(mo.a);
+      anchors.push({ x: ex + (mirror ? -1 : 1) * (mo.dx + tx * ca - ty * sa), y: ey + mo.dy + tx * sa + ty * ca, it, cp: !!cp });
     };
+    const anchors = [];
     // вторая рука: вещь, факел — слева (у левши — справа), чуть меньше
     const offIt = P.eq.off;
     const torch = !offIt && P.light > 0 ? { b: 'torch' } : null;
     const offShow = offIt || torch || (swO >= 0 && swO < 1 && !(E.Gm.twoHanded && E.Gm.twoHanded(P.eq.hand)));
-    if (offShow) one(offIt || torch, swO, !left, 0.97, 0.9);
+    if (CP) one(CP.it, -1, !left, 0.97, 0.95, CP);
+    else if (offShow) one(offIt || torch, swO, !left, 0.97, 0.9);
     one(P.eq.hand, swM, left, 0.99, 1);
+    // крошки и капли: падают из руки
+    if (HO && HO.emitQ.length) {
+      const a = anchors.find((x) => x.cp) || anchors.find((x) => x.it && (HO.dry(x.it) || x.it.cont || (D.items[x.it.b] || {}).drink)) || anchors[0];
+      for (const q of HO.emitQ.splice(0)) for (let i = 0; i < q.n && a; i++) parts.push({ x: a.x + (Math.random() - 0.5) * 14 * u, y: a.y + (Math.random() - 0.5) * 8 * u, vx: (Math.random() - 0.5) * 60 * u, vy: (q.k === 'drop' ? -20 : -10) * u * Math.random(), k: q.k, t: v.now, life: 600 + Math.random() * 500, c: q.k === 'drop' ? (Math.random() < 0.3 ? '#e8f4ff' : '#7ab0e0') : (Math.random() < 0.5 ? '#c89850' : '#e0c080') });
+    }
+    if (parts.length) {
+      const dtp = Math.min(0.05, (v.now - (partsT || v.now)) / 1000);
+      for (const p of parts) { p.vy += 420 * u * dtp; p.x += p.vx * dtp; p.y += p.vy * dtp; }
+      for (let i = parts.length - 1; i >= 0; i--) if (v.now - parts[i].t > parts[i].life || parts[i].y > fh + 4) parts.splice(i, 1);
+      for (const p of parts) { hc.fillStyle = p.c; const sz = Math.max(1, Math.round((p.k === 'drop' ? 1.6 : 2.2) * u)); hc.fillRect(Math.round(p.x), Math.round(p.y), sz, sz); }
+      UI.animUntil = Math.max(UI.animUntil || 0, v.now + 40);
+    }
+    partsT = v.now;
     ctx.save();
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(HC, v.vx0, v.vy0, fw * v.px, fh * v.px);

@@ -1150,7 +1150,8 @@
     lights.sort((a, b) => a.d - b.d);
     lights.length = Math.min(lights.length, (P3.NL || 8) - 1);
     const dark = !m.outdoor || m.dimName ? 1 : Math.max(0, 1 - Time.light(G.S.time) * 1.4);
-    if (E.Gm.lanternHeld && E.Gm.lanternHeld() && !(P.light > 0)) lights.unshift({ x: eye.x + fx * 0.3 + Math.cos(V3.yaw) * 0.25, y: eye.y + 0.05, z: eye.z + fz * 0.3 + Math.sin(V3.yaw) * 0.25, r: 7, col: [1, 0.82, 0.55], i: 1.25 });
+    const LL = E.Gm.lanternLight ? E.Gm.lanternLight() : E.Gm.lanternHeld && E.Gm.lanternHeld() ? { r: 7, col: [1, 0.82, 0.55], i: 1.25 } : null;
+    if (LL && !(P.light > 0)) lights.unshift({ x: eye.x + fx * 0.3 + Math.cos(V3.yaw) * 0.25, y: eye.y + 0.05, z: eye.z + fz * 0.3 + Math.sin(V3.yaw) * 0.25, r: LL.r, col: LL.col, i: LL.i });
     else if (P.light > 0) lights.unshift({ x: eye.x + fx * 0.3 + Math.cos(V3.yaw) * 0.25, y: eye.y + 0.1, z: eye.z + fz * 0.3 + Math.sin(V3.yaw) * 0.25, r: 7.5, col: [1, 0.66, 0.36], i: 1.4 * (0.9 + 0.1 * Math.sin(now / 70)) });
     else if (dark > 0.15) lights.unshift({ x: eye.x, y: eye.y + (THIRD ? 1.2 : 0.3), z: eye.z, r: THIRD ? 6.5 : 5, col: [0.5, 0.55, 0.78], i: 0.6 * dark });
     // спрайты этого кадра
