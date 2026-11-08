@@ -92,8 +92,8 @@
   // готовые варианты спрайтов: перекрашенная кожа, кристалл, светящееся отдельно
   const cache = new Map();
   // wood — цвет древка (у посохов разных видов своё дерево, кость, металл)
-  function variant(name, look, orbEl, wood, glow) {
-    const key = name + '|' + look.skin + '|' + (orbEl || '') + '|' + (wood || '') + '|' + (glow || '');
+  function variant(name, look, orbEl, wood, glow, head, blade) {
+    const key = name + '|' + look.skin + '|' + (orbEl || '') + '|' + (wood || '') + '|' + (glow || '') + '|' + (head || '') + '|' + (blade ? blade.id : '');
     let v = cache.get(key);
     if (v) return v;
     const R = HA.rects[name];
@@ -141,6 +141,38 @@
       if (hot && glow === 'crystal' && !orb) { const Y2 = (r + g + b) / 3; d[q] = clamp(Y2 * 0.55, 0, 255); d[q + 1] = clamp(Y2 * 0.85 + 20, 0, 255); d[q + 2] = clamp(Y2 * 1.1 + 40, 0, 255); }
       if (hot) { e[q] = d[q]; e[q + 1] = d[q + 1]; e[q + 2] = d[q + 2]; e[q + 3] = 255; }
     }
+    // клинок, топор, булава: длина и вид по оружию — нож короче кинжала, тот — меча; дубина — деревянная
+    if (blade && /^(sword|axe|hammer)_/.test(name)) {
+      let hy = R.h;
+      for (let y = 0; y < R.h && hy === R.h; y++) for (let x = 0; x < R.w; x++) if (md[(y * R.w + x) * 4] > 128) { hy = y; break; }
+      const ay = Math.max(10, Math.min(R.h - 1, hy - (/^sword/.test(name) ? 16 : 8)));
+      let ac = 0, an = 0;
+      for (let x = 0; x < R.w; x++) if (d[(ay * R.w + x) * 4 + 3] > 8) { ac += x; an++; }
+      const ax = an ? ac / an : R.w / 2, k = blade.k || 1, src = d.slice();
+      if (k !== 1) for (let y = 0; y < ay; y++) for (let x = 0; x < R.w; x++) {
+        const q = (y * R.w + x) * 4, sxx = Math.round(ax + (x - ax) / k), syy = Math.round(ay + (y - ay) / k);
+        if (sxx < 0 || syy < 0 || sxx >= R.w || syy >= ay) { d[q + 3] = 0; e[q + 3] = 0; continue; }
+        const q2 = (syy * R.w + sxx) * 4;
+        d[q] = src[q2]; d[q + 1] = src[q2 + 1]; d[q + 2] = src[q2 + 2]; d[q + 3] = src[q2 + 3];
+      }
+      const TN = blade.tint ? hex(blade.tint) : null, GL = blade.glow ? hex(blade.glow) : null;
+      if (TN || GL) for (let y = 0; y < ay; y++) for (let x = 0; x < R.w; x++) {
+        const q = (y * R.w + x) * 4;
+        if (d[q + 3] < 8) continue;
+        const r = d[q], g = d[q + 1], b = d[q + 2], Y = 0.3 * r + 0.59 * g + 0.11 * b, sat = Math.max(r, g, b) - Math.min(r, g, b);
+        if (sat > 46) continue; // золото гарды и кожа рукояти — как были
+        if (TN) { const kk = Y / 140; d[q] = clamp(TN[0] * kk, 0, 255); d[q + 1] = clamp(TN[1] * kk, 0, 255); d[q + 2] = clamp(TN[2] * kk, 0, 255); }
+        if (GL && Y > 120) { e[q] = clamp((d[q] + GL[0]) / 2, 0, 255); e[q + 1] = clamp((d[q + 1] + GL[1]) / 2, 0, 255); e[q + 2] = clamp((d[q + 2] + GL[2]) / 2, 0, 255); e[q + 3] = 255; }
+      }
+      if (blade.head && UI.paintWeaponHead) UI.paintWeaponHead(d, e, R.w, R.h, blade.head, md);
+      top = null;
+      for (let y = 0; y < R.h && !top; y++) for (let x = 0; x < R.w; x++) if (d[(y * R.w + x) * 4 + 3] > 8) { top = [x, y]; break; }
+    }
+    // своё навершие посоха — вместо сферы с листа
+    if (head && /^staff/.test(name) && UI.paintStaffHead) {
+      const oh = O ? '#' + O.map((v) => Math.round(clamp(v, 0, 255)).toString(16).padStart(2, '0')).join('') : null;
+      if (UI.paintStaffHead(d, e, md, R.w, R.h, head, wood, oh)) { top = null; for (let y = 0; y < R.h && !top; y++) for (let x = 0; x < R.w; x++) if (d[(y * R.w + x) * 4 + 3] > 8) { top = [x, y]; break; } }
+    }
     c.putImageData(id, 0, 0);
     em.getContext('2d').putImageData(ed, 0, 0);
     v = { cv, em, w: R.w, h: R.h, top: top || [0, 0] };
@@ -149,6 +181,19 @@
     return v;
   }
 
+  // ---------- длина и вид оружия ----------
+  const BLADE = {
+    knife: { k: 0.55, tint: '#b8bcc4' }, dagger: { k: 0.68, tint: '#9aa0ac' }, sword: { k: 0.88 }, longsword: { k: 1 },
+    axe: { k: 0.82 }, waraxe: { k: 1, head: 'waraxe' }, club: { k: 1, head: 'club' }, mace: { k: 1, head: 'mace' }, hammer: { k: 1 }, flail: { k: 1, head: 'flail' },
+  };
+  const BLADE_ID = { shortsword: { k: 0.78 }, a_starblade: { k: 1, tint: '#c8d8ff', glow: '#a0c8ff' }, a_spite: { k: 1, tint: '#9a3040', glow: '#ff4060' }, a_whisper: { k: 0.7, tint: '#404850', glow: '#8090a0' }, dragonbone: { k: 0.95, tint: '#e8dcc0' } };
+  function bladeOf(it) {
+    if (!it) return null;
+    const k = UI.handKindOf ? UI.handKindOf(it) : null;
+    const o = BLADE_ID[it.b] || BLADE[k];
+    if (!o) return null;
+    return Object.assign({ id: it.b + ':' + k }, o);
+  }
   // ---------- движение ----------
   const SLASH = new Set(['sword', 'axe', 'hammer', 'pick', 'pick2', 'pick3', 'shovel']), THRUST = new Set(['spear', 'staff', 'rod']), RANGED = new Set(['bow', 'crossbow']);
   // где спрайт в момент удара: угол вокруг локтя, сдвиг, след
@@ -218,7 +263,7 @@
       const punching = !it && sw >= 0 && sw < 1;
       const name = UI.handSpriteName(P, it, punching);
       const SCm = E.Schools, wood = it && SCm && SCm.STAFF_LOOK ? SCm.STAFF_LOOK[it.b] : null;
-      const sp = variant(name, look, orbOf(it), wood, it && it.b === 'lantern_crystal' ? 'crystal' : null);
+      const sp = variant(name, look, orbOf(it), wood, it && it.b === 'lantern_crystal' ? 'crystal' : null, it && UI.staffHeadOf ? UI.staffHeadOf(it) : null, bladeOf(it));
       if (!sp) return;
       const base = name.split('_')[0];
       const s = (fh / 300) * 1.08 * look.k * scaleK * (cp ? 1 + 0.12 * cp.e : 1);
