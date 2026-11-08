@@ -79,7 +79,7 @@
     deathward: ['shield', '#e8e8f8'], blessed: ['cross', '#f8e8a0'], warcry: ['horn', '#e0a060'], haste: ['wing', '#a0e0f0'], might: ['fist', '#e08040'],
     nighteye: ['eye', '#a0c0ff'], gills: ['fish', '#60c0b0'], warmth: ['flame', '#ffb050'], stealth: ['hood', '#7a7090'], shield: ['shield', '#80b0ff'],
     luckbuff: ['clover', '#60d060'], regenbuff: ['plus', '#60e080'], poisonblade: ['sword', '#80d040'], focus: ['target', '#80d0ff'], ironskin: ['shield', '#a0a0a8'],
-    fury: ['fist', '#ff5030'], holyfire: ['flame', '#fff0a0'], calm: ['wave', '#a0d0c0'], echo: ['spiral', '#d0a0ff'], transcend: ['star', '#ffffff'], hoofgrace: ['boot', '#d0b070'],
+    fury: ['fist', '#ff5030'], holyfire: ['flame', '#fff0a0'], calm: ['wave', '#a0d0c0'], echo: ['spiral', '#d0a0ff'], transcend: ['star', '#ffffff'], hoofgrace: ['boot', '#d0b070'], chosen: ['crown', '#fff0a0'],
     // на существах
     // стихии заклинаний
     el_fire: ['flame', '#ff8a30'], el_ice: ['snow', '#a8e4ff'], el_storm: ['bolt', '#e8e870'], el_earth: ['mountain', '#c8a878'], el_holy: ['cross', '#fff0a8'],

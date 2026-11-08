@@ -269,10 +269,8 @@
           m.dunEntry = p;
         } else if (f === 'ruins' && m.biome !== 'ocean') buildRuins(m, rng, W, g, () => fpos(8, 5));
         else if (f === 'shrine') {
-          const p = fpos(3, 3); if (!p) continue;
-          clearArea(m, p.x - 2, p.y - 2, 5, 5, T.STONEFLOOR);
-          set(m, p.x, p.y, T.SHRINE); m.feat[I(p.x, p.y)] = { k: 'shrine', god: g.shrine };
-          for (const [dx, dy] of [[-2, -2], [2, -2], [-2, 2], [2, 2]]) set(m, p.x + dx, p.y + dy, T.PILLAR);
+          const p = fpos(4, 4) || fpos(3, 3); if (!p) continue;
+          shrineOf(m, rng, p, g.shrine);
         } else if (f === 'camp') {
           const p = fpos(5, 4); if (!p) continue;
           clearArea(m, p.x - 4, p.y - 3, 9, 7, floorOf(m));
@@ -336,6 +334,30 @@
   }
 
   function floorOf(m) { return FLOOR_FOR[m.biome] || T.GRASS; }
+  // святилище: у каждого бога — своё убранство
+  function shrineOf(m, rng, p, god) {
+    const ring = (r, t, n) => { for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + 0.4; const x = Math.round(p.x + Math.cos(a) * r), y = Math.round(p.y + Math.sin(a) * r); if (x > 0 && y > 0 && x < m.w - 1 && y < m.h - 1 && (x !== p.x || y !== p.y + 1)) set(m, x, y, t); } };
+    const ST = {
+      silent: [T.STONEFLOOR, () => ring(3, T.MENHIR, 8)],
+      hungry: [T.STONEFLOOR, () => { ring(2, T.BONES, 6); set(m, p.x + 2, p.y, T.CAMPFIRE); set(m, p.x - 2, p.y, T.BARREL != null ? T.BARREL : T.BONES); }],
+      giant: [T.ROCKFLOOR, () => { ring(3, T.BOULDER, 7); set(m, p.x, p.y - 2, T.STATUE); }],
+      ash: [T.ASH != null ? T.ASH : T.STONEFLOOR, () => { ring(2, T.BONES, 4); set(m, p.x - 2, p.y - 1, T.CAMPFIRE); set(m, p.x + 2, p.y - 1, T.CAMPFIRE); }],
+      horns: [T.GRASS, () => { ring(3, T.TREE, 9); ring(1.6, T.FLOWERS, 6); set(m, p.x, p.y - 2, T.MENHIR); }],
+      moon: [T.MOONDUST != null ? T.MOONDUST : T.STONEFLOOR, () => { ring(2, T.NIGHTFLOWER != null ? T.NIGHTFLOWER : T.FLOWERS, 7); set(m, p.x, p.y - 2, T.SPRING != null ? T.SPRING : T.WELL); ring(3, T.PILLAR, 4); }],
+      sun: [T.STONEFLOOR, () => { for (const [dx, dy] of [[-2, -2], [2, -2], [-2, 2], [2, 2]]) set(m, p.x + dx, p.y + dy, T.LAMPPOST != null ? T.LAMPPOST : T.PILLAR); set(m, p.x, p.y - 2, T.STATUE); }],
+      deep: [T.STONEFLOOR, () => { ring(2.5, T.SHALLOW, 10); for (const [dx, dy] of [[-2, -2], [2, -2]]) set(m, p.x + dx, p.y + dy, T.PILLAR); }],
+      faceless: [T.STONEFLOOR, () => { set(m, p.x - 1, p.y - 2, T.MIRRORWATER); set(m, p.x + 1, p.y - 2, T.MIRRORWATER); set(m, p.x, p.y - 2, T.STATUE); ring(3, T.PILLAR, 4); }],
+      chron: [T.STONEFLOOR, () => { ring(2.5, T.PILLAR, 6); set(m, p.x, p.y - 2, T.RUNESTONE != null ? T.RUNESTONE : T.INSCRIPTION); }],
+      throne: [T.STONEFLOOR, () => { set(m, p.x, p.y - 2, T.THRONE); ring(3, T.PILLAR, 6); set(m, p.x - 2, p.y - 2, T.BANNER != null ? T.BANNER : T.PILLAR); set(m, p.x + 2, p.y - 2, T.BANNER != null ? T.BANNER : T.PILLAR); }],
+      wind: [T.STONES, () => { ring(3, T.MENHIR, 5); set(m, p.x - 2, p.y - 2, T.BANNER != null ? T.BANNER : T.PILLAR); set(m, p.x + 2, p.y + 2, T.BANNER != null ? T.BANNER : T.PILLAR); }],
+    };
+    const d = ST[god] || [T.STONEFLOOR, () => { for (const [dx, dy] of [[-2, -2], [2, -2], [-2, 2], [2, 2]]) set(m, p.x + dx, p.y + dy, T.PILLAR); }];
+    clearArea(m, p.x - 3, p.y - 3, 7, 7, d[0]);
+    d[1]();
+    // тропка к алтарю — свободна
+    for (let k = 1; k <= 3; k++) if (p.y + k < m.h - 1) set(m, p.x, p.y + k, d[0]);
+    set(m, p.x, p.y, T.SHRINE); m.feat[I(p.x, p.y)] = { k: 'shrine', god };
+  }
   function clearArea(m, x0, y0, w, h, t) { for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) if (inb(x, y)) set(m, x, y, t); }
   function freeSpot(m, rng, reserved, margin, far) {
     margin = margin || 4;

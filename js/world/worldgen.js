@@ -113,12 +113,12 @@
       if (b === 'ocean') { if (r.chance(0.04)) g.features.push('whirlpool'); continue; }
       const f = g.features;
       if (r.chance(b === 'ash' ? 0.9 : 0.14)) f.push('ruins');
-      if (r.chance(0.12) && b !== 'sky') { f.push('shrine'); g.shrine = r.pick(D.gods).id; }
+      if (r.chance(0.2) && b !== 'sky') { f.push('shrine'); g.shrine = r.pick(D.gods).id; }
       if (r.chance(['plains', 'forest', 'coast', 'swamp', 'tundra', 'ancient'].includes(b) ? 0.35 : 0.08)) f.push('stream');
       if (r.chance(['plains', 'forest', 'swamp', 'tundra'].includes(b) ? 0.12 : 0.03)) f.push('lake');
       if (r.chance(0.06) && !['sky', 'volcanic'].includes(b)) f.push('camp');
       if (r.chance(0.05)) f.push('inscription');
-      if (r.chance(0.04)) f.push('altar');
+      if (r.chance(0.08)) f.push('altar');
       if (['mountain', 'living'].includes(b) || (b === 'tundra' && r.chance(0.2)) || (b === 'desert' && r.chance(0.15))) { if (r.chance(0.55)) f.push('ore'); }
       let dch = { mountain: 0.55, living: 0.6, ash: 0.7, plains: 0.25, forest: 0.3, ancient: 0.4, swamp: 0.35, desert: 0.4, coast: 0.25, tundra: 0.3, ice: 0.35, volcanic: 0.45, sky: 0.2 }[b] || 0.2;
       if (r.chance(dch)) {
@@ -147,7 +147,7 @@
   // ---------- поселения и люди ----------
   const CLOTH = ['#c8a878', '#a8b8c8', '#b89878', '#98a888', '#c8b8a8', '#a89888', '#b8a8c8', '#c8c098', '#98b8b8', '#c8a0a0', '#d0c0a0', '#a0a0b8'];
   function genSettlements(W, r) {
-    const chance = { plains: 0.85, coast: 0.88, forest: 0.66, tundra: 0.5, desert: 0.38, swamp: 0.36, mountain: 0.38, ice: 0.22, ancient: 0.35, ash: 0.08, living: 0.05, volcanic: 0.2, sky: 0.3, ocean: 0 };
+    const chance = { plains: 0.92, coast: 0.93, forest: 0.76, tundra: 0.58, desert: 0.46, swamp: 0.44, mountain: 0.46, ice: 0.28, ancient: 0.42, ash: 0.12, living: 0.06, volcanic: 0.24, sky: 0.34, ocean: 0 };
     const cand = [];
     for (const g of W.regions) {
       if (g.exist !== 'always' && g.exist !== 'cyclic') continue;
@@ -158,7 +158,7 @@
     const capitals = [];
     const capPool = r.shuffle(cand.filter(([g, k]) => !k && ['plains', 'coast', 'forest'].includes(g.biome) && g.id !== W.start));
     for (const [g] of capPool) {
-      if (capitals.length >= 7) break;
+      if (capitals.length >= 8) break;
       if (capitals.every((c) => Math.abs(c.x - g.x) + Math.abs(c.y - g.y) >= 7)) capitals.push(g);
     }
     const used = new Set();
@@ -169,7 +169,7 @@
       else if (g.id === W.start) type = 'village';
       else if (g.biome === 'ancient') type = 'tree';
       else if (g.biome === 'sky') type = 'hamlet';
-      else type = r.weighted([['town', 16], ['village', 46], ['hamlet', 26], ['farm', 12]]);
+      else type = r.weighted([['town', 25], ['village', 44], ['hamlet', 21], ['farm', 10]]);
       if (type === 'town' && ['ice', 'desert', 'swamp', 'mountain'].includes(g.biome) && r.chance(0.5)) type = 'village';
       const nm = N.settlementName(r, used);
       const s = { id: W.settlements.length, region: g.id, rx: g.x, ry: g.y, type, nom: nm.nom, gen: nm.gen, loc: 'в ' + nm.loc, fac: -1, npcs: [], b: {} };

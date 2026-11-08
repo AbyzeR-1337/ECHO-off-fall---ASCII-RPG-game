@@ -100,6 +100,7 @@
         s.close();
         UI.stack = [];
         UI.push(UI.loading('Ты открываешь глаза', () => {
+          G.startCls = s.cls || null;
           Gm.startLife(name, s.sex || 'm', false);
           if (s.hand) G.P.hand = s.hand;
           // род: облик руки, кожа, немного силы или ловкости
@@ -117,7 +118,9 @@
           if (P.flags.giftLand && G.map && G.map.ex) { G.map.ex.fill(1); if (G.map.rid != null) P.known.regions[G.map.rid] = G.S.time; }
           UI.stack = [];
           UI.push(UI.gameScreen);
-          UI.popup('', 'Год ' + Time.year(G.S.time) + ' после Падения.\n\nТы просыпаешься у дороги, рядом с потухшим костром. В памяти — тёплый свет и голос: «' + gn + '». ' + (s.cls ? 'Ты — ' + D.classes[s.cls].n + '. ' : '') + 'Дар: ' + (s.gift ? s.gift.n.toLowerCase() : 'нет') + '.\n\nНикто не знает твоего имени. Никто тебя не ждёт.\n\nМир большой. Он жил до тебя и будет жить после.');
+          // изредка богиня предлагает больше (окно — под вступлением, откроется, когда его закроешь)
+          if (E.World2 && E.World2.offer) E.World2.offer(P, gn);
+          UI.popup('', 'Год ' + Time.year(G.S.time) + ' после Падения.\n\n' + (G.startNote || 'Ты просыпаешься у дороги, рядом с потухшим костром.') + ' В памяти — тёплый свет и голос: «' + gn + '». ' + (s.cls ? 'Ты — ' + D.classes[s.cls].n + '. ' : '') + 'Дар: ' + (s.gift ? s.gift.n.toLowerCase() : 'нет') + '.\n\nНикто не знает твоего имени. Никто тебя не ждёт.\n\nМир большой. Он жил до тебя и будет жить после.');
           E.Save.save();
         }));
       },
