@@ -42,19 +42,47 @@
   };
   const have = (need) => Object.keys(need).every((b) => Gm.count(b) >= need[b]);
   const needStr = (need) => Object.keys(need).map((b) => nm(b).toLowerCase() + ' ×' + need[b] + ' (' + Gm.count(b) + ')').join(', ');
+  // мини-игра станции (её задаёт trades.js); без неё — средний результат
+  const play = (st, r, go) => (CR.mg ? CR.mg(st, r, go) : go({ ok: true, q: 0.6 }));
   function craft(st, r) {
-    const P = G.P;
     const [out, q, need, hrs, o] = r;
     if (o && o.once && G.S.taken[out]) { Gm.msg('Такую вещь в мире уже сделали. Второй не будет.'); return; }
     if (!have(need)) { Gm.msg('Не хватает: ' + needStr(need) + '.', '#c0a080'); return; }
-    for (const b in need) Gm.take(b, need[b]);
-    if (o && o.once) G.S.taken[out] = 1;
-    Gm.give(out, q, true);
-    Gm.msg('Готово: ' + nm(out) + (q > 1 ? ' ×' + q : '') + '.', '#e0d090');
-    Gm.cnt('crafts'); Gm.gain('craft');
-    if (st === 'ANVIL') Gm.cnt('forged');
-    Gm.xp(3 + hrs * 2);
-    Gm.endTurn(Math.max(1, hrs) * 6);
+    play(st, r, (res) => {
+      if (!have(need)) return;
+      if (!res || !res.ok) {
+        // не вышло: пропадает часть первого материала, полдела времени
+        const b0 = Object.keys(need)[0], lost = Math.max(1, Math.floor(need[b0] / 2));
+        Gm.take(b0, lost);
+        Gm.msg('Испорчено. Пропало: ' + nm(b0).toLowerCase() + ' ×' + lost + '. Остальное цело — попробуй снова.', '#e09070');
+        Gm.endTurn(Math.max(1, hrs) * 3);
+        return;
+      }
+      for (const b in need) Gm.take(b, need[b]);
+      if (o && o.once) G.S.taken[out] = 1;
+      let n = q;
+      const D0 = D.items[out] || {}, fine = res.q >= 0.85;
+      if (fine && D0.st) n += Math.max(1, Math.round(q / 2));
+      if (fine && !D0.st) {
+        // мастерская работа: крепче и дороже
+        const it = Items.make ? Items.make(out) : Gm.mkItem(out);
+        if (it.dmg) it.dmg = [it.dmg[0] + 1, it.dmg[1] + 2];
+        if (it.def != null) it.def += 1;
+        if (it.mw) it.mw = it.wr = Math.round(it.mw * 1.3);
+        it.v = Math.round((it.v || D0.v || 1) * 1.4);
+        it.fine = 1;
+        it.n = (it.n || D0.n) + ' (мастерская работа)';
+        Gm.give(it);
+        Gm.msg('Мастерская работа: ' + it.n + '!', '#ffe08a');
+      } else {
+        Gm.give(out, n, true);
+        Gm.msg('Готово: ' + nm(out) + (n > 1 ? ' ×' + n : '') + (fine ? ' — с запасом.' : '.'), '#e0d090');
+      }
+      Gm.cnt('crafts'); Gm.gain('craft');
+      if (st === 'ANVIL') Gm.cnt('forged');
+      Gm.xp(3 + hrs * 2 + (fine ? 5 : 0));
+      Gm.endTurn(Math.max(1, hrs) * 6);
+    });
   }
   // починка у наковальни
   function repairList() {
@@ -81,6 +109,13 @@
     const P = G.P, w = P.eq.hand;
     if (!w || !(D.items[w.b] && D.items[w.b].t === 'weapon')) { Gm.msg('Возьми оружие в руку — камень зачаровывает то, что держишь.'); return; }
     if (!have(x.need)) { Gm.msg('Не хватает: ' + needStr(x.need) + '.', '#c0a080'); return; }
+    play('RUNESTONE', null, (res) => {
+      if (!have(x.need) || P.eq.hand !== w) return;
+      if (!res || !res.ok) { Gm.take(Object.keys(x.need)[0], 1); Gm.msg('Руны гаснут, не сложившись. Камень съел часть силы.', '#e09070'); Gm.endTurn(9); return; }
+      enchant1(x, w);
+    });
+  }
+  function enchant1(x, w) {
     for (const b in x.need) Gm.take(b, x.need[b]);
     const base = w.n0 || w.n || nm(w.b);
     w.n0 = base;
@@ -95,6 +130,13 @@
     if (w.ench.lvl >= 3) { Gm.msg('Сильнее чары не лягут: металл не выдержит.'); return; }
     const need = { mana_shard: w.ench.lvl + 1 };
     if (!have(need)) { Gm.msg('Не хватает: ' + needStr(need) + '.', '#c0a080'); return; }
+    play('RUNESTONE', null, (res) => {
+      if (!have(need) || P.eq.hand !== w) return;
+      if (!res || !res.ok) { Gm.take('mana_shard', 1); Gm.msg('Руна срывается — осколок рассыпался в пыль.', '#e09070'); Gm.endTurn(9); return; }
+      empower1(w, need);
+    });
+  }
+  function empower1(w, need) {
     Gm.take('mana_shard', need.mana_shard);
     w.ench.lvl++;
     w.n = (w.n0 || nm(w.b)) + ' ' + w.ench.n + ' ' + U.roman(w.ench.lvl);

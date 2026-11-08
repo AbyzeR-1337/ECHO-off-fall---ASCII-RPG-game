@@ -99,11 +99,26 @@
         const x0 = Math.floor((t.cols - W) / 2), y0 = Math.max(1, Math.floor((t.rows - H) / 2));
         t.box(x0, y0, W, H, COL.accent, COL.panel, o.title);
         const hint = o.hint || ({ timing: 'Жми, когда бегунок в светлой полосе', hold: 'Держи — окошко поднимается, отпусти — опускается. Держи цель в окошке', rhythm: 'Жми, когда метка на черте', seq: st && st.show ? 'Запомни знаки…' : 'Повтори стрелками', arc: 'Останови стрелку в светлом секторе' })[o.type];
-        t.text(x0 + 2, y0 + 1, hint, COL.dim, COL.panel, W - 4);
+        // подсказка — в две строки, если не влезает
+        const words = hint.split(' '), lines = [''];
+        for (const w of words) { const l = lines[lines.length - 1]; if ((l + ' ' + w).trim().length > W - 4 && lines.length < 2) lines.push(w); else lines[lines.length - 1] = (l + ' ' + w).trim(); }
+        lines.forEach((l, i) => t.text(x0 + 2, y0 + 1 + i, l, COL.dim, COL.panel, W - 4));
         const left = o.type === 'hold' ? '' : o.type === 'seq' ? 'Верно: ' + st.i + ' / ' + st.seq.length : 'Попаданий: ' + st.good + ' / ' + o.need;
         t.text(x0 + 2, y0 + H - 2, left + (o.tries < 99 && o.type !== 'hold' ? '   Промахов: ' + st.bad + ' / ' + o.tries : '') + (st.msg ? '   ' + st.msg : ''), st.msg ? COL.accent : COL.text, COL.panel, W - 4);
         t.text(x0 + W - 15, y0 + H - 1, ' Esc — бросить ', COL.faint, COL.panel);
         t.hot(0, 0, t.cols, t.rows, () => { if (o.type === 'hold') return; if (o.type === 'seq') return; press(); });
+        // «повтори знаки»: четыре кнопки — касанием или мышью (на телефоне стрелок нет)
+        if (o.type === 'seq') {
+          const bw = Math.min(10, Math.floor((W - 4) / 4)), bx0 = x0 + Math.floor((W - bw * 4) / 2), by = y0 + H - 3;
+          ARROWS.forEach((k, i) => {
+            const lab = (o.glyphs ? o.glyphs[i] + ' ' : '') + ARR[k];
+            const bx = bx0 + i * bw;
+            t.text(bx, by, ' '.repeat(bw - 1), COL.text, st.show ? COL.bg : '#2a2432');
+            // знаки (и эмодзи) — поверх, холстом: в сетку они не ложатся
+            t.post.push((ctx) => { ctx.font = Math.round(t.fpx * 0.95) + 'px ' + t.family; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = st.show ? COL.faint : COL.accent; ctx.fillText(lab, (bx + (bw - 1) / 2) * t.cw, (by + 0.5) * t.ch); });
+            t.hot(bx, by, bw - 1, 1, () => arrow(k));
+          });
+        }
         const px = (x0 + 2) * t.cw, py = (y0 + 3) * t.ch, pw = (W - 4) * t.cw, ph = (H - 6) * t.ch;
         t.post.push((ctx) => draw(ctx, px, py, pw, ph, t));
       },
