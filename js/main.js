@@ -181,7 +181,8 @@
     const release = () => {
       if (!pend) return;
       const p = pend; pend = null;
-      if (!UI.V3.dragEnd()) { p.h.fn(p.h, p.cx, p.cy, p.b, p.x, p.y); UI.render(); }
+      // на телефоне касание картинки только поворачивает взгляд — идти по касанию не надо (для этого джойстик)
+      if (!UI.V3.dragEnd() && !(UI.phone && UI.phone.on && liveGame())) { p.h.fn(p.h, p.cx, p.cy, p.b, p.x, p.y); UI.render(); }
     };
     cv.addEventListener('pointerup', release);
     cv.addEventListener('pointercancel', () => { pend = null; if (UI.V3) UI.V3.dragEnd(); });

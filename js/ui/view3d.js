@@ -1123,7 +1123,7 @@
     const land = RT && RT.landed ? Math.max(0, 1 - (now - RT.landed) / 160) : 0;
     const fx = Math.sin(V3.yaw), fz = -Math.cos(V3.yaw);
     // глаза героя (в координатах кадра)
-    const eye = { x: gx - RO[0], y: V3.camY + EYE + (THIRD ? 0 : bob) + jy - land * 0.05, z: gz - RO[1] };
+    const eye = { x: gx - RO[0], y: V3.camY + EYE + (THIRD ? 0 : bob) + jy - land * 0.05 - (UI.swimDip ? UI.swimDip() : 0), z: gz - RO[1] };
     let cam;
     if (THIRD) {
       // камера сверху-сзади: мышь вверх-вниз меняет наклон, колесо и +/− — даль
