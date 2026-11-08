@@ -177,3 +177,7 @@ body.rotate #rotate {
 #rotate small { display: block; color: #8a8070; font-size: 13px; margin-top: 10px; }
 @keyframes rot { 0%, 30% { transform: rotate(0deg); } 60%, 100% { transform: rotate(-90deg); } }
 body.phone #wrap { height: 100vh; height: 100dvh; padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+
+/* iPhone/Safari: касания не прокручивают и не увеличивают страницу, долгое нажатие не вызывает меню */
+body.phone, body.phone #screen { touch-action: none; overscroll-behavior: none; -webkit-touch-callout: none; }
+html:has(body.phone) { overscroll-behavior: none; }

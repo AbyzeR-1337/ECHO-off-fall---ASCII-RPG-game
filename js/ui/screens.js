@@ -917,6 +917,9 @@
         // в браузере на компьютере — ссылка на версию для Windows (в самой .exe она не нужна)
         if (!/Electron/.test(navigator.userAgent) && !window.matchMedia('(pointer: coarse)').matches) it.push({ t: 'Скачать для Windows (.exe)', f: () => { window.open(UI.EXE_URL, '_blank', 'noopener'); return 'keep'; } });
         // телефон в браузере (не в приложении) — предложить приложение для Android
+        // iPhone и iPad в Safari: приложение ставится как страница на экран «Домой» — тогда во весь экран и без строки адреса
+        const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (ios && !navigator.standalone && !(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)) it.push({ t: 'Во весь экран на iPhone', f: () => { UI.popup('Во весь экран на iPhone', 'В Safari нажми «Поделиться» (квадрат со стрелкой вверх) → «На экран „Домой“» → «Добавить».\n\nНа экране «Домой» появится значок Echoes — открывай игру с него: она пойдёт во весь экран, без строки адреса. Поверни телефон горизонтально.\n\nСохранения хранятся на телефоне. Если удалить значок или данные сайта в настройках Safari, сохранения пропадут.'); return 'keep'; } });
         if (/Android/.test(navigator.userAgent) && !(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) it.push({ t: 'Скачать для Android (.apk)', f: () => { window.open(UI.APK_URL, '_blank', 'noopener'); return 'keep'; } });
         return it;
       },

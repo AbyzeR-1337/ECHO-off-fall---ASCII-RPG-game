@@ -83,7 +83,10 @@
     const showTouch = !phone && (coarse || window.innerWidth < 720 || document.body.classList.contains('force-touch'));
     touch.style.display = showTouch ? 'grid' : 'none';
     const th = showTouch ? touch.getBoundingClientRect().height + 4 : 0;
-    const W = window.innerWidth - (phone ? 0 : 4), H = window.innerHeight - th - (phone ? 0 : 4);
+    // телефон: вырез под камеру сбоку (iPhone горизонтально) — картинка не заходит под него
+    let safe = 0;
+    if (phone) { const cs = getComputedStyle(document.getElementById('wrap')); safe = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0); }
+    const W = window.innerWidth - (phone ? safe : 4), H = window.innerHeight - th - (phone ? 0 : 4);
     let fs;
     if (phone) fs = U.clamp(Math.floor(H / 21), 11, 16);
     else if (showTouch && W < 900) fs = U.clamp(Math.floor(W / 44 / 0.6), 9, 17);
