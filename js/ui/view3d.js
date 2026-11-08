@@ -655,19 +655,20 @@
       let gk = X.GK[tid] || X.FIX[tid];
       if (!gk) continue;
       if (gk === 'grass' && (m.biome === 'forest' || m.biome === 'ancient') && hash2(gx, gz, 77) < 0.35) gk = 'roots';
-      const list = TUFTS[gk];
+      const ex = TF.EXTRA && TF.EXTRA[m.biome] && TF.EXTRA[m.biome][gk];
+      const list = ex ? (TUFTS[gk] || []).concat(ex) : TUFTS[gk];
       if (!list) continue;
       const far = dd > 14 * 14 ? 0.45 : 1;
       for (const [kind, dens] of list) {
-        if (noGrass && (kind === 'grass' || kind === 'tall' || kind === 'flower')) continue;
+        if (noGrass && (kind === 'grass' || kind === 'tall' || (TF.SOFT && TF.SOFT.has(kind) && kind !== 'fern'))) continue;
         let n = dens * far;
         const base = Math.floor(n); n = base + (hash2(gx * 3 + kind.length, gz, 5) < n - base ? 1 : 0);
-        if (sea === 3 && (kind === 'flower' || kind === 'fern' || kind === 'tall') && cd.m.region && cd.m.region.t < 0.55) continue;
+        if (sea === 3 && (TF.SOFT ? TF.SOFT.has(kind) : (kind === 'flower' || kind === 'fern' || kind === 'tall')) && cd.m.region && cd.m.region.t < 0.55) continue;
         for (let k = 0; k < n; k++) {
           const jx = hash2(gx, gz, k * 13 + 1), jz = hash2(gx, gz, k * 13 + 2), v = Math.floor(hash2(gx, gz, k * 13 + 3) * 4);
           const r = TF.rect(kind, v, kind === 'flower' ? 1 : sea, kind === 'flower' ? TF.FLOWER[Math.floor(hash2(gx >> 2, gz >> 2, 9) * TF.FLOWER.length + k) % TF.FLOWER.length] : null);
           const wx = gx + 0.08 + jx * 0.84, wz = gz + 0.08 + jz * 0.84;
-          P3.bb(B, r, wx - gcx, HGT.groundAt(wx, wz), wz - gcz, (kind === 'wheat' ? 0.7 : 0.9) + hash2(gx, gz, k + 40) * 0.5, 1);
+          P3.bb(B, r, wx - gcx, HGT.groundAt(wx, wz), wz - gcz, (kind === 'wheat' ? 0.7 : (TF.SCALE && TF.SCALE[kind]) || 0.9) + hash2(gx, gz, k + 40) * 0.5, 1);
         }
       }
     }
