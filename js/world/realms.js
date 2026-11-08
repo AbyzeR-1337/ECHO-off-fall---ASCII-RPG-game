@@ -377,5 +377,5 @@
 
   // вплести в создание мира
   const gen0 = World.generate;
-  World.generate = function (seed) { const W = gen0.call(this, seed); R.gen(W); return W; };
+  World.generate = function (seed, ver) { const W = gen0.call(this, seed, ver); R.gen(W); return W; };
 })(window.EOF);

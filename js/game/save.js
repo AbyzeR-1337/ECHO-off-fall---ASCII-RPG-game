@@ -51,7 +51,7 @@
   }
   Save.save = function () {
     if (!G.P || !G.S || !G.W) return false;
-    const data = { v: 1, seed: G.W.seed, t: Date.now(), S: packS(G.S), P: G.P, map: G.map ? { key: G.map.key, x: G.P.x, y: G.P.y } : null, log: G.log.slice(-40), turn: G.turn };
+    const data = { v: 1, wv: G.W.ver || 1, seed: G.W.seed, t: Date.now(), S: packS(G.S), P: G.P, map: G.map ? { key: G.map.key, x: G.P.x, y: G.P.y } : null, log: G.log.slice(-40), turn: G.turn };
     let s;
     try { s = 'Z' + U.lzc(JSON.stringify(data)); } catch (e) { console.warn('save stringify', e); return false; }
     for (let k = 0; k < 4; k++) {
@@ -69,7 +69,7 @@
     let data;
     try { data = read(); } catch (e) { console.warn('load', e); return false; }
     if (!data || data.v !== 1) return false;
-    G.W = E.World.generate(data.seed);
+    G.W = E.World.generate(data.seed, data.wv || 1); // старое сохранение — мир по старым правилам
     G.S = unpackS(data.S, G.W.npcs.length);
     for (const p of G.S.extraPl || []) E.World.place(G.W, p.r, p.o);
     E.Sim.prepare();

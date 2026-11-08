@@ -269,7 +269,7 @@
           m.dunEntry = p;
         } else if (f === 'ruins' && m.biome !== 'ocean') buildRuins(m, rng, W, g, () => fpos(8, 5));
         else if (f === 'shrine') {
-          const p = fpos(4, 4) || fpos(3, 3); if (!p) continue;
+          const p = W.ver >= 2 ? fpos(4, 4) || fpos(3, 3) : fpos(3, 3); if (!p) continue;
           shrineOf(m, rng, p, g.shrine);
         } else if (f === 'camp') {
           const p = fpos(5, 4); if (!p) continue;
