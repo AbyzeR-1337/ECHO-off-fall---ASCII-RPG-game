@@ -106,7 +106,8 @@
     const md = M.getContext('2d', { willReadFrequently: true }).getImageData(R.x, R.y, R.w, R.h).data;
     const ed = em.getContext('2d').createImageData(R.w, R.h), e = ed.data;
     const T = hex(look.skin), Ty = 0.3 * T[0] + 0.59 * T[1] + 0.11 * T[2];
-    const O = orbEl && ORB[orbEl];
+    const SCc = E.Schools && E.Schools.COL && E.Schools.COL[orbEl];
+    const O = orbEl && (ORB[orbEl] || (SCc ? SCc.map((x) => Math.round(x * 255)) : null));
     const WD = wood && /^staff/.test(name) ? hex(wood) : null, WY = WD ? 0.3 * WD[0] + 0.59 * WD[1] + 0.11 * WD[2] : 1;
     let top = null;
     const glowKind = /^(torch|lantern)/.test(name);

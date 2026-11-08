@@ -84,6 +84,9 @@
     // стихии заклинаний
     el_fire: ['flame', '#ff8a30'], el_ice: ['snow', '#a8e4ff'], el_storm: ['bolt', '#e8e870'], el_earth: ['mountain', '#c8a878'], el_holy: ['cross', '#fff0a8'],
     el_dark: ['skull', '#b080e0'], el_nature: ['leaf', '#70c050'], el_arcane: ['star', '#ff9ce8'], el_acid: ['drop', '#a8e040'], el_poison: ['drop', '#70c040'], el_random: ['spiral', '#e0c0ff'],
+    el_water: ['wave', '#5aa0ff'], el_wind: ['wind', '#d0f0e6'], el_metal: ['sword', '#c8ccd8'], el_blood: ['drop', '#e02838'], el_shadow: ['hood', '#8a70c0'], el_venom: ['drop', '#80e040'],
+    el_steam: ['stink', '#e8e8f0'], el_magma: ['flame', '#ff5c14'], el_blizzard: ['snow', '#c0e6ff'], el_sun: ['sun', '#ffd85a'], el_twilight: ['moon', '#b070c0'], el_rot: ['mushroom', '#a0b040'],
+    el_astral: ['star', '#8c9cff'], el_crystal: ['crack', '#a8fff0'], el_time: ['hourglass', '#f0d890'], el_dream: ['zzz', '#d8a0ff'], el_song: ['horn', '#ffb0d8'],
     freeze: ['snow', '#a8e4ff'], wet: ['drop', '#5aa0e8'], brittle: ['crack', '#c8e8f8'], mark: ['target', '#ffd060'], curse: ['skull', '#c080e0'], shock: ['bolt', '#e8e870'], regen: ['plus', '#60e080'], bless: ['cross', '#f8e8a0'],
   };
   // не нашли — подберём по слову в названии, иначе по роду
