@@ -120,7 +120,8 @@
     const n = E.Gm.npc(e.npc);
     if (!n) return null;
     const race = E.Realms ? E.Realms.raceOf(n) : 'human';
-    return (RCODE[race] || 'h') + (n.sex === 'f' ? 'f' : 'm') + (n.fb ? '1' : '0') + UI.moodOf(e) + ((n.skin != null ? n.skin : e.npc) % 10);
+    const ag = n.age == null ? 'a' : n.age < 13 ? 'c' : n.age < 18 ? 't' : n.age >= 58 ? 'o' : 'a';
+    return (RCODE[race] || 'h') + (n.sex === 'f' ? 'f' : 'm') + (n.fb ? '1' : '0') + UI.moodOf(e) + ((n.skin != null ? n.skin : e.npc) % 10) + ag;
   };
   UI.entKey = (e) => { const k = entArt(e), v = UI.entVar(e); return v ? k + '~' + v : k; };
   const ITEM = { weapon: 'item_weapon', armor: 'item_armor', food: 'item_food', potion: 'item_potion', book: 'item_book', gold: 'item_gold', trinket: 'item_trinket', tool: 'item_tool', misc: 'item_misc', mat: 'item_mat', art: 'item_art' };

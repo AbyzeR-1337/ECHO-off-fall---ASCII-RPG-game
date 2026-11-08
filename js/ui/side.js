@@ -72,7 +72,7 @@
     const P = G.P, Gfx = E.Gfx;
     if (!Gfx || !Gfx.PX) return;
     const code = RC()[P.race || 'human'] || 'h', fb = P.race === 'femboy' ? '1' : '0';
-    const key = (P.sex === 'f' ? 'npc_f' : 'npc_m') + '~' + code + (P.sex === 'f' ? 'f' : 'm') + fb + moodP(P) + ((P.skin || 0) % 10);
+    const key = (P.sex === 'f' ? 'npc_f' : 'npc_m') + '~' + code + (P.sex === 'f' ? 'f' : 'm') + fb + moodP(P) + ((P.skin || 0) % 10) + 'p';
     const cls = UI.mvTiles && UI.mvTiles.CLS ? UI.mvTiles.CLS[P.cls || 'wanderer'] : null;
     const c = cls || '#b09060';
     const ck = key + '|' + c + '|' + w + 'x' + h;

@@ -409,32 +409,48 @@
       out.push(el(0, 0, S(0.3), S(0.19) * bk, S(0.155) * bk, S(0.32), cloth), el(0, 0, S(0.56), S(0.15) * bk, S(0.115) * bk, S(0.2), cloth), el(0, 0, S(0.69), S(0.135) * bk, S(0.095) * bk, S(0.09), cloth));
       for (const sd of [-1, 1]) out.push(el(sd * S(0.06), S(0.11 + walk * sd * 0.04), S(0.03), S(0.042), S(0.06), S(0.03), boots));
     } else {
+      const hipK = (o.fig && o.fig.hips) || 1, legU = o.legSkin || pants, legL = o.legLow || pants;
       for (const sd of [-1, 1]) {
         const sw = walk * sd * 0.12;
-        const hip = [sd * S(0.075) * bk, 0, S(0.66)], knee = [sd * S(0.074) * bk, S(sw * 0.55 + 0.015), S(0.37)], ank = [sd * S(0.067) * bk, S(sw), S(0.08)];
-        limb(out, P, hip[0], hip[1], hip[2], knee[0], knee[1], knee[2], S(0.068) * bk, S(0.05) * bk, pants);
-        limb(out, P, knee[0], knee[1], knee[2], ank[0], ank[1], S(0.22), S(0.05) * bk, S(0.044) * bk, pants);
+        const hip = [sd * S(0.075) * bk * hipK, 0, S(0.66)], knee = [sd * S(0.074) * bk, S(sw * 0.55 + 0.015), S(0.37)], ank = [sd * S(0.067) * bk, S(sw), S(0.08)];
+        limb(out, P, hip[0], hip[1], hip[2], knee[0], knee[1], knee[2], S(0.068) * bk * hipK, S(0.05) * bk, o.legSkin ? legU : pants);
+        limb(out, P, knee[0], knee[1], knee[2], ank[0], ank[1], S(0.22), S(0.05) * bk, S(0.044) * bk, legL);
         limb(out, P, ank[0], ank[1], S(0.24), ank[0], ank[1], ank[2], S(0.048) * bk, S(0.042) * bk, boots);
         out.push(el(ank[0], ank[1] + S(0.035), S(0.035), S(0.043) * bk, S(0.075), S(0.035), boots));
       }
-      out.push(el(0, 0, S(0.685), S(0.13) * bk, S(0.088) * bk, S(0.075), pants));
+      out.push(el(0, 0, S(0.685), S(0.13) * bk * hipK, S(0.088) * bk, S(0.075), pants));
+      // юбка: от пояса до середины бедра (короткая) или до колен
+      if (o.skirt) out.push(el(0, 0, S(o.skirtLen === 'short' ? 0.6 : 0.5), S(0.16) * bk * hipK, S(0.12) * bk, S(o.skirtLen === 'short' ? 0.1 : 0.19), o.skirt));
     }
     // туловище: живот, грудь, подол рубахи, пояс с пряжкой, плечи
-    const hy = hunch * 0.6;
-    out.push(el(0, hunch * 0.25, S(0.815), S(0.133) * bk, S(0.087) * bk, S(0.11), cloth));
-    out.push(el(0, hy, S(0.975), S(0.158) * bk, S(0.098) * bk, S(0.125), cloth));
+    const hy = hunch * 0.6, fg = o.fig || {}, waist = fg.waist || 1, shK = fg.shoulders || 1;
+    // живот: у кого топ короткий — кожа
+    out.push(el(0, hunch * 0.25, S(0.815), S(0.133) * bk * waist, S(0.087) * bk * waist, S(0.11), o.midriff ? skin : cloth));
+    out.push(el(0, hy, S(0.975), S(0.158) * bk * shK, S(0.098) * bk, S(0.125), cloth));
+    // вырез: открытая ключица и верх груди (рубаха нараспашку, корсаж)
+    if (o.neckline) out.push(el(0, hy + S(0.045), S(1.03), S(0.085) * bk, S(0.06) * bk, S(o.neckline === 'deep' ? 0.085 : 0.06), skin));
+    // грудь (у женщин): две округлости под тканью
+    if (fg.bust) { const b = fg.bust; for (const sd of [-1, 1]) out.push(el(sd * S(0.058) * bk, hy + S(0.07 + b * 0.012), S(0.985 - b * 0.004), S(0.06 + b * 0.008) * bk, S(0.05 + b * 0.012), S(0.056 + b * 0.007), o.bodice || cloth)); }
+    // корсаж: шнуровка спереди
+    if (o.bodice) for (let q = 0; q < 4; q++) out.push(sph(0, hy + S(0.11), S(0.84 + q * 0.045), pmin(P, S(0.008)), mat('#e8dcc0', 'cloth')));
     if (!o.robe) out.push(el(0, 0, S(0.715), S(0.146) * bk, S(0.096) * bk, S(0.055), cloth));
     out.push(el(0, hunch * 0.2, S(0.755), S(0.14) * bk, S(0.093) * bk, S(0.022), o.belt || LEATHER));
     out.push(box(-S(0.017), S(0.088) * bk + hunch * 0.2, S(0.74), S(0.017), S(0.098) * bk + hunch * 0.2, S(0.772), GOLD));
-    for (const sd of [-1, 1]) out.push(sph(sd * S(0.157) * bk, hy, S(1.05), S(0.068) * bk, sleeve));
+    const shoulderM = o.bareShoulders ? skin : sleeve;
+    for (const sd of [-1, 1]) out.push(sph(sd * S(0.157) * bk * shK, hy, S(1.05), S(0.068) * bk, shoulderM));
     // руки: плечо — локоть — запястье, кисть
+    const upper = o.bareArms ? skin : sleeve, lower = o.bareArms || o.rolled ? skin : sleeve;
     for (const sd of [-1, 1]) {
       const fw = o.armsFwd ? 1 : 0, sw = -walk * sd * 0.11;
-      const sh = [sd * S(0.175) * bk, hy, S(1.035)];
-      const elb = fw ? [sd * S(0.19) * bk, hy + S(0.16), S(0.95)] : [sd * S(0.222) * bk, hy + S(sw * 0.55), S(0.81)];
-      const wr = fw ? [sd * S(0.15) * bk, hy + S(0.36), S(0.93)] : [sd * S(0.235) * bk, hy + S(sw + 0.035), S(0.6)];
-      limb(out, P, sh[0], sh[1], sh[2], elb[0], elb[1], elb[2], S(0.05) * bk, S(0.042) * bk, sleeve);
-      limb(out, P, elb[0], elb[1], elb[2], wr[0], wr[1], wr[2], S(0.042) * bk, S(0.033) * bk, sleeve);
+      const onHip = o.pose === 'hip' && sd > 0 && !o.moving, cross = o.pose === 'cross' && !o.moving, wave = o.pose === 'wave' && sd > 0 && !o.moving;
+      const sh = [sd * S(0.175) * bk * shK, hy, S(1.035)];
+      let elb = fw ? [sd * S(0.19) * bk, hy + S(0.16), S(0.95)] : [sd * S(0.222) * bk, hy + S(sw * 0.55), S(0.81)];
+      let wr = fw ? [sd * S(0.15) * bk, hy + S(0.36), S(0.93)] : [sd * S(0.235) * bk, hy + S(sw + 0.035), S(0.6)];
+      if (onHip) { elb = [sd * S(0.29) * bk, hy - S(0.02), S(0.86)]; wr = [sd * S(0.17) * bk, hy + S(0.03), S(0.74)]; }
+      if (cross) { elb = [sd * S(0.2) * bk, hy + S(0.1), S(0.88)]; wr = [-sd * S(0.08) * bk, hy + S(0.15), S(0.92)]; }
+      if (wave) { elb = [sd * S(0.27) * bk, hy + S(0.02), S(1.12)]; wr = [sd * S(0.26) * bk, hy + S(0.05), S(1.36)]; }
+      limb(out, P, sh[0], sh[1], sh[2], elb[0], elb[1], elb[2], S(0.05) * bk, S(0.042) * bk, upper);
+      limb(out, P, elb[0], elb[1], elb[2], wr[0], wr[1], wr[2], S(0.042) * bk, S(0.033) * bk, lower);
       out.push(el(wr[0], wr[1] + (fw ? S(0.04) : S(0.006)), wr[2] - (fw ? 0 : S(0.05)), S(0.031) * bk, fw ? S(0.05) : S(0.033), fw ? S(0.03) : S(0.052), skin));
     }
     // шея и голова: череп, челюсть, нос, уши, глаза; волосы, борода
@@ -489,7 +505,7 @@
       else if (md === 'a') out.push(el(ex, fy - S(0.004), ez - S(0.002), S(0.015), S(0.01), S(0.009), eye));
       else if (md === 'u' || md === 'f') { out.push(sph(ex, fy - S(0.006), ez, S(0.018), mat('#f0ece0', 'cloth'))); out.push(sph(ex, fy - S(0.002), ez, S(0.01), eye)); }
       else if (md === 'c') out.push(el(ex, fy - S(0.004), ez + (sd < 0 ? S(0.002) : -S(0.002)), S(0.015), S(0.01), sd < 0 ? S(0.012) : S(0.008), eye));
-      else out.push(sph(ex, fy - S(0.004), ez, S(0.014), eye));
+      else { out.push(sph(ex, fy - S(0.004), ez, S(o.bigEyes ? 0.017 : 0.014), eye)); if (o.bigEyes) out.push(sph(ex - S(0.005), fy + S(0.006), ez + S(0.006), pmin(P, S(0.005)), mat('#ffffff', 'glow', { em: 0.8 }))); }
       if (o.lash && md !== 'z') out.push(el(ex + sd * S(0.006), fy - S(0.002), ez + S(0.014), S(0.016), S(0.006), pmin(P, S(0.003)), BROW));
     }
     // брови: от переносицы к виску
@@ -575,12 +591,51 @@
   HF.RACEV = RACEV;
   function parseV(v) {
     if (!v) return null;
-    return { r: RACEV[v[0]] ? v[0] : 'h', sex: v[1] === 'f' ? 'f' : 'm', fb: v[2] === '1', mood: v[3] || 'n', k: +(v[4] || 0) };
+    return { r: RACEV[v[0]] ? v[0] : 'h', sex: v[1] === 'f' ? 'f' : 'm', fb: v[2] === '1', mood: v[3] || 'n', k: +(v[4] || 0), age: v[5] || 'a' };
+  }
+  // наряды взрослых: корсаж с открытыми плечами, короткая юбка (и чулки), топ с открытым животом, платье с открытыми
+  // плечами; у мужчин — рубаха нараспашку, без рукавов, закатанные рукава. Ничего, кроме этого, — без наготы.
+  const ARMORED = (j, key) => !!(j.cloth || (j.robe && key !== 'npc_f'));
+  function dress(look, a) {
+    const { V, j, fem, soft, age, covered, cc, skinC, style, idle } = a;
+    if (!V) return;
+    const skin = look.skin, adult = age === 'a';
+    // сам герой (портрет, вид со стороны): фигура — да, наряд — по его одежде, не по жребию
+    if (age === 'p') { look.bigEyes = soft || style % 2 === 0; if (fem && !V.fb) look.fig = { bust: 1 + (style % 3) * 0.4, hips: 1.12, waist: 0.88 }; else if (V.fb) look.fig = { hips: 1.08, waist: 0.88, shoulders: 0.94 }; else look.fig = { shoulders: 1.08 }; return; }
+    const k = style, kk = (k * 7 + (V.r.charCodeAt(0) || 0)) % 10;
+    look.bigEyes = soft || age === 'c' || age === 't' || kk % 2 === 0;
+    // фигура
+    if (fem && !V.fb) look.fig = age === 'c' ? null : { bust: age === 't' ? 0.4 : age === 'o' ? 1 : 0.9 + (kk % 4) * 0.45, hips: age === 'c' ? 1 : 1.1 + (kk % 3) * 0.04, waist: age === 'o' ? 0.98 : 0.86 + (kk % 2) * 0.04 };
+    else if (V.fb) look.fig = { hips: 1.08, waist: 0.88, shoulders: 0.94 };
+    else look.fig = age === 'c' ? null : { shoulders: age === 'o' ? 1 : 1.05 + (kk % 3) * 0.04 };
+    // поза в покое: своя у каждого; кадр 1 — поза, кадр 0 — как обычно (дыхание)
+    if (idle === 1 && age !== 'c') look.pose = ['hip', 'cross', '', 'hip', 'wave', 'cross', '', 'hip', '', 'cross'][kk];
+    if (!adult || ARMORED(j, a.key) || covered) return;
+    const accent = mat(['#5a1a2a', '#2a2a4a', '#3a2a1a', '#1a3a2a', '#4a2a4a'][kk % 5], 'cloth', { tex: clothTex });
+    const stock = mat(['#1e161c', '#2a1e2a', '#f0e8e0', '#3a2a22'][kk % 4], 'cloth');
+    const skirtM = mat(shadeC(C(cc), 0.75), 'cloth', { tex: clothTex });
+    if (fem && !V.fb) {
+      const o = kk % 6;
+      if (o === 1) { look.robe = false; look.bodice = accent; look.neckline = 'deep'; look.bareShoulders = true; look.skirt = skirtM; look.skirtLen = 'long'; look.legLow = stock; }
+      else if (o === 2) { look.robe = false; look.skirt = skirtM; look.skirtLen = 'short'; look.legSkin = skin; look.legLow = kk % 2 ? stock : skin; look.neckline = 'shallow'; }
+      else if (o === 3) { look.robe = false; look.midriff = true; look.neckline = 'shallow'; look.skirt = skirtM; look.skirtLen = kk % 2 ? 'short' : 'long'; if (look.skirtLen === 'short') { look.legSkin = skin; look.legLow = stock; } }
+      else if (o === 4) { look.robe = true; look.bareShoulders = true; look.neckline = 'deep'; }
+    } else if (V.fb) {
+      const o = kk % 3;
+      if (o === 0) { look.robe = false; look.midriff = true; look.skirt = skirtM; look.skirtLen = 'short'; look.legSkin = skin; look.legLow = stock; }
+      else if (o === 1) { look.robe = true; look.bareShoulders = true; look.neckline = 'shallow'; }
+    } else {
+      const o = kk % 5;
+      if (o === 1) look.neckline = 'deep';
+      else if (o === 2 && !look.robe) { look.bareArms = true; look.neckline = 'shallow'; }
+      else if (o === 3) look.rolled = true;
+    }
   }
   for (const key in JOBGEAR) {
     MD[key] = (o, P) => {
       const j = JOBGEAR[key], V = parseV(o.v), rv = V ? RACEV[V.r] : null;
-      const s = (j.scale || 1) * (rv ? rv.h : 1);
+      const age = V ? V.age : 'a';
+      const s = (j.scale || 1) * (rv ? rv.h : 1) * (key === 'npc_child' ? 1 : age === 'c' ? 0.64 : age === 't' ? 0.9 : 1);
       let cc = colOf(o, '#b89878');
       if (V && V.fb) cc = ['#b8a8e0', '#8ab8d8', '#c86a9a', '#7ab0a0', '#9a7ac8'][V.k % 5];
       const cloth = mat(cc, 'cloth', { tex: clothTex }), pants = mat(j.pants || shadeC(C(cc), 0.55), 'cloth', { tex: clothTex });
@@ -597,6 +652,8 @@
         beard: !covered && !soft && (j.beard || (rv && rv.beardM && !fem) || (V && V.r === 'h' && style % 5 === 1)), longBeard: V && V.r === 'd' && !fem,
         armsFwd: j.armsFwd, ears: rv && rv.ears, tusks: rv && rv.tusks, mood: V ? V.mood : 'n', lash: soft, brow: mat(shadeC(C(hairC), 0.6), 'dark'),
       };
+      // фигура, наряд и поза: у каждого жителя своё (по его «почерку» k); откровенное — только у взрослых
+      dress(look, { V, j, fem, soft, age, covered, cc, skinC, style, idle: !o.moving && o.f >= 4 ? o.f % 2 : -1, key });
       if (rv && rv.eyes) look.eyes = mat(rv.eyes, 'eye', { em: 0.6 });
       if (rv && rv.bald) { look.hair = null; look.snout = mat(hairC, 'skin'); look.head = mat(skinC, 'scale', { tex: scaleTex }); }
       if (rv && rv.whisk) look.whisk = 1;
@@ -610,7 +667,7 @@
       const prims = human(look, P, s);
       if (j.apron) prims.push(el(0, S1(0.07), 0.66 * s, 0.12 * s, 0.05 * s, 0.24 * s, mat('#6a4a30', 'cloth', { tex: texNoise(0.1, 0.3, 14, 105) })));
       for (const g of j.gear || []) gear(prims, P, g, s, { m: mat(shadeC(C(cc), 0.8), 'cloth', { tex: clothTex }), f: o.f });
-      return wrap(key + '|' + cc + '|' + (o.v || '') + '|' + (o.moving ? o.f % 4 : 0) + (key === 'npc_bard' ? '|' + (o.f % 8) : ''), prims, o);
+      return wrap(key + '|' + cc + '|' + (o.v || '') + '|' + (o.moving ? o.f % 4 : o.f >= 4 ? 'i' + (o.f % 2) : 0) + (key === 'npc_bard' ? '|' + (o.f % 8) : ''), prims, o);
     };
   }
   // ключ с обликом: «npc_hat~efnh3» → модель npc_hat с o.v = «efnh3»

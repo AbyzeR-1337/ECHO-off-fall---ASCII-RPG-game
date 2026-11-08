@@ -1173,14 +1173,19 @@
       }
       const pk = key + '|' + yaw.toFixed(2) + '|' + (o.c || '') + '|' + (o.f || 0) + '|' + (o.moving ? 1 : 0) + '|' + (o.mode || 0) + '|' + (o.hit ? 1 : 0) + '|' + (o.seed || 0);
       let r = V3.sprCache && V3.sprCache.get(pk);
+      const LE = V3.lastEnt = V3.lastEnt || new Map();
       if (!r || r.gen !== P3.sprGen) {
-        if (performance.now() > budget && !o.must) { V3.pending = true; return; }
-        const sp = PX.sprite(key, o, { yaw, pitch: 0.12, ppu: 44 });
-        if (!sp) return;
-        r = P3.sprite(sp);
-        (V3.sprCache = V3.sprCache || new Map()).set(pk, r);
-        if (V3.sprCache.size > 4000) V3.sprCache.clear();
+        // не успели нарисовать новый кадр — пока что прежний кадр того же существа (чтобы не мигало)
+        if (performance.now() > budget && !o.must) { V3.pending = true; const lr = o.eid != null && LE.get(o.eid); if (!lr || lr.gen !== P3.sprGen) return; r = lr; }
+        else {
+          const sp = PX.sprite(key, o, { yaw, pitch: 0.12, ppu: 44 });
+          if (!sp) return;
+          r = P3.sprite(sp);
+          (V3.sprCache = V3.sprCache || new Map()).set(pk, r);
+          if (V3.sprCache.size > 4000) V3.sprCache.clear();
+        }
       }
+      if (o.eid != null) { LE.set(o.eid, r); if (LE.size > 3000) LE.clear(); }
       const gy = HGT.groundAt(wx + RO[0], wz + RO[1]);
       P3.bb(dyn, r, wx, gy, wz, scale || K_ENT, skyK == null ? 1 : skyK);
     };
@@ -1212,18 +1217,19 @@
       const base = X.entArt(e), ev = UI.entVar ? UI.entVar(e) : null;
       const key = ev ? base + '~' + ev : base;
       const always = X.ALWAYS.has(base) || base.startsWith('b_');
-      const f = always ? Math.floor((now + e.id * 137) / 220) % 4 : moving ? (s.step % 2 ? 1 : 3) : 0;
+      // в покое у жителей — своя поза раз в пару секунд (кадры 4/5), на ходу — шаги
+      const f = always ? Math.floor((now + e.id * 137) / 220) % 4 : moving ? (s.step % 2 ? 1 : 3) : e.kind === 'npc' && !e.hostile && !e.asleep ? 4 + (Math.floor((now + e.id * 331) / 1700) % 2) : 0;
       let mode = 0;
       if (e.ghost || (e.kind === 'npc' && e.ai === 'wander' && e.immortal)) mode = 4;
       let c = e.c;
       if (e.kind === 'npc' && e.hostile) c = '#e07060';
       const hit = G.hitEnt === e.id && now - (G.hitEntT || 0) < 160;
-      add(key, { c, f, moving, mode, hit }, gox + ex + 0.5 - RO[0], goz + ey + 0.5 - RO[1], hd, K_ENT, skyKAt(e.x, e.y));
+      add(key, { c, f, moving, mode, hit, eid: e.id }, gox + ex + 0.5 - RO[0], goz + ey + 0.5 - RO[1], hd, K_ENT, skyKAt(e.x, e.y));
     }
     // сам герой: камера за спиной — его видно
     if (THIRD) {
       const XC = X.CLS || {}, code = (UI.RCODE || {})[P.race || 'human'] || 'h';
-      const pkey = (P.sex === 'f' ? 'npc_f' : 'npc_m') + '~' + code + (P.sex === 'f' ? 'f' : 'm') + (P.race === 'femboy' ? '1' : '0') + 'n' + ((P.skin || 0) % 10);
+      const pkey = (P.sex === 'f' ? 'npc_f' : 'npc_m') + '~' + code + (P.sex === 'f' ? 'f' : 'm') + (P.race === 'femboy' ? '1' : '0') + 'n' + ((P.skin || 0) % 10) + 'p';
       const pf = pmov ? (Math.floor((live() ? walked * 2.6 : now / 160)) % 2 ? 1 : 3) : 0;
       const phit = G.hitFlash && now - G.hitFlash < 160;
       add(pkey, { c: XC[P.cls || 'wanderer'] || '#b09060', f: pf, moving: !!pmov, hit: phit, must: 1 }, eye.x, eye.z, V3.yaw - Math.PI / 2, K_ENT, skyKAt(P.x, P.y));
