@@ -103,6 +103,7 @@
   putC('BARREL', 0.3, 0.85); putC('CRATE', 0.38, 0.8); putC('HAY', 0.45, 0.9); putC('LAMPPOST', 0.1, 3); putC('CART', 0.45, 1.1);
   putC('RACK', 0.32, 1.6); putC('WORKBENCH', 0.42, 0.85); putC('PILLORY', 0.28, 1.6); putC('GIBBET', 0.14, 3); putC('PIKE', 0.08, 2.2);
   putC('BANNER', 0.1, 2.6); putC('WAYCROSS', 0.12, 2); putC('WOODPILE', 0.42, 0.8); putC('TROUGH', 0.42, 0.6); putC('VAT', 0.38, 1); putC('SACK', 0.28, 0.6);
+  putC('FOUNTAIN', 0.48, 1.1); putC('BATH', 0.45, 0.6); putC('NOTICE', 0.2, 1.8); putC('MAYPOLE', 0.12, 4); putC('PLANTERN', 0.1, 2);
   RT.colliderAt = function (x, y) {
     const m = G.map;
     if (x < 0 || y < 0 || x >= m.w || y >= m.h) return null;

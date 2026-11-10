@@ -45,6 +45,10 @@
   T.grass = grass; T.grass_dry = grass; T.grass_frost = grass; T.nightgrass = grass; T.tallgrass = grass;
   T.flowers = (d, name, r) => grass(d, 'grass:f', r);
   T.dirt = (d, name, r) => { noisy(d, r, hex('#4a3620'), hex('#8a6c48'), [[hex('#a08868'), 0.03], [hex('#3a2a18'), 0.04]], 4, 14); for (let i = 0; i < 6; i++) { const x = Math.floor(r() * N), y = Math.floor(r() * N); put(d, x, y, hex('#8a8478')); put(d, x + 1, y, hex('#6a645a')); } };
+  // грязь бедных кварталов: тёмная, в лужах и колеях
+  T.mud = (d, name, r) => { noisy(d, r, hex('#2e2214'), hex('#5a4630'), [[hex('#6a5a44'), 0.03], [hex('#1e160c'), 0.05]], 4, 12); for (let i = 0; i < 3; i++) { const cx = Math.floor(r() * N), cy = Math.floor(r() * N), rx = 3 + Math.floor(r() * 4), ry = 2 + Math.floor(r() * 2); for (let y = -ry; y <= ry; y++) for (let x = -rx; x <= rx; x++) if ((x * x) / (rx * rx) + (y * y) / (ry * ry) <= 1) put(d, cx + x, cy + y, mix(hex('#2a3038'), hex('#4a5058'), (y + ry) / (2 * ry) * 0.6)); } for (let x = 0; x < N; x++) { put(d, x, 9, hex('#20180e')); put(d, x, 22, hex('#20180e')); } };
+  // плиты богатых кварталов: крупные, светлые, со швами
+  T.flags = (d, name, r) => { const ks = []; for (let i = 0; i < 8; i++) ks.push(0.86 + r() * 0.22); fill(d, (x, y) => { const row = y >> 3, off = (row % 2) * 6, col = ((x + off) / 12) | 0; if (y % 8 === 7 || (x + off) % 12 === 11) return hex('#4a4842'); return mul(hex('#a49e90'), ks[(row * 3 + col) % 8] * (0.96 + r() * 0.06)); }); };
   T.soil = (d, name, r) => { noisy(d, r, hex('#3a2814'), hex('#6a4e2c'), [], 4, 12); for (let y = 0; y < N; y += 4) for (let x = 0; x < N; x++) put(d, x, y, hex('#2a1c0e')); };
   T.field = (d, name, r) => { T.soil(d, name, r); for (let x = 1; x < N; x += 4) for (let y = 0; y < N; y++) if (r() < 0.8) put(d, x, y, mix(hex('#b09030'), hex('#e0c060'), r())); };
   T.cobble = (d, name, r) => {

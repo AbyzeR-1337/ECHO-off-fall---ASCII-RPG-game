@@ -411,7 +411,7 @@
     timber: 'wood', log: 'wood', daub: 'wood', palisade: 'wood',
     planks: 'floor', stonetiles: 'floor', cobble: 'floor', deck: 'floor',
     grass: 'grass', grass_dry: 'grass', grass_frost: 'grass', tallgrass: 'grass', nightgrass: 'grass', flowers: 'grass',
-    dirt: 'dirt', soil: 'dirt', swamp: 'dirt',
+    dirt: 'dirt', soil: 'dirt', swamp: 'dirt', mud: 'dirt', flags: 'floor',
     rockfloor: 'rock', stones: 'rock', rubble: 'rock', ash: 'rock', bones: 'rock',
     sand: 'sand', dune: 'sand', snow: 'snow', blacksnow: 'snow',
   };

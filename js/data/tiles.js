@@ -152,6 +152,17 @@
   t('TELESCOPE', 'Y', '#c0a060', null, 'звездочётная труба', 0, 1, { use: 1 });
   t('SPRING', '◎', '#80d0ff', null, 'святой источник', 0, 1, { use: 1, waterSrc: 1, light: 2 });
   t('NEST', '@', '#a08050', null, 'гнездо грифонов', 0, 1, { use: 1 });
+  // город по сословиям, праздники, бани, стройка (js/game/city.js, fests.js, rent.js, build.js)
+  t('MUD', '~', '#5a4630', null, 'грязь', 1, 1, { cost: 1.3 });
+  t('FLAGS', '▫', '#a8a49a', null, 'каменные плиты', 1, 1);
+  t('HEDGE', '"', '#3e6a2e', null, 'живая изгородь', 0, 1);
+  t('FOUNTAIN', '◎', '#90c8f0', null, 'фонтан', 0, 1, { use: 1, waterSrc: 1 });
+  t('BATH', 'Ս', '#b08a5a', '#16120d', 'купель', 0, 1, { use: 1, indoor: 1 });
+  t('NOTICE', '▤', '#c8b080', null, 'доска объявлений', 0, 1, { use: 1 });
+  t('MAYPOLE', '¡', '#e0c060', null, 'праздничный столб', 0, 1, { use: 1 });
+  t('PLANTERN', 'ô', '#ff9060', null, 'бумажный фонарь', 0, 1, { light: 3 });
+  t('SCAFFOLD', '#', '#a08050', null, 'строительные леса', 0, 1, { use: 1 });
+  t('STAGE', '▬', '#8a6a40', null, 'помост', 1, 1);
 
   E.tileAt = (id) => TL[id] || TL[0];
   E.isWalk = (id) => TL[id].walk;

@@ -14,7 +14,8 @@
     'BARREL', 'CRATE', 'STALL', 'HAY', 'LAMPPOST', 'BOAT', 'CART', 'RACK', 'WORKBENCH', 'RUG',
     'BELFRY', 'WATCHTOWER', 'GALLOWS', 'PILLORY', 'GIBBET', 'PIKE', 'BANNER', 'WAYCROSS', 'WOODPILE', 'TROUGH', 'KILN', 'WINDMILL', 'OVEN', 'VAT', 'SACK', 'PALISADE',
     'CAMPFIRE', 'GATE', 'STATUE', 'LIGHTHOUSE', 'BOULDER', 'CRYSTAL', 'BIGSHROOM', 'CACTUS', 'MAGETOWER',
-    'JEWELER', 'LOOM', 'SMOKER', 'RUNESTONE', 'MENHIR', 'TELESCOPE', 'SPRING', 'NEST'].map((k) => T[k]).filter((v) => v != null));
+    'JEWELER', 'LOOM', 'SMOKER', 'RUNESTONE', 'MENHIR', 'TELESCOPE', 'SPRING', 'NEST',
+    'FOUNTAIN', 'BATH', 'NOTICE', 'MAYPOLE', 'PLANTERN', 'SCAFFOLD'].map((k) => T[k]).filter((v) => v != null));
   FU.has = (tid) => SET.has(tid);
   const hsh = (x, y, k) => (U.hash(x, y, k) >>> 0) % 1000 / 1000;
 
@@ -394,6 +395,62 @@
     B(-0.28, 0, -0.28, 0.28, 0.08, 0.28, 'hay');
     for (const [x, z] of [[-0.08, 0.02], [0.1, -0.06], [0.02, 0.12]]) B(x - 0.06, 0.08, z - 0.05, x + 0.06, 0.2, z + 0.05, 'linen');   // яйца
     for (let k = 0; k < 4; k++) B(-0.3 + k * 0.16, 0.2, 0.3, -0.27 + k * 0.16, 0.24, 0.5, 'straw');
+  };
+  // ---------- город, праздники, бани, стройка ----------
+  MODELS.FOUNTAIN = (M, F, c) => {
+    const B = c.box, P3 = Gfx.P3;
+    ring(M, F, 0.38, 0.48, 0, 0.32, 'fieldstone', c.sky);                                       // чаша
+    P3.quad(M, F.P(-0.4, 0.24, 0.4), F.P(0.4, 0.24, 0.4), F.P(0.4, 0.24, -0.4), F.P(-0.4, 0.24, -0.4), [0, 1], [1, 0], 'water', F.N(0, 1, 0), c.sky, 1);
+    prism(M, F, 0.08, 0.24, 0.95, 'gravestone', c.sky, 'gravestone', 8);                         // столп
+    ring(M, F, 0.12, 0.22, 0.92, 1.0, 'gravestone', c.sky);                                     // верхняя чаша
+    P3.quad(M, F.P(-0.14, 0.97, 0.14), F.P(0.14, 0.97, 0.14), F.P(0.14, 0.97, -0.14), F.P(-0.14, 0.97, -0.14), [0, 1], [1, 0], 'water', F.N(0, 1, 0), c.sky, 1);
+    B(-0.05, 1.0, -0.05, 0.05, 1.32, 0.05, 'gravestone'); B(-0.08, 1.32, -0.08, 0.08, 1.4, 0.08, 'gold');   // фигурка
+    for (const [x, z] of [[0, 0.2], [0.2, 0], [0, -0.2], [-0.2, 0]]) B(x - 0.015, 0.25, z - 0.015, x + 0.015, 0.9, z + 0.015, 'glass:b');   // струи
+  };
+  MODELS.BATH = (M, F, c) => {
+    const B = c.box, P3 = Gfx.P3;
+    ring(M, F, 0.34, 0.44, 0, 0.58, 'planks', c.sky);                                           // кадка
+    for (const y of [0.08, 0.46]) ring(M, F, 0.44, 0.455, y, y + 0.05, 'iron', c.sky);           // обручи
+    P3.quad(M, F.P(-0.36, 0.5, 0.36), F.P(0.36, 0.5, 0.36), F.P(0.36, 0.5, -0.36), F.P(-0.36, 0.5, -0.36), [0, 1], [1, 0], 'water', F.N(0, 1, 0), c.sky, 1);
+    B(0.3, 0, -0.5, 0.48, 0.3, -0.32, 'fieldstone'); B(0.33, 0.3, -0.47, 0.45, 0.36, -0.35, 'flame');   // каменка с жаром
+    B(-0.48, 0.0, 0.3, -0.3, 0.22, 0.48, 'barrel'); B(-0.42, 0.22, 0.36, -0.36, 0.3, 0.42, 'wood:d');   // шайка с ковшом
+    B(-0.5, 0.0, -0.5, -0.32, 0.12, -0.2, 'linen');                                               // полотенце
+    c.light(0.39, 0.4, -0.41, [1, 0.55, 0.3], 1.8, 0.4);
+  };
+  MODELS.NOTICE = (M, F, c) => {
+    const B = c.box;
+    for (const lx of [-0.4, 0.4]) B(lx - 0.04, 0, -0.04, lx + 0.04, 1.75, 0.04, 'beam');
+    B(-0.44, 0.85, -0.05, 0.44, 1.55, 0.0, 'planks');                                            // доска
+    B(-0.5, 1.6, -0.2, 0.5, 1.66, 0.12, 'roof_shingle');                                         // козырёк
+    const n = 4 + Math.floor(c.r(31) * 4);
+    for (let k = 0; k < n; k++) { const x = -0.36 + c.r(40 + k) * 0.6, y = 0.92 + c.r(50 + k) * 0.48, w = 0.1 + c.r(60 + k) * 0.06; B(x, y, 0.0, x + w, y + w * 1.3, 0.012, k % 3 ? 'linen' : 'canvas'); B(x + w * 0.45, y + w * 1.15, 0.012, x + w * 0.55, y + w * 1.25, 0.02, 'iron'); }
+  };
+  MODELS.MAYPOLE = (M, F, c) => {
+    const B = c.box;
+    B(-0.2, 0, -0.2, 0.2, 0.1, 0.2, 'fieldstone');
+    prism(M, F, 0.05, 0.1, 3.4, 'wood', c.sky, 'wood', 8);
+    ring(M, F, 0.05, 0.32, 3.0, 3.06, 'gold', c.sky);                                            // венок
+    const cols = ['quilt:r', 'quilt:b', 'quilt:y', 'quilt:g', 'quilt:p', 'quilt:o'];
+    for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; for (let j = 0; j < 7; j++) { const t = j / 7, rr = 0.3 + t * 0.55, x = Math.cos(a) * rr, z = Math.sin(a) * rr, y = 3.0 - t * 2.4; B(x - 0.025, y - 0.2, z - 0.025, x + 0.025, y, z + 0.025, cols[k]); } }
+    c.light(0, 3.1, 0, [1, 0.85, 0.5], 1.2, 0.2);
+  };
+  MODELS.PLANTERN = (M, F, c) => {
+    const B = c.box, col = ['quilt:r', 'quilt:o', 'quilt:y'][Math.floor(c.r(17) * 3)];
+    B(-0.1, 0, -0.1, 0.1, 0.08, 0.1, 'fieldstone');
+    B(-0.03, 0.08, -0.03, 0.03, 1.5, 0.03, 'wood:d');
+    B(-0.03, 1.46, -0.03, 0.28, 1.5, 0.03, 'wood:d');                                          // кронштейн
+    B(0.14, 1.06, -0.12, 0.38, 1.38, 0.12, col); B(0.18, 1.38, -0.08, 0.34, 1.44, 0.08, 'wood:d'); B(0.18, 1.0, -0.08, 0.34, 1.06, 0.08, 'wood:d');
+    B(0.22, 1.12, -0.04, 0.3, 1.3, 0.04, 'flame');
+    c.light(0.26, 1.2, 0, [1, 0.5, 0.3], 3.2, 0.8);
+  };
+  MODELS.SCAFFOLD = (M, F, c) => {
+    const B = c.box;
+    for (const [x, z] of [[-0.44, -0.44], [0.44, -0.44], [-0.44, 0.44], [0.44, 0.44]]) B(x - 0.04, 0, z - 0.04, x + 0.04, 1.9, z + 0.04, 'beam');
+    for (const y of [0.9, 1.8]) { B(-0.46, y, -0.46, 0.46, y + 0.06, -0.4, 'beam'); B(-0.46, y, 0.4, 0.46, y + 0.06, 0.46, 'beam'); B(-0.46, y, -0.46, -0.4, y + 0.06, 0.46, 'beam'); B(0.4, y, -0.46, 0.46, y + 0.06, 0.46, 'beam'); }
+    B(-0.44, 0.96, -0.3, 0.44, 1.0, 0.3, 'planks');                                              // настил
+    B(-0.1, 0, 0.44, -0.06, 1.0, 0.48, 'wood'); B(0.06, 0, 0.44, 0.1, 1.0, 0.48, 'wood');          // лестница
+    for (let k = 1; k < 5; k++) B(-0.1, k * 0.2, 0.44, 0.1, k * 0.2 + 0.03, 0.47, 'wood');
+    B(-0.3, 0, -0.3, 0.1, 0.25, 0.1, 'log'); B(0.15, 0, -0.2, 0.4, 0.18, 0.2, 'crate');          // брёвна и ящик гвоздей
   };
   MODELS.RUG = (M, F, c) => {
     const P3 = Gfx.P3, col = CL_COL[Math.floor(c.r(14) * 3)];

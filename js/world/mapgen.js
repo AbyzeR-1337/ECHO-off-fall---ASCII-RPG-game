@@ -664,6 +664,18 @@
       if (b.x2 - b.x >= 4 && b.y2 - b.y >= 3) { b.d = Math.abs((b.x + b.x2) / 2 - cx) + Math.abs((b.y + b.y2) / 2 - cy); blocks.push(b); }
     }
     blocks.sort((a, b) => a.d - b.d);
+    // большой мир: город делится на кварталы знати, середины и бедноты (старые миры строятся как прежде)
+    const dz = W.ver >= 3 && urban;
+    if (dz) {
+      const richUp = (U.hash(W.seed, s.id, 'rich') & 1) === 0;
+      for (const b of blocks) {
+        const mx = (b.x + b.x2) / 2, my = (b.y + b.y2) / 2;
+        const inner = Math.abs(mx - cx) < aw / 4, up = (my < cy) === richUp;
+        b.dist = up && inner ? 'rich' : !up && !inner ? 'poor' : 'mid';
+      }
+      m.districts = blocks.map((b) => ({ x: b.x - 1, y: b.y - 1, x2: b.x2 + 1, y2: b.y2 + 1, k: b.dist }));
+    }
+    let curDist = null;
     // здания: [тип, ширина, высота]
     const specials = [];
     if (s.b.palace) specials.push(['palace', 13, 8]);
@@ -687,6 +699,9 @@
     if (rural && rng.chance(0.6)) extras.push(['herbal', 6, 4]);
     if (urban) extras.push(['tannery', 7, 5]);
     if (urban || (T0 === 'village' && rng.chance(0.6))) extras.push(['flea', 8, 4]);
+    // в большом мире у знати свои усадьбы, у города — баня
+    if (dz) { specials.push(['manor', 11, 7]); extras.unshift(['bath', 8, 5]); if (T0 === 'capital') extras.unshift(['manor', 10, 6]); }
+    else if (W.ver >= 3 && T0 === 'village' && rng.chance(0.5)) extras.push(['bath', 7, 5]);
     m.spots.home = [];
     const isFree = (bx, by, bw, bh) => {
       if (bx < x0 + 1 || by < y0 + 1 || bx + bw > x0 + aw - 1 || by + bh > y0 + ah - 1) return false;
@@ -708,29 +723,39 @@
     };
     const put = (type, bx, by, bw, bh) => {
       for (let y = by; y < by + bh; y++) for (let x = bx; x < bx + bw; x++) m.reserve[I(x, y)] = 2;
-      const spot = buildBuilding(m, rng, type, bx, by, bw, bh, wallT, cx, cy, s, side(bx, by, bw, bh));
-      if (type === 'home') m.spots.home.push(spot); else if (!m.spots[type]) m.spots[type] = spot;
+      const spot = buildBuilding(m, rng, type, bx, by, bw, bh, wallT, cx, cy, s, side(bx, by, bw, bh), curDist);
+      if (type === 'home' || type === 'manor') { m.spots.home.push(spot); if (type === 'manor') (m.spots.manors = m.spots.manors || []).push(spot); }
+      else if (!m.spots[type]) m.spots[type] = spot;
     };
+    // где какому зданию стоять: дворец и усадьбы — у знати, кожевня и барахолка — у бедноты
+    const PREF = { palace: 'rich', manor: 'rich', library: 'rich', temple: 'mid', alch: 'mid', tavern: 'mid', market: 'mid', smithy: 'mid', guard: 'mid', bakery: 'mid', bath: 'mid', tannery: 'poor', flea: 'poor', pub: 'poor', brewery: 'poor', workshop: 'poor' };
+    const RANK = { rich: { rich: 0, mid: 1, poor: 2 }, mid: { mid: 0, rich: 1, poor: 1 }, poor: { poor: 0, mid: 1, rich: 2 } };
+    const blocksFor = (type) => (dz && PREF[type] ? blocks.slice().sort((a, b) => RANK[PREF[type]][a.dist] - RANK[PREF[type]][b.dist]) : blocks);
     // особые здания — в ближайших кварталах
     const placeSpecial = (type, bw, bh) => {
-      for (const b of blocks) for (const by of [b.y, b.y2 - bh + 1]) for (let bx = b.x; bx + bw - 1 <= b.x2; bx++) if (isFree(bx, by, bw, bh)) { put(type, bx, by, bw, bh); return true; }
+      for (const b of blocksFor(type)) for (const by of [b.y, b.y2 - bh + 1]) for (let bx = b.x; bx + bw - 1 <= b.x2; bx++) if (isFree(bx, by, bw, bh)) { curDist = b.dist || null; put(type, bx, by, bw, bh); curDist = null; return true; }
       return false;
     };
     for (const [type, bw, bh] of specials) placeSpecial(type, bw, bh);
     // дома — рядами по кварталам: сначала на каждую семью, потом ремёсла, потом запасные (их и жгут, и бросают)
     const hh = T0 === 'capital' ? 5 : 4;
-    const homes = (n) => {
+    const homes = (n, only) => {
       let left = n;
       for (const b of blocks) {
-        for (let ry = b.y; ry + hh - 1 <= b.y2 && left > 0; ry += hh + 1) {
+        if (only && b.dist !== only) continue;
+        // у знати дома просторные, у бедноты — тесные лачуги
+        const H0 = b.dist === 'rich' ? hh + 1 : b.dist === 'poor' ? 4 : hh;
+        curDist = b.dist || null;
+        for (let ry = b.y; ry + H0 - 1 <= b.y2 && left > 0; ry += H0 + 1) {
           let bx = b.x;
           while (bx <= b.x2 && left > 0) {
-            const bw = rng.int(5, 7) + (T0 === 'capital' ? 1 : 0);
+            const bw = b.dist === 'rich' ? rng.int(7, 9) : b.dist === 'poor' ? rng.int(4, 5) : rng.int(5, 7) + (T0 === 'capital' ? 1 : 0);
             if (bx + bw - 1 > b.x2) break;
-            if (isFree(bx, ry, bw, hh)) { put('home', bx, ry, bw, hh); left--; bx += bw + 1; }
+            if (isFree(bx, ry, bw, H0)) { put('home', bx, ry, bw, H0); left--; bx += bw + (b.dist === 'poor' ? 0 : 1); }
             else bx++;
           }
         }
+        curDist = null;
       }
     };
     // в городе в высоком доме живут по две семьи, в селе тоже бывает тесно
@@ -738,11 +763,14 @@
     homes(Math.max(1, Math.ceil(s.houses * (urban ? 0.4 : 0.5))) + (T0 === 'farm' ? 0 : 1));
     for (const [type, bw, bh] of extras) placeSpecial(type, bw, bh);
     homes(Math.max(0, Math.round(s.houses * 0.3) + 1));
+    // у знати дома всегда есть; беднота живёт теснее — лачуги до краёв квартала
+    if (dz) { homes(2, 'rich'); homes(T0 === 'capital' ? 14 : 9, 'poor'); }
     // в мрачном мире не все дома живы: одни сгорели, другие брошены и заколочены
     const danger = (W.regions[s.region] && W.regions[s.region].danger) || 0;
     const need = Math.max(1, Math.ceil(s.houses * (urban ? 0.4 : 0.5))) + 1;
     for (const b of m.spots.home.slice()) {
       if (m.spots.home.length <= need) break;
+      if (b.type === 'manor') continue;
       const k = rng.next();
       if (k < 0.05 + danger * 0.02) ruinHouse(m, rng, b, true);
       else if (k < 0.1 + danger * 0.02) ruinHouse(m, rng, b, false);
@@ -814,6 +842,7 @@
     m.spots.patrol = (m.spots.gate || []).concat(m.spots.square.slice(0, 4));
     // утварь на улицах: бочки и ящики у дверей, фонари вдоль улиц, скамьи на площади
     decorate(m, rng, s, { x0, y0, aw, ah, cx, cy, urban, rural, vx, hy, street });
+    if (dz) districtDecor(m, rng, s, blocks, { cx, cy });
     medieval(m, rng, s, { x0, y0, aw, ah, cx, cy, urban, rural, danger, wallT });
     // бродячие торговцы: стоянка с шатрами и телегой за околицей; в городе — ещё и на площади
     m.spots.merchants = [];
@@ -898,6 +927,57 @@
     for (const [x, y] of [[o.cx - 3, o.cy - 2], [o.cx + 3, o.cy + 2]]) if (inb(x, y) && TL[get(m, x, y)].walk && m.reserve[I(x, y)] !== 2 && get(m, x, y) !== T.DOOR && !nearDoor(x, y) && get(m, x, y) !== T.WELL && x !== o.cx && y !== o.cy) { set(m, x, y, T.BENCH); }
   }
 
+  // кварталы: у знати — плиты, фонтан, сады за живой изгородью; у бедноты — грязь, хлам, лужи
+  function districtDecor(m, rng, s, blocks, o) {
+    const doors = (m.blds || []).filter((b) => !b.boarded).map((b) => I(b.door.x, b.door.y));
+    const reachOK = () => {
+      const seen = new Uint8Array(MW * MH), q = [I(o.cx, o.cy)]; seen[q[0]] = 1;
+      for (let h = 0; h < q.length; h++) { const i = q[h], x = i % MW, y = (i / MW) | 0; for (const [dx, dy] of U.DIR4) { const xx = x + dx, yy = y + dy; if (!inb(xx, yy)) continue; const j = I(xx, yy); if (seen[j]) continue; const t = TL[m.tiles[j]]; if (t.walk || t.link) { seen[j] = 1; q.push(j); } } }
+      return doors.every((d) => seen[d]);
+    };
+    const nearDoor = (x, y) => U.DIR8.some(([dx, dy]) => get(m, x + dx, y + dy) === T.DOOR);
+    const open = (x, y) => inb(x, y) && !m.reserve[I(x, y)] && get(m, x, y) === T.COBBLE;
+    const put = (x, y, t) => { if (!open(x, y) || nearDoor(x, y)) return false; set(m, x, y, t); if (!TL[t].walk && !reachOK()) { set(m, x, y, T.COBBLE); return false; } m.reserve[I(x, y)] = 3; return true; };
+    m.spots.rich = []; m.spots.poor = []; m.spots.beg = [];
+    for (const b of blocks) {
+      const cells = [];
+      for (let y = b.y; y <= b.y2; y++) for (let x = b.x; x <= b.x2; x++) if (open(x, y)) cells.push([x, y]);
+      if (b.dist === 'rich') {
+        for (const [x, y] of cells) { set(m, x, y, T.FLAGS); m.spots.rich.push({ x, y }); }
+        // фонтан посреди квартала, если есть место
+        const mx = (b.x + b.x2) >> 1, my = (b.y + b.y2) >> 1;
+        let done = false;
+        for (let r = 0; r <= 5 && !done; r++) for (let dy = -r; dy <= r && !done; dy++) for (let dx = -r; dx <= r && !done; dx++) {
+          const x = mx + dx, y = my + dy;
+          let ok = true; for (const [xx, yy] of [[x, y], [x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) if (!inb(xx, yy) || m.reserve[I(xx, yy)] || get(m, xx, yy) !== T.FLAGS) { ok = false; break; }
+          if (ok) { set(m, x, y, T.COBBLE); if (put(x, y, T.FOUNTAIN)) done = true; else set(m, x, y, T.FLAGS); }
+        }
+        // сад у каждой усадьбы: цветы, по краю — живая изгородь
+        for (const bd of m.blds || []) {
+          if (bd.dist !== 'rich' || !bd.rect) continue;
+          const r = bd.rect;
+          for (let x = r.x; x < r.x + r.w; x++) for (const y of [r.y - 1, r.y + r.h]) {
+            if (!inb(x, y) || m.reserve[I(x, y)] || get(m, x, y) !== T.FLAGS || nearDoor(x, y)) continue;
+            const edge = x === r.x || x === r.x + r.w - 1;
+            set(m, x, y, edge && rng.chance(0.6) ? T.HEDGE : T.FLOWERS);
+            if (TL[get(m, x, y)].walk || reachOK()) m.reserve[I(x, y)] = 3; else set(m, x, y, T.FLAGS);
+          }
+        }
+        // фонари и скамьи
+        for (let k = 0; k < 3; k++) { const c = cells[rng.int(0, Math.max(0, cells.length - 1))]; if (c && get(m, c[0], c[1]) === T.FLAGS) { set(m, c[0], c[1], T.COBBLE); if (!put(c[0], c[1], k ? T.BENCH : T.LAMPPOST)) set(m, c[0], c[1], T.FLAGS); } }
+      } else if (b.dist === 'poor') {
+        for (const [x, y] of cells) { set(m, x, y, rng.chance(0.82) ? T.MUD : rng.chance(0.5) ? T.RUBBLE : T.ROAD); m.spots.poor.push({ x, y }); }
+        // хлам у стен, бочки под водосток, поленницы
+        let n = Math.max(2, Math.round(cells.length / 18));
+        rng.shuffle(cells);
+        for (const [x, y] of cells) { if (n <= 0) break; if (!U.DIR4.some(([dx, dy]) => !TL[get(m, x + dx, y + dy)].walk && get(m, x + dx, y + dy) !== T.MUD)) continue; set(m, x, y, T.COBBLE); if (put(x, y, rng.pick([T.BARREL, T.CRATE, T.WOODPILE, T.SACK]))) n--; else set(m, x, y, T.MUD); }
+        for (const p of m.spots.poor) if (rng.chance(0.08)) m.spots.beg.push(p);
+      }
+    }
+    // нищие — у храма, у ворот и в бедном квартале
+    for (const k of ['temple', 'chapel', 'tavern']) { const b = m.spots[k]; if (b && b.door) { const p = findWalkNear(m, b.door.x + 1, b.door.y + (b.door.y <= b.rect.y ? -1 : 1)); if (p) m.spots.beg.push(p); } }
+    for (const g of m.spots.gate || []) m.spots.beg.push(g);
+  }
   // стоянка бродячих торговцев: шатры, костёр, телега, сено
   function merchantCamp(m, rng, s, x0, y0, aw, ah) {
     for (let t = 0; t < 200; t++) {
@@ -935,8 +1015,8 @@
     else { mat = rng.pick(['timber', 'daub', 'daub', 'log']); roof = rng.pick(['thatch', 'moss', 'thatch', 'shingle']); pitch = 0.55; }
     return { mat, roof, tall, pitch };
   }
-  function buildBuilding(m, rng, type, bx, by, bw, bh, wallT, cx, cy, s, ds) {
-    const floorT = type === 'temple' || type === 'palace' || type === 'guard' ? T.STONEFLOOR : T.FLOOR;
+  function buildBuilding(m, rng, type, bx, by, bw, bh, wallT, cx, cy, s, ds, dist) {
+    const floorT = type === 'temple' || type === 'palace' || type === 'guard' || type === 'bath' || (type === 'manor' && T.STONEFLOOR != null) ? T.STONEFLOOR : T.FLOOR;
     const open = type === 'market' || type === 'flea';
     for (let y = by; y < by + bh; y++) for (let x = bx; x < bx + bw; x++) {
       const edge = x === bx || y === by || x === bx + bw - 1 || y === by + bh - 1;
@@ -963,9 +1043,15 @@
       if (inb(ox, oy)) drawRoadTo(m, ox, oy, cx, cy);
     }
     if (open) furnishOpen(m, rng, type, bx, by, bw, bh);
-    else furnish(m, rng, type, bx, by, bw, bh, door, floorT, s);
+    else furnish(m, rng, type, bx, by, bw, bh, door, floorT, s, dist);
     for (let y = (open ? by : by + 1); y < (open ? by + bh : by + bh - 1); y++) for (let x = (open ? bx : bx + 1); x < (open ? bx + bw : bx + bw - 1); x++) if (TL[get(m, x, y)].walk) inside.push({ x, y });
     const res = Object.assign({ type, door: { x: door[0], y: door[1] }, in: inside.length ? inside : [{ x: door[0], y: door[1] }], rect: { x: bx, y: by, w: bw, h: bh } }, archOf(m, type, s, rng));
+    if (dist) {
+      res.dist = dist;
+      // дом знати — камень и черепица, высокий; лачуга — мазанка под соломой, низкая
+      if (type === 'manor' || (dist === 'rich' && type === 'home')) { res.mat = rng.pick(['stone', 'brick', 'stone']); res.roof = rng.pick(['slate', 'tiles']); res.tall = true; res.pitch = 0.62; }
+      else if (dist === 'poor' && type === 'home') { res.mat = rng.pick(['daub', 'daub', 'log', 'timber']); res.roof = rng.pick(['thatch', 'thatch', 'moss']); res.tall = false; res.pitch = 0.42 + rng.next() * 0.1; }
+    }
     if (!open) (m.blds = m.blds || []).push(res);
     return res;
   }
@@ -984,7 +1070,7 @@
   }
 
   // мебель в доме: спинкой к стене, лицом к проходу; от двери — свободная дорожка
-  function furnish(m, rng, type, bx, by, bw, bh, door, floorT, s) {
+  function furnish(m, rng, type, bx, by, bw, bh, door, floorT, s, dist) {
     const ix0 = bx + 1, iy0 = by + 1, ix1 = bx + bw - 2, iy1 = by + bh - 2;
     const iw = ix1 - ix0 + 1, ih = iy1 - iy0 + 1;
     const ddx = door[0] === bx ? 1 : door[0] === bx + bw - 1 ? -1 : 0, ddy = door[1] === by ? 1 : door[1] === by + bh - 1 ? -1 : 0;
@@ -1017,7 +1103,10 @@
       const hs = rng.chance(0.5) ? sideA : sideB, hc = midOf(sideCells(hs));
       if (!place(hc[0], hc[1], T.HEARTH)) { const o = midOf(sideCells(hs === sideA ? sideB : sideA)); place(o[0], o[1], T.HEARTH); }
       // сундук — у кровати
-      if (far.length > 3) { const c = far[1]; if (free(c[0], c[1])) addChest(m, c[0], c[1], [], rng, { home: 1 }); }
+      if (far.length > 3) { const c = far[1]; if (free(c[0], c[1])) addChest(m, c[0], c[1], [], rng, dist ? { home: 1, dist } : { home: 1 }); }
+      else if (dist === 'poor') { const c = far[far.length > 1 ? 1 : 0]; if (free(c[0], c[1])) set(m, c[0], c[1], T.SACK); }
+      // у знати — книжная полка и ковёр
+      if (dist === 'rich') { const sa = sideCells(rng.chance(0.5) ? sideA : sideB); const c = sa[sa.length - 1]; if (c && free(c[0], c[1]) && Math.abs(c[0] - din[0]) + Math.abs(c[1] - din[1]) > 1) set(m, c[0], c[1], T.SHELF); }
       // стол со стулом посередине
       if (!tableAt(mx, my, iw * ih > 8)) for (const [x, y] of [[mx + 1, my], [mx - 1, my], [mx, my + 1], [mx, my - 1]]) if (tableAt(x, y, false)) break;
       // половик у очага и бочка в углу у двери
@@ -1044,6 +1133,26 @@
       if (type === 'tavern') { const c = far[far.length - 1]; place(c[0], c[1], T.BED); const c2 = far[far.length - 2]; if (c2) place(c2[0], c2[1], T.BED); }
       // скамьи у стены с дверью
       for (let x = ix0; x <= ix1; x += 2) for (const y of ddy ? [ddy === 1 ? iy0 : iy1] : []) if (free(x, y) && Math.abs(x - din[0]) > 1) set(m, x, y, T.BENCH);
+    } else if (type === 'manor') {
+      // усадьба: зал с очагом и столом, спальня у дальней стены, книги, ковры, сундук с добром
+      const fc = [far[0], far[far.length - 1]];
+      place(fc[0][0], fc[0][1], T.BED); place(fc[1][0], fc[1][1], T.BED);
+      const mid = midOf(far); if (free(mid[0], mid[1])) addChest(m, mid[0], mid[1], [], rng, { home: 1, dist: 'rich', manor: 1 });
+      const sa = sideCells(sideA), sb = sideCells(sideB);
+      place(midOf(sa)[0], midOf(sa)[1], T.HEARTH);
+      for (const [x, y] of sb) if ((x + y) % 2 === 0) place(x, y, T.SHELF);
+      tableAt(mx, my, true); tableAt(mx + (ddy ? 2 : 0), my + (ddx ? 2 : 0), true);
+      for (let a = 1; a < DEP; a++) { const c = L(a, 0); if (free(c[0], c[1])) set(m, c[0], c[1], T.RUG); }
+      for (const [x, y] of corners) if (free(x, y) && Math.abs(x - din[0]) + Math.abs(y - din[1]) > 1) { set(m, x, y, T.STATUE); break; }
+    } else if (type === 'bath') {
+      // баня: купели в ряд, каменка, лавки, бочка с водой; у входа — банщик за стойкой
+      const n = Math.max(1, Math.min(3, Math.floor((far.length - 1) / 2)));
+      for (let k = 0; k < n; k++) { const c = far[1 + k * 2]; if (c) place(c[0], c[1], T.BATH); }
+      const sa = sideCells(sideA), sb = sideCells(sideB);
+      place(midOf(sa)[0], midOf(sa)[1], T.HEARTH);
+      for (const [x, y] of sb) if (free(x, y) && (x + y) % 2 === 1) set(m, x, y, T.BENCH);
+      place(far[0][0], far[0][1], T.BARREL);
+      for (const [x, y] of [[din[0] + (ddy ? 2 : ddx), din[1] + (ddx ? 2 : ddy)], [din[0] - (ddy ? 2 : 0), din[1] - (ddx ? 2 : 0)]]) if (free(x, y)) { set(m, x, y, T.COUNTER); m.stalls[I(x, y)] = 'bath'; break; }
     } else if (type === 'temple') {
       const ac = L(0, 0);
       set(m, ac[0], ac[1], T.ALTAR);

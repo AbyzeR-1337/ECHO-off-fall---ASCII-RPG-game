@@ -358,7 +358,7 @@
       const home = (m.spots.home || []).find((h) => h.rect && x >= h.rect.x && x < h.rect.x + h.rect.w && y >= h.rect.y && y < h.rect.y + h.rect.h);
       c.owners = c.owners || 1;
       Gm.crime(null, 'theft');
-      if (!c.filled) { c.filled = 1; const r = U.rng(G.W.seed, 'hc', m.key, i); c.items.push({ b: 'gold', q: r.int(1, 12) }); if (r.chance(0.5)) c.items.push({ b: r.pick(['bread', 'cheese', 'apple', 'candle', 'rope', 'cloak', 'tunic', 'beads', 'comb', 'spoon', 'pipe', 'dice', 'book']) }); const owner = (home && homeOwner(home)) ; if (owner != null) { const uq = G.W.npcUq[owner]; if (uq != null && !G.S.taken['uq' + uq] && E.Sim.isAlive(owner)) c.items.push({ uq }); const sp = G.W.npcItem[owner]; if (sp && !G.S.taken['ni' + owner]) { c.items.push({ b: sp }); G.S.taken['ni' + owner] = 1; } } }
+      if (!c.filled) { c.filled = 1; const r = U.rng(G.W.seed, 'hc', m.key, i); c.items.push({ b: 'gold', q: c.dist === 'rich' ? r.int(20, 70) * (c.manor ? 3 : 1) : c.dist === 'poor' ? r.int(1, 4) : r.int(1, 12) }); if (c.dist === 'rich') for (const b of ['ring', 'beads', 'silver_nugget', 'wine', 'book', 'candle']) if (E.D.items[b] && r.chance(0.35)) c.items.push({ b }); if (r.chance(0.5)) c.items.push({ b: r.pick(['bread', 'cheese', 'apple', 'candle', 'rope', 'cloak', 'tunic', 'beads', 'comb', 'spoon', 'pipe', 'dice', 'book']) }); const owner = (home && homeOwner(home)) ; if (owner != null) { const uq = G.W.npcUq[owner]; if (uq != null && !G.S.taken['uq' + uq] && E.Sim.isAlive(owner)) c.items.push({ uq }); const sp = G.W.npcItem[owner]; if (sp && !G.S.taken['ni' + owner]) { c.items.push({ b: sp }); G.S.taken['ni' + owner] = 1; } } }
     }
     if (c.guard || c.treasury) Gm.crime(null, 'theft');
     if (!c.opened) { c.opened = 1; Gm.cnt('chests'); Gm.gain('chest'); }
@@ -369,7 +369,7 @@
     const m = G.map;
     const k = m.spots.home.indexOf(home);
     const ids = E.Sim.settAlive[m.sett] || [];
-    for (const id of ids) { const n = Gm.npc(id); const st = G.S.npc[id]; const h = st && st.h != null ? st.h : n.house; if (h != null && h >= 0 && h % m.spots.home.length === k) return id; }
+    for (const id of ids) { if (Ent.homeOf(id) === home) return id; }
     return null;
   }
 

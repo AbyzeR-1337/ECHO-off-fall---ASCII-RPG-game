@@ -272,8 +272,9 @@
     if (!best) best = { x: c.x, y: c.y };
     const pen = m.dolPen = { x: best.x, y: best.y, r: 4 };
     // кормушка и копна сена — видно, что это загон
-    if (T.TROUGH != null && free(best.x, best.y)) { m.tiles[best.y * m.w + best.x] = T.TROUGH; m.occ && m.occ.delete && m.occ.delete(best.y * m.w + best.x); }
-    if (T.HAY != null) for (const [dx, dy] of [[1, -1], [-1, 1]]) if (free(best.x + dx, best.y + dy)) m.tiles[(best.y + dy) * m.w + best.x + dx] = T.HAY;
+    const noOne = (x, y) => !(m.occ && m.occ.has(y * m.w + x)) && !m.ents.some((e) => !e.dead && e.x === x && e.y === y);
+    if (T.TROUGH != null && free(best.x, best.y) && noOne(best.x, best.y)) { m.tiles[best.y * m.w + best.x] = T.TROUGH; m.occ && m.occ.delete && m.occ.delete(best.y * m.w + best.x); }
+    if (T.HAY != null) for (const [dx, dy] of [[1, -1], [-1, 1]]) if (free(best.x + dx, best.y + dy) && noOne(best.x + dx, best.y + dy)) m.tiles[(best.y + dy) * m.w + best.x + dx] = T.HAY;
     return pen;
   };
   // долынь — не житель: днём пасётся в загоне, ночью спит у кормушки; людей сторонится, но по улицам не бродит

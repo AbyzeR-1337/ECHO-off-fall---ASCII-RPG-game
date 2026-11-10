@@ -34,6 +34,8 @@
   o('belfry', 'BELFRY'); o('watchtower', 'WATCHTOWER'); o('gallows', 'GALLOWS'); o('pillory', 'PILLORY'); o('gibbet', 'GIBBET'); o('pike', 'PIKE'); o('banner', 'BANNER');
   o('waycross', 'WAYCROSS'); o('woodpile', 'WOODPILE'); o('trough', 'TROUGH'); o('kiln', 'KILN'); o('windmill', 'WINDMILL'); o('oven', 'OVEN'); o('vat', 'VAT'); o('sack', 'SACK'); o('palisade', 'PALISADE');
   b('boarded', 'BOARDED');
+  g('mud', 'MUD'); g('flags', 'FLAGS'); g('deck', 'STAGE');
+  o('bush', 'HEDGE'); o('well', 'FOUNTAIN'); o('vat', 'BATH'); o('sign', 'NOTICE'); o('lamppost', 'MAYPOLE'); o('lamppost', 'PLANTERN'); o('workbench', 'SCAFFOLD');
   FIX[T.CHAIR] = 'floor'; FIX[T.BENCH] = 'floor'; FIX[T.RUG] = 'floor'; FIX[T.BOAT] = 'water';
   FIX[T.WHIRLPOOL] = 'water'; FIX[T.GATE] = 'road'; FIX[T.CORAL] = 'seafloor'; FIX[T.REEDS] = 'swamp';
   for (const k of ['WATER', 'SHALLOW', 'STREAM', 'BOG', 'LAVA', 'MIRRORWATER', 'WHIRLPOOL']) LOW[T[k]] = 1;
@@ -239,6 +241,7 @@
     [T.ANVIL]: [[1, 0.48, 0.18], 0.7, 3, 1], [T.BIGSHROOM]: [[0.45, 0.85, 0.8], 0.55, 3.2, 0],
     [T.BELFRY]: [[1, 0.7, 0.35], 0.5, 3, 1], [T.MAGETOWER]: [[0.7, 0.5, 1], 1.4, 9, 0],
     [T.SMOKER]: [[1, 0.5, 0.2], 0.6, 2.6, 1], [T.RUNESTONE]: [[0.5, 0.65, 1], 0.7, 3.5, 0], [T.SPRING]: [[0.55, 0.85, 1], 0.6, 3.2, 0],
+    [T.PLANTERN]: [[1, 0.5, 0.3], 0.9, 4, 1], [T.BATH]: [[1, 0.55, 0.3], 0.4, 2, 1],
   };
   const OBJH = Gfx.HF ? Gfx.HF.OBJH : {};
   UI.objHeight = (k) => OBJH[k] || 0.4;
