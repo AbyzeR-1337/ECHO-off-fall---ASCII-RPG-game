@@ -106,7 +106,8 @@
     const ck = rx + ',' + ry;
     let cd = V3.cd.get(ck);
     const m = G.map && G.map.key === key ? G.map : null;
-    if (cd && cd.key === key && (!m || cd.m === m)) return cd;
+    // клетки поменялись на ходу (стройка, ярмарка, вырубка) — классы и высоты пересчитать
+    if (cd && cd.key === key && (!m || cd.m === m)) { if (cd.tsig !== tilesSig(cd.m)) prep(cd); return cd; }
     let mm = m;
     if (!mm) {
       mm = G.cache && G.cache.get(key);
@@ -117,7 +118,7 @@
       }
     }
     // карта та же, что была (просто стала живой) — подготовку не повторяем
-    if (cd && cd.key === key && sameTiles(cd.m, mm)) { cd.m = mm; return cd; }
+    if (cd && cd.key === key && sameTiles(cd.m, mm)) { cd.m = mm; if (cd.tsig !== tilesSig(mm)) prep(cd); return cd; }
     cd = { key, ck, rx, ry, ox: rx * MW, oz: ry * MH, m: mm, over: true };
     prep(cd);
     V3.cd.set(ck, cd);
@@ -125,6 +126,7 @@
     if (old) { freeMesh(old); V3.mesh.delete(ck); }
     return cd;
   }
+  function tilesSig(m) { let h = 0; for (let i = 0; i < m.tiles.length; i++) h = (Math.imul(h, 31) + m.tiles[i]) | 0; return h; }
   function sameTiles(a, b) { if (!a || !b || a.tiles.length !== b.tiles.length) return false; for (let i = 0; i < a.tiles.length; i++) if (a.tiles[i] !== b.tiles[i]) return false; return true; }
   // карта соседнего региона — только клетки (для берегов на стыке кусков)
   const PEEK = new Map();
@@ -148,6 +150,7 @@
   function prep(cd) {
     fields();
     const m = cd.m, W = m.w, H = m.h, n = W * H, X = UI.mvTiles;
+    cd.tsig = tilesSig(m);
     const cls = cd.cls = new Uint8Array(n), h = cd.h = new Float32Array(n);
     const flat = !cd.over;
     for (let i = 0; i < n; i++) {
@@ -910,7 +913,7 @@
         V3.mesh.clear(); V3.cd.clear();
         cd = { key: m.key, ck: 'L', rx: 0, ry: 0, ox: 0, oz: 0, m, over: false };
         prep(cd); V3.cd.set('L', cd);
-      }
+      } else if (cd.tsig !== tilesSig(m)) prep(cd);
       const sig = sigOf(cd);
       let ms = V3.mesh.get('L');
       if (!ms || ms.sig !== sig || ms.gen !== P3.sprGen) {
@@ -947,6 +950,7 @@
       let ready = true;
       for (let dy = -1; dy <= 1 && ready; dy++) for (let dx = -1; dx <= 1; dx++) { const rx = w.rx + dx, ry = w.ry + dy; if (rx < 0 || ry < 0 || rx >= C.WS || ry >= C.WS) continue; if (regionKey(rx, ry) && !V3.cd.has(rx + ',' + ry)) { ready = false; break; } }
       let ms = V3.mesh.get(ck);
+      if (cd.tsig !== tilesSig(cd.m)) prep(cd);
       const sig = sigOf(cd);
       if ((!ms || ms.sig !== sig || ms.gen !== P3.sprGen) && ready && (!built || !ms && w.d === 0)) {
         if (!ms || ms.sig !== sig || ms.gen !== P3.sprGen) {
