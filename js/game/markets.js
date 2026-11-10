@@ -213,7 +213,7 @@
   };
 
   // ---------- аукцион ----------
-  const LOTS = ['gold_ring', 'pearl_amulet', 'crystal_pendant', 'signet', 'silver_ring', 'longsword', 'crossbow', 'waraxe', 'warhammer', 'chain', 'scale', 'plate', 'furcloak', 'wool_cloak', 'frost_cloak', 'griffin_cloak', 'star_metal', 'moon_antler', 'pearl', 'lantern_crystal', 'staff_crystal', 'staff_fire', 'staff_ice', 'staff_storm', 'lute', 'dragon_egg', 'basilisk_shield', 'griffin_feather', 'gold_nugget', 'tome_time', 'tome_dream', 'tome_song'];
+  const LOTS = ['gold_ring', 'pearl_amulet', 'crystal_pendant', 'signet', 'silver_ring', 'longsword', 'crossbow', 'waraxe', 'warhammer', 'chain', 'scale', 'plate', 'furcloak', 'wool_cloak', 'frost_cloak', 'griffin_cloak', 'star_metal', 'moon_antler', 'pearl', 'lantern_crystal', 'staff_crystal', 'staff_fire', 'staff_ice', 'staff_storm', 'lute', 'dragon_egg', 'basilisk_shield', 'griffin_feather', 'gold_nugget', 'tome_time', 'tome_dream', 'tome_song', 'bottomless_bag', 'mage_satchel', 'explorer_pack'];
   const BIDDERS = ['Купец в зелёном кафтане', 'Толстый ювелир', 'Дама под вуалью', 'Старый коллекционер', 'Молчаливый наёмник', 'Приказчик из столицы', 'Монах с кошелём'];
   MK.auctionDay = function (sid, day) {
     const s = G.W.settlements[sid];
