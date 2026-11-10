@@ -57,7 +57,48 @@
   }
   const LANDLIKE = (b) => b !== 'ocean' && b !== 'sky';
 
+  // большой мир: лес — сплошными массивами с опушками и тропами, луг — открытый, в пятнах цветов и высокой травы
+  const WOODS = { forest: [0.42, 0.04], plains: [0.68, 0.035], coast: [0.72, 0.03], tundra: [0.56, 0.04] };
+  function terrain3(W, b, wx, wy, rr) {
+    const s = W.seed;
+    const wd = U.fbm(s + 201, wx / 17, wy / 17, 3);
+    const h = U.h2(s + 103, wx, wy) / 4294967296;
+    const [lim, edge] = WOODS[b];
+    const cold = b === 'tundra' || rr.t < 0.4;
+    const TR = cold ? T.PINE : (b === 'forest' && U.noise(s + 205, wx / 23, wy / 23) > 0.62 ? T.PINE : T.TREE);
+    // тропа петляет через чащу
+    const trail = Math.abs(U.noise(s + 204, wx / 9, wy / 9) - 0.5) < 0.028;
+    if (wd > lim + edge) {
+      if (trail) return h < 0.12 ? T.FERN : T.GRASS;
+      if (h < 0.7) return TR;
+      if (h < 0.8) return b === 'tundra' ? T.SNOW : T.FERN;
+      if (h < 0.86) return T.BUSH;
+      if (h < 0.875 && !cold) return T.MUSHROOM;
+      return b === 'tundra' ? T.SNOW : T.GRASS;
+    }
+    if (wd > lim - edge) {
+      // опушка: подлесок, молодняк, кусты
+      if (h < 0.22) return TR;
+      if (h < 0.4) return T.BUSH;
+      if (h < 0.48) return T.SAPLING != null ? T.SAPLING : T.BUSH;
+      if (h < 0.58) return b === 'tundra' ? T.SNOW : T.FERN;
+      return b === 'tundra' ? T.SNOW : T.TALLGRASS;
+    }
+    // луг: открытый, цветы и высокая трава — пятнами, одинокое дерево — редкость
+    if (b === 'tundra') { if (h < 0.06) return T.STONES; if (h < 0.1) return T.DRIFT; return h < 0.55 ? T.SNOW : T.GRASS; }
+    if (b === 'coast' && U.noise(s + 102, wx / 3.5, wy / 3.5) < 0.33) return T.SAND;
+    const fl = U.fbm(s + 202, wx / 6, wy / 6, 2), tg = U.fbm(s + 203, wx / 8, wy / 8, 2);
+    if (h < 0.004) return TR;
+    if (h < 0.01) return T.BUSH;
+    if (b === 'plains' && U.fbm(s + 101, wx / 11, wy / 11, 3) < 0.26 && U.noise(s + 102, wx / 3.5, wy / 3.5) > 0.62) return T.HILL;
+    if (fl > 0.64 && h < 0.75) return T.FLOWERS;
+    if (tg > 0.58 && h < 0.8) return T.TALLGRASS;
+    if (h < 0.03) return T.FLOWERS;
+    if (h < 0.08) return T.TALLGRASS;
+    return T.GRASS;
+  }
   function terrain(W, b, wx, wy, m, x, y, rr) {
+    if (W.ver >= 3 && WOODS[b]) return terrain3(W, b, wx, wy, rr);
     const s = W.seed;
     const n = U.fbm(s + 101, wx / 11, wy / 11, 3);
     const n2 = U.noise(s + 102, wx / 3.5, wy / 3.5);
