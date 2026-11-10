@@ -48,7 +48,9 @@
     ['яр', 'яра', 'яре'], ['ец', 'ца', 'це'], ['ичи', 'ичей', 'ичах'], ['ов Брод', 'ова Брода', 'овом Броде'], ['ая Падь', 'ой Пади', 'ой Пади'],
   ];
   N.settlementName = function (rng, used) {
-    for (let k = 0; k < 200; k++) {
+    // простых имён — 1520; когда почти все заняты, сразу к составным (иначе — тысячи напрасных попыток)
+    const tries = used.size > 1300 ? 6 : 200;
+    for (let k = 0; k < tries; k++) {
       let root = rng.pick(N.setRoots);
       const suf = rng.pick(N.setSuf);
       let nom = root + suf[0], gen = root + suf[1], loc = root + suf[2];
@@ -59,10 +61,35 @@
       if (suf[0] === 'ец' && !'кнрлтвдмб'.includes(root[root.length - 1])) continue;
       if (!used.has(nom)) { used.add(nom); return { nom, gen, loc }; }
     }
+    // большой мир: сочетаний корней и окончаний (1520) не хватает — «Верхняя Ольховка», «Старые Студичи», «Малый Камск»
+    const G0 = { 'овка': 'f', 'ово': 'n', 'ино': 'n', 'ск': 'm', 'град': 'm', 'ополь': 'm', 'ище': 'n', 'ань': 'f', 'ица': 'f', 'ье': 'n', 'омир': 'm', 'дол': 'm', 'бор': 'm', 'гард': 'm', 'ки': 'p', 'яр': 'm', 'ец': 'm', 'ичи': 'p', 'ов Брод': 'm', 'ая Падь': 'f' };
+    for (let k = 0; k < 400; k++) {
+      const b = N.settlementName0(rng);
+      if (!b) continue;
+      const g = G0[b.suf] || 'm', A = rng.pick(N.setAdj);
+      const a = A[{ m: 0, f: 1, n: 2, p: 3 }[g]];
+      const nom = a[0] + ' ' + b.nom;
+      if (used.has(nom)) continue;
+      used.add(nom);
+      return { nom, gen: a[1] + ' ' + b.gen, loc: a[2] + ' ' + b.loc };
+    }
     const n = 'Безымянное ' + used.size;
     used.add(n);
     return { nom: n, gen: n, loc: n };
   };
+  // одно имя без проверки (для составных)
+  N.settlementName0 = function (rng) {
+    const root = rng.pick(N.setRoots), suf = rng.pick(N.setSuf);
+    if (suf[0] === 'ец' && !'кнрлтвдмб'.includes(root[root.length - 1])) return null;
+    if (suf[0] === 'ая Падь') return { nom: root + 'овая Падь', gen: root + 'овой Пади', loc: root + 'овой Пади', suf: suf[0] };
+    return { nom: root + suf[0], gen: root + suf[1], loc: root + suf[2], suf: suf[0] };
+  };
+  // [м, ж, ср, мн] × [им., род., предл.]
+  const adjH = (st) => [[st + 'ый', st + 'ого', st + 'ом'], [st + 'ая', st + 'ой', st + 'ой'], [st + 'ое', st + 'ого', st + 'ом'], [st + 'ые', st + 'ых', st + 'ых']];
+  const adjS = (st) => [[st + 'ий', st + 'его', st + 'ем'], [st + 'яя', st + 'ей', st + 'ей'], [st + 'ее', st + 'его', st + 'ем'], [st + 'ие', st + 'их', st + 'их']];
+  const adjK = (st) => [[st + 'ий', st + 'ого', st + 'ом'], [st + 'ая', st + 'ой', st + 'ой'], [st + 'ое', st + 'ого', st + 'ом'], [st + 'ие', st + 'их', st + 'их']];
+  N.setAdj = [adjS('Верхн'), adjS('Нижн'), adjS('Средн'), adjS('Дальн'), adjS('Ближн'), adjH('Стар'), adjH('Нов'), adjH('Мал'), adjH('Бел'), adjH('Красн'), adjH('Тих'),
+    adjK('Высок'), adjK('Глух'), [['Большой', 'Большого', 'Большом'], ['Большая', 'Большой', 'Большой'], ['Большое', 'Большого', 'Большом'], ['Большие', 'Больших', 'Больших']], adjH('Светл'), adjH('Тёмн')];
 
   // ---------- регионы ----------
   // прилагательные (м.р.), существительные с родом по биомам

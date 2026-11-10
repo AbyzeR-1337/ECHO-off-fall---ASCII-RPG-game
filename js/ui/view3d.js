@@ -9,7 +9,7 @@
 // В живом мире (js/game/realtime.js) ходьба плавная, голова поворачивается мышью или пальцем.
 (function (E) {
   const U = E.U, T = E.T, TL = E.TL, G = E.G, UI = E.UI, Gfx = E.Gfx, D = E.D, Time = E.Time, C = E.C;
-  const MW = C.MW, MH = C.MH, WS = C.WS;
+  const MW = C.MW, MH = C.MH;
   const V3 = UI.V3 = { face: 4, yaw: Math.PI, yawT: Math.PI, pitch: 0, last: 0, drag: null, head: new Map(), cd: new Map(), mesh: new Map() };
   const DIRS = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
   const EYE = 0.82, WALL = 1.5, CAVE = 2.0, K_ENT = 0.7, SEA = -0.15;
@@ -61,15 +61,15 @@
   function field(gx, gz, arr) {
     const fx = gx / MW - 0.5, fy = gz / MH - 0.5, ix = Math.floor(fx), iy = Math.floor(fy);
     let tx = fx - ix, ty = fy - iy; tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
-    const at = (x, y) => arr[U.clamp(y, 0, WS - 1) * WS + U.clamp(x, 0, WS - 1)];
+    const at = (x, y) => arr[U.clamp(y, 0, C.WS - 1) * C.WS + U.clamp(x, 0, C.WS - 1)];
     return (at(ix, iy) * (1 - tx) + at(ix + 1, iy) * tx) * (1 - ty) + (at(ix, iy + 1) * (1 - tx) + at(ix + 1, iy + 1) * tx) * ty;
   }
   let FE = null, FM = null, FF = null, FSKY = null, fieldsFor = null;
   function fields() {
     if (fieldsFor === G.W) return;
     fieldsFor = G.W; seed = (G.W.seed | 0) || 1;
-    FE = new Float32Array(WS * WS); FM = new Float32Array(WS * WS); FF = new Float32Array(WS * WS); FSKY = new Float32Array(WS * WS);
-    for (const g of G.W.regions) { const i = g.y * WS + g.x; FE[i] = g.e; FM[i] = MTN[g.biome] || 0; FF[i] = FOREST[g.biome] || 0; FSKY[i] = g.biome === 'sky' ? 1 : 0; }
+    FE = new Float32Array(C.WS * C.WS); FM = new Float32Array(C.WS * C.WS); FF = new Float32Array(C.WS * C.WS); FSKY = new Float32Array(C.WS * C.WS);
+    for (const g of G.W.regions) { const i = g.y * C.WS + g.x; FE[i] = g.e; FM[i] = MTN[g.biome] || 0; FF[i] = FOREST[g.biome] || 0; FSKY[i] = g.biome === 'sky' ? 1 : 0; }
   }
   HGT.base = (gx, gz) => (field(gx, gz, FE) - 0.45) * 26;
   HGT.hills = (gx, gz) => (fbm(gx / 24, gz / 24, seed + 3, 4) - 0.5) * 3.4 + (fbm(gx / 7, gz / 7, seed + 7, 2) - 0.5) * 0.6;
@@ -93,8 +93,8 @@
   // cd — данные куска: карта, классы клеток (0 земля, 1 вода, 2 скала, 3 стена, 4 пропасть) и высоты
   const CL = { LAND: 0, WATER: 1, ROCK: 2, BLOCK: 3, VOID: 4 };
   function regionKey(rx, ry) {
-    if (rx < 0 || ry < 0 || rx >= WS || ry >= WS) return null;
-    const v = E.Sim.variant(ry * WS + rx);
+    if (rx < 0 || ry < 0 || rx >= C.WS || ry >= C.WS) return null;
+    const v = E.Sim.variant(ry * C.WS + rx);
     if (v === null) return null;
     return 'o:' + rx + ':' + ry + (v ? ':' + v : '');
   }
@@ -683,6 +683,11 @@
     ice: [0.9, 0.94, 0.98], mountain: [0.46, 0.43, 0.4], living: [0.42, 0.34, 0.3], coast: [0.6, 0.62, 0.36], ash: [0.32, 0.3, 0.3], volcanic: [0.26, 0.2, 0.18], sky: [0.8, 0.85, 0.9], ocean: [0.6, 0.58, 0.42],
   };
   let FAR = null;
+  // дальняя земля: в большом мире — окно ±FARR регионов вокруг героя (весь мир сразу — миллионы треугольников);
+  // окно перестраивается, когда герой отходит от его середины
+  const FARR = 18;
+  const farCenter = () => { if (V3.farFocus) return V3.farFocus; const m = G.map; const rid = m && m.rid != null ? m.rid : G.P && G.P.startRegion != null ? G.P.startRegion : G.W.start; const g = G.W.regions[rid] || G.W.regions[G.W.start]; return [g.x, g.y]; };
+  const farKey = () => { if (C.WS <= FARR * 2 + 1) return G.W.seed + ':' + G.W.regions.length; const [cx, cy] = farCenter(); const q = (v) => Math.round(v / 8) * 8; return G.W.seed + ':' + G.W.regions.length + ':' + q(cx) + ':' + q(cy); };
   function buildFar() {
     fields();
     const P3 = Gfx.P3, M = P3.mesh();
@@ -690,7 +695,7 @@
     const bioAt = (gx, gz) => {
       const fx = gx / MW - 0.5, fy = gz / MH - 0.5, ix = Math.floor(fx), iy = Math.floor(fy);
       let tx = fx - ix, ty = fy - iy; tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
-      const at = (x, y) => bioArr[U.clamp(y, 0, WS - 1) * WS + U.clamp(x, 0, WS - 1)];
+      const at = (x, y) => bioArr[U.clamp(y, 0, C.WS - 1) * C.WS + U.clamp(x, 0, C.WS - 1)];
       const out = [0, 0, 0];
       for (let k = 0; k < 3; k++) out[k] = (at(ix, iy)[k] * (1 - tx) + at(ix + 1, iy)[k] * tx) * (1 - ty) + (at(ix, iy + 1)[k] * (1 - tx) + at(ix + 1, iy + 1)[k] * tx) * ty;
       return out;
@@ -699,7 +704,7 @@
       let c = bioAt(gx, gz);
       const mt = HGT.mtn(gx, gz);
       if (mt > 0.2 && h > 6) c = [0.44 + (fbm(gx / 9, gz / 9, seed + 2, 2) - 0.5) * 0.14, 0.4, 0.36];
-      const snowLine = 24 - (field(gx, gz, FE) - 0.5) * 4 - (1 - Math.min(1, (gz / (WS * MH)) * 1.4)) * 14 + (fbm(gx / 5, gz / 5, seed + 4, 2) - 0.5) * 6;
+      const snowLine = 24 - (field(gx, gz, FE) - 0.5) * 4 - (1 - Math.min(1, (gz / (C.WS * MH)) * 1.4)) * 14 + (fbm(gx / 5, gz / 5, seed + 4, 2) - 0.5) * 6;
       if (h > snowLine) c = [0.9, 0.93, 0.98];
       else if (h > snowLine - 4) { const t = (h - snowLine + 4) / 4; c = [c[0] + (0.88 - c[0]) * t * 0.6, c[1] + (0.9 - c[1]) * t * 0.6, c[2] + (0.95 - c[2]) * t * 0.6]; }
       if (h < 0.6 && h > SEA - 0.5) c = [0.72, 0.66, 0.46];
@@ -707,9 +712,15 @@
       return [c[0] * v, c[1] * v, c[2] * v];
     };
     // шаг сетки: у гор — частый (видны гребни и кручи), на равнинах — редкий
-    const stepOf = (rx, ry) => { if (rx < 0 || ry < 0 || rx >= WS || ry >= WS) return 6; let m = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) m = Math.max(m, FM[U.clamp(ry + dy, 0, WS - 1) * WS + U.clamp(rx + dx, 0, WS - 1)]); return m > 0.3 ? 2 : 6; };
-    for (let ry = 0; ry < WS; ry++) for (let rx = 0; rx < WS; rx++) {
-      const st = stepOf(rx, ry), nx = MW / st, nz = MH / st, X0 = rx * MW, Z0 = ry * MH;
+    const stepOf = (rx, ry) => { if (rx < 0 || ry < 0 || rx >= C.WS || ry >= C.WS) return 6; let m = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) m = Math.max(m, FM[U.clamp(ry + dy, 0, C.WS - 1) * C.WS + U.clamp(rx + dx, 0, C.WS - 1)]); return m > 0.3 ? 2 : 6; };
+    const fk = farKey(), whole = C.WS <= FARR * 2 + 1;
+    const [fcx, fcy] = whole ? [0, 0] : farCenter();
+    const rx0 = whole ? 0 : Math.max(0, fcx - FARR), rx1 = whole ? C.WS - 1 : Math.min(C.WS - 1, fcx + FARR);
+    const ry0 = whole ? 0 : Math.max(0, fcy - FARR), ry1 = whole ? C.WS - 1 : Math.min(C.WS - 1, fcy + FARR);
+    // дальше 10 регионов от середины окна — сетка вдвое реже (на таком расстоянии мелочи всё равно не видно)
+    const stepAt = (rx, ry) => { const st = stepOf(rx, ry); return !whole && Math.max(Math.abs(rx - fcx), Math.abs(ry - fcy)) > 10 && st < 12 ? st * 2 : st; };
+    for (let ry = ry0; ry <= ry1; ry++) for (let rx = rx0; rx <= rx1; rx++) {
+      const st = stepAt(rx, ry), nx = MW / st, nz = MH / st, X0 = rx * MW, Z0 = ry * MH;
       const GW = nx + 3;
       const hg = new Float32Array(GW * (nz + 3));
       for (let j = -1; j <= nz + 1; j++) for (let i = -1; i <= nx + 1; i++) hg[(j + 1) * GW + i + 1] = HGT.far(X0 + i * st, Z0 + j * st);
@@ -727,7 +738,7 @@
       }
       // юбка там, где у соседа другой шаг: прячет щели
       for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
-        if (stepOf(rx + dx, ry + dy) === st) continue;
+        if (stepAt(rx + dx, ry + dy) === st) continue;
         const cnt = dx ? nz : nx;
         for (let k = 0; k < cnt; k++) {
           let a, b;
@@ -741,13 +752,13 @@
       }
     }
     // море до края неба
-    const B = 4000, X1 = WS * MW, Z1 = WS * MH;
+    const B = 4000, X1 = C.WS * MW, Z1 = C.WS * MH;
     for (const [x0, z0, x1, z1] of [[-B, -B, X1 + B, 0], [-B, Z1, X1 + B, Z1 + B], [-B, 0, 0, Z1], [X1, 0, X1 + B, Z1], [0, 0, X1, Z1]]) {
       P3.quad(M, [x0, SEA, z1], [x1, SEA, z1], [x1, SEA, z0], [x0, SEA, z0], [x0 / 6, z1 / 6], [x1 / 6, z0 / 6], 'water', [0, 1, 0], 1, K.FARSEA, [0.9, 0.95, 1]);
     }
     // замки, города и сёла
-    for (const s of G.W.settlements) landmark(M, s);
-    FAR = { key: G.W.seed + ':' + G.W.regions.length, h: P3.upload(M) };
+    for (const s of G.W.settlements) if (s.rx >= rx0 && s.rx <= rx1 && s.ry >= ry0 && s.ry <= ry1) landmark(M, s);
+    FAR = { key: fk, h: P3.upload(M) };
   }
   // постройки на горизонте: простые объёмы, но с крышами и башнями
   function box(M, x0, y0, z0, x1, y1, z1, tex, roofTex, kind) {
@@ -881,7 +892,7 @@
     const cx = m.region.x * MW + (G.P.posX != null ? G.P.posX : G.P.x + 0.5), cz = m.region.y * MH + (G.P.posY != null ? G.P.posY : G.P.y + 0.5);
     const out = [];
     for (let ry = Math.floor((cz - NEAR) / MH); ry <= Math.floor((cz + NEAR) / MH); ry++) for (let rx = Math.floor((cx - NEAR) / MW); rx <= Math.floor((cx + NEAR) / MW); rx++) {
-      if (rx < 0 || ry < 0 || rx >= WS || ry >= WS) continue;
+      if (rx < 0 || ry < 0 || rx >= C.WS || ry >= C.WS) continue;
       const dx = Math.max(rx * MW - cx, 0, cx - (rx + 1) * MW), dz = Math.max(ry * MH - cz, 0, cz - (ry + 1) * MH);
       out.push({ rx, ry, d: Math.hypot(dx, dz) });
     }
@@ -917,7 +928,7 @@
     // карты нужных кусков и их соседей
     for (const w of want) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
       const rx = w.rx + dx, ry = w.ry + dy;
-      if (rx < 0 || ry < 0 || rx >= WS || ry >= WS) continue;
+      if (rx < 0 || ry < 0 || rx >= C.WS || ry >= C.WS) continue;
       const ck = rx + ',' + ry;
       keep.add(ck);
       const cd = V3.cd.get(ck);
@@ -934,7 +945,7 @@
       const ck = w.rx + ',' + w.ry, cd = V3.cd.get(ck);
       if (!cd) continue;
       let ready = true;
-      for (let dy = -1; dy <= 1 && ready; dy++) for (let dx = -1; dx <= 1; dx++) { const rx = w.rx + dx, ry = w.ry + dy; if (rx < 0 || ry < 0 || rx >= WS || ry >= WS) continue; if (regionKey(rx, ry) && !V3.cd.has(rx + ',' + ry)) { ready = false; break; } }
+      for (let dy = -1; dy <= 1 && ready; dy++) for (let dx = -1; dx <= 1; dx++) { const rx = w.rx + dx, ry = w.ry + dy; if (rx < 0 || ry < 0 || rx >= C.WS || ry >= C.WS) continue; if (regionKey(rx, ry) && !V3.cd.has(rx + ',' + ry)) { ready = false; break; } }
       let ms = V3.mesh.get(ck);
       const sig = sigOf(cd);
       if ((!ms || ms.sig !== sig || ms.gen !== P3.sprGen) && ready && (!built || !ms && w.d === 0)) {
@@ -972,9 +983,9 @@
   }
   function buildForest(rx, ry) {
     const P3 = Gfx.P3, MG = E.MapGen, B = P3.bmesh(), W = G.W;
-    const X0 = rx * MW, Z0 = ry * MH, g = W.regions[ry * WS + rx];
+    const X0 = rx * MW, Z0 = ry * MH, g = W.regions[ry * C.WS + rx];
     const sea = season(), cold = g.t < 0.55, fol = FOL[sea] || FOL[1];
-    const v = E.Sim.variant(ry * WS + rx);
+    const v = E.Sim.variant(ry * C.WS + rx);
     if (v === null || v === 'c' || v === 'i' || g.exist === 'cyclic' || g.biome === 'ocean' || g.biome === 'sky') return { h: null, sea };
     // посёлок вырубил лес вокруг себя
     const s = g.settlement >= 0 ? W.settlements[g.settlement] : null;
@@ -1007,7 +1018,7 @@
     const budget = now + 8, sea = season();
     const want = [];
     for (let ry = Math.floor((cz - FARTREE) / MH); ry <= Math.floor((cz + FARTREE) / MH); ry++) for (let rx = Math.floor((cx - FARTREE) / MW); rx <= Math.floor((cx + FARTREE) / MW); rx++) {
-      if (rx < 0 || ry < 0 || rx >= WS || ry >= WS || near.has(rx + ',' + ry)) continue;
+      if (rx < 0 || ry < 0 || rx >= C.WS || ry >= C.WS || near.has(rx + ',' + ry)) continue;
       const dx = Math.max(rx * MW - cx, 0, cx - (rx + 1) * MW), dz = Math.max(ry * MH - cz, 0, cz - (ry + 1) * MH), d = Math.hypot(dx, dz);
       if (d > FARTREE) continue;
       want.push({ rx, ry, d });
@@ -1100,7 +1111,7 @@
     // куски
     V3.pending = false;
     const meshes = stream(now);
-    if (over && (!FAR || FAR.key !== G.W.seed + ':' + G.W.regions.length)) { if (FAR) P3.free(FAR.h); buildFar(); }
+    if (over && (!FAR || FAR.key !== farKey())) { if (FAR) P3.free(FAR.h); buildFar(); }
     // что ближе: граница подробных кусков (дальняя земля под ними опускается)
     let near = null;
     if (over && meshes.length) {
@@ -1339,7 +1350,7 @@
   // для карты мира (js/ui/map3d.js): весь мир одной сеткой и небо
   V3.mapKit = function () {
     fields();
-    if (!FAR || FAR.key !== G.W.seed + ':' + G.W.regions.length) { if (FAR) Gfx.P3.free(FAR.h); buildFar(); }
+    if (!FAR || FAR.key !== farKey()) { if (FAR) Gfx.P3.free(FAR.h); buildFar(); }
     return { FAR, skyOf };
   };
   // ---------- снаряды: тонкие брусочки по ходу полёта ----------

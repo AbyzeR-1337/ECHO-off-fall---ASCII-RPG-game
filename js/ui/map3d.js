@@ -5,7 +5,7 @@
 // двигать, двойной щелчок или Пробел — к себе, Esc или M — закрыть.
 (function (E) {
   const UI = E.UI, G = E.G, U = E.U, C = E.C, D = E.D, Gfx = E.Gfx;
-  const MW = C.MW, MH = C.MH, WS = C.WS;
+  const MW = C.MW, MH = C.MH;
   const PHI = 1.08, FOV = 42 * Math.PI / 180;
 
   // где ты на земле мира (в клетках всего мира)
@@ -41,7 +41,7 @@
     const [hx, hz] = here();
     const known = (g) => !!(P.known.regions[g.id]);
     const seenR = (g) => !!(P.known.seen && P.known.seen[g.id]);
-    const curG = G.W.regions[U.clamp(Math.floor(hz / MH), 0, WS - 1) * WS + U.clamp(Math.floor(hx / MW), 0, WS - 1)];
+    const curG = G.W.regions[U.clamp(Math.floor(hz / MH), 0, C.WS - 1) * C.WS + U.clamp(Math.floor(hx / MW), 0, C.WS - 1)];
     const s = {
       name: 'map', full: true, cx: hx, cz: hz, D: 300, view: null, hover: null,
       draw(t) {
@@ -54,7 +54,7 @@
         const KP = Math.max(1, Math.round(vh * dpr / 620));
         const fw = Math.max(64, Math.ceil(vw * dpr / KP)), fh = Math.max(48, Math.ceil(vh * dpr / KP));
         const dw = fw * KP / dpr, dh = fh * KP / dpr;
-        s.cx = U.clamp(s.cx, 0, WS * MW); s.cz = U.clamp(s.cz, 0, WS * MH);
+        s.cx = U.clamp(s.cx, 0, C.WS * MW); s.cz = U.clamp(s.cz, 0, C.WS * MH);
         const RO = [Math.floor(s.cx / 64) * 64, Math.floor(s.cz / 64) * 64];
         const gy = Math.max(0, HGT.far(s.cx, s.cz));
         const cam = { x: s.cx - RO[0], y: gy + s.D * Math.sin(PHI), z: s.cz - RO[1] + s.D * Math.cos(PHI), yaw: 0, pitch: -PHI, fov: FOV };
@@ -64,11 +64,15 @@
         sky.fog = [0.02, 0.03, 0.06]; sky.fogSun = sky.fog; sky.hor = sky.fog; sky.zen = [0.01, 0.015, 0.03];
         sky.fogD = 0.45 / (s.D * 2.2 + 200);
         sky.amb = sky.amb.map((v, i) => v * [0.62, 0.7, 0.85][i]); sky.sun = sky.sun.map((v, i) => v * [0.55, 0.6, 0.72][i]);
+        // большой мир: дальняя земля — окном вокруг того места, куда смотришь на карте
+        V3.farFocus = [U.clamp(Math.floor(s.cx / MW), 0, C.WS - 1), U.clamp(Math.floor(s.cz / MH), 0, C.WS - 1)];
+        const kitNow = V3.mapKit();
         const frame = {
           w: fw, h: fh, time: now / 1000, cam, sky, lights: [], meshes: [], bills: [], dyn: null, wx: null, near: null, hide: null,
-          far: { h: kit.FAR.h, off: [-RO[0], 0, -RO[1]] }, farClip: s.D * 4 + 600, shadow: null,
+          far: { h: kitNow.FAR.h, off: [-RO[0], 0, -RO[1]] }, farClip: s.D * 4 + 600, shadow: null,
         };
         const gcv = P3.render(frame);
+        V3.farFocus = null;
         const proj = (x, y, z) => { const p = P3.project(x - RO[0], y, z - RO[1]); return p ? [vx0 + p[0] / fw * dw, vy0 + p[1] / fh * dh] : null; };
         const hAt = (x, z) => Math.max(0, HGT.far(x, z));
         s.view = { vx0, vy0, vw, vh, fw, fh, dw, dh, RO };
@@ -81,7 +85,7 @@
             const l = Math.hypot(...r.d), d = r.d.map((q) => q / l);
             for (let k = 0, st = Math.max(1, s.D / 200); k < 2400; k++) {
               const tt = k * st, x = r.o[0] + d[0] * tt + RO[0], y = r.o[1] + d[1] * tt, z = r.o[2] + d[2] * tt + RO[1];
-              if (y <= hAt(x, z)) { const rx = Math.floor(x / MW), ry = Math.floor(z / MH); if (rx >= 0 && ry >= 0 && rx < WS && ry < WS) s.hover = G.W.regions[ry * WS + rx]; break; }
+              if (y <= hAt(x, z)) { const rx = Math.floor(x / MW), ry = Math.floor(z / MH); if (rx >= 0 && ry >= 0 && rx < C.WS && ry < C.WS) s.hover = G.W.regions[ry * C.WS + rx]; break; }
             }
           }
         }
@@ -117,8 +121,8 @@
           for (const g of G.W.regions) {
             if (g.biome === 'ocean') continue;
             for (const [dx, dy] of [[1, 0], [0, 1]]) {
-              if (g.x + dx >= WS || g.y + dy >= WS) continue;
-              const h = G.W.regions[(g.y + dy) * WS + g.x + dx];
+              if (g.x + dx >= C.WS || g.y + dy >= C.WS) continue;
+              const h = G.W.regions[(g.y + dy) * C.WS + g.x + dx];
               if (h.biome === 'ocean') continue;
               if (!(known(g) || known(h) || g === curG || h === curG)) continue;
               const ta = topOf(g), tb = topOf(h);

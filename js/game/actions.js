@@ -3,7 +3,7 @@
 (function (E) {
   const U = E.U, D = E.D, T = E.T, TL = E.TL, C = E.C, Time = E.Time;
   const G = E.G, Gm = E.Gm, Ent = E.Ent, MG = E.MapGen, Items = E.Items;
-  const MW = C.MW, MH = C.MH, WS = C.WS;
+  const MW = C.MW, MH = C.MH;
   const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
   Gm.hasBoat = () => !!Gm.has('boat');
@@ -86,7 +86,7 @@
     const P = G.P, m = G.map;
     if (m.kind === 'dun' || (m.dim && m.dimGrid === 1) || m.dimName === 'sea') { Gm.msg('Дальше пути нет.'); return; }
     let gx, gy, size;
-    if (m.kind === 'over') { gx = m.region.x; gy = m.region.y; size = WS; }
+    if (m.kind === 'over') { gx = m.region.x; gy = m.region.y; size = C.WS; }
     else { gx = m.gx; gy = m.gy; size = m.dimGrid; }
     const tx = gx + (P.x + dx < 0 ? -1 : P.x + dx >= MW ? 1 : 0), ty = gy + (P.y + dy < 0 ? -1 : P.y + dy >= MH ? 1 : 0);
     if (tx < 0 || ty < 0 || tx >= size || ty >= size) {
@@ -99,7 +99,7 @@
     ny = ny < 0 ? MH - 1 : ny >= MH ? 0 : ny;
     let key;
     if (m.kind === 'over') {
-      const rid = ty * WS + tx;
+      const rid = ty * C.WS + tx;
       const v = E.Sim.variant(rid);
       if (v === null) { Gm.msg('Впереди — стена серого тумана. Дальше пути нет. Пока.', '#a0a0b0'); return; }
       key = 'o:' + tx + ':' + ty + (v ? ':' + v : '');
@@ -125,7 +125,7 @@
     if (Gm.has('owl_feather') || P.flags.skyfriend) {
       Gm.msg('Ты срываешься вниз — но ветер подхватывает тебя. Ты медленно планируешь сквозь облака.', '#c0e0ff');
       const g = m.region;
-      const nb = E.World.nb4(g.x, g.y).map(([x, y]) => G.W.regions[y * WS + x]).filter((r) => r.biome !== 'sky');
+      const nb = E.World.nb4(g.x, g.y).map(([x, y]) => G.W.regions[y * C.WS + x]).filter((r) => r.biome !== 'sky');
       const t = nb.length ? nb[Math.floor(Math.random() * nb.length)] : G.W.regions[G.W.start];
       Gm.loadMap('o:' + t.x + ':' + t.y, -1, -1, 'tp');
       Gm.cnt('falls');

@@ -2,7 +2,7 @@
 // Генерация локальных карт: регионы мира, поселения, подземелья, измерения.
 (function (E) {
   const U = E.U, D = E.D, T = E.T, TL = E.TL, C = E.C;
-  const MW = C.MW, MH = C.MH, WS = C.WS;
+  const MW = C.MW, MH = C.MH;
   const MG = E.MapGen = {};
 
   function newMap(key, kind) {
@@ -28,6 +28,13 @@
     const W = E.G.W;
     const k = MG.parseKey(key);
     let m;
+    // большой мир: поселение заселяется, когда строится его карта (и подводный город — тоже)
+    if (W.lazy) {
+      const g = k.t === 'o' && k.x >= 0 && k.y >= 0 && k.x < C.WS && k.y < C.WS ? W.regions[k.y * C.WS + k.x] : null;
+      if (g && g.settlement >= 0) E.World.materialize(W, g.settlement);
+      if (g && g.seaCity != null) E.World.materialize(W, g.seaCity);
+      if (k.t === 'sea' && W.regions[k.r] && W.regions[k.r].seaCity != null) E.World.materialize(W, W.regions[k.r].seaCity);
+    }
     if (k.t === 'o') m = buildOver(W, k.x, k.y, k.v, key);
     else if (k.t === 'd' || k.t === 'm') m = buildDungeon(W, k.r, k.l, k.t, key);
     else if (k.t === 'dim') m = k.n === 'mirror' ? buildMirror(W, k.x, k.y, key) : buildDim(W, k.n, k.x, k.y, key);
@@ -43,8 +50,8 @@
     const jx = wx + (U.noise(s + 71, wx / 13, wy / 13) - 0.5) * 30;
     const jy = wy + (U.noise(s + 72, wx / 13, wy / 13) - 0.5) * 16;
     const rx = Math.floor(jx / MW), ry = Math.floor(jy / MH);
-    if (rx < 0 || ry < 0 || rx >= WS || ry >= WS) return 'ocean';
-    const g = W.regions[ry * WS + rx];
+    if (rx < 0 || ry < 0 || rx >= C.WS || ry >= C.WS) return 'ocean';
+    const g = W.regions[ry * C.WS + rx];
     if (g === self && selfB) return selfB;
     return regionBiomeBase(g);
   }
@@ -182,8 +189,8 @@
   // клетка открытой земли по мировым координатам — без посёлков и построек (для дальнего вида)
   MG.terrainAt = function (W, wx, wy) {
     const rx = Math.floor(wx / MW), ry = Math.floor(wy / MH);
-    if (rx < 0 || ry < 0 || rx >= WS || ry >= WS) return T.WATER;
-    const g = W.regions[ry * WS + rx];
+    if (rx < 0 || ry < 0 || rx >= C.WS || ry >= C.WS) return T.WATER;
+    const g = W.regions[ry * C.WS + rx];
     const b = biomeAt(W, wx, wy, null, null);
     const r = riverAt(W, wx, wy, b);
     if (r) return r === 2 ? T.WATER : T.SHALLOW;
@@ -193,7 +200,7 @@
 
   // ---------- карта региона ----------
   function buildOver(W, rx, ry, variant, key) {
-    const g = W.regions[ry * WS + rx];
+    const g = W.regions[ry * C.WS + rx];
     const m = newMap(key, 'over');
     m.region = g;
     m.rid = g.id;
@@ -1435,17 +1442,17 @@
   }
 
   function buildMirror(W, mx, my, key) {
-    // отражение: регион (WS-1-x, y), зеркально перевёрнутый
-    const src = buildOver(W, WS - 1 - mx, my, '', 'tmp');
+    // отражение: регион (C.WS-1-x, y), зеркально перевёрнутый
+    const src = buildOver(W, C.WS - 1 - mx, my, '', 'tmp');
     const m = newMap(key, 'dim');
-    m.dimName = 'mirror'; m.dim = 1; m.dimGrid = WS; m.gx = mx; m.gy = my;
+    m.dimName = 'mirror'; m.dim = 1; m.dimGrid = C.WS; m.gx = mx; m.gy = my;
     m.biome = 'mirror'; m.tint = 'mirror'; m.outdoor = true;
     m.region = src.region; m.mirrorOf = src.region.id;
     for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) m.tiles[I(x, y)] = src.tiles[I(MW - 1 - x, y)];
     for (const k in src.feat) { const f = src.feat[k]; const x = k % MW, y = Math.floor(k / MW); if (f.k === 'link') { set(m, MW - 1 - x, y, T.RUBBLE); continue; } m.feat[I(MW - 1 - x, y)] = f; }
     for (const k in src.chests) { const x = k % MW, y = Math.floor(k / MW); m.chests[I(MW - 1 - x, y)] = { items: [], opened: 0 }; }
     m.spots = {};
-    if (mx === (WS >> 1) && my === (WS >> 1)) m.lairs.push({ b: W.bossById.b_mirror.i, x: MW >> 1, y: MH >> 1 });
+    if (mx === (C.WS >> 1) && my === (C.WS >> 1)) m.lairs.push({ b: W.bossById.b_mirror.i, x: MW >> 1, y: MH >> 1 });
     else if (U.hash(W.seed, 'mir', mx, my) % 30 === 0) m.lairs.push({ b: W.bossById.b_mirror.i, x: MW >> 1, y: (MH >> 1) + 2 });
     m.spawn = { biome: 'mirror', danger: src.region.danger + 3 };
     m.entry = findWalkNear(m, MW >> 1, MH >> 1);

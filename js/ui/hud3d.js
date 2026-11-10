@@ -5,7 +5,7 @@
 // попадают на карту мира раньше, чем ты туда дойдёшь.
 (function (E) {
   const UI = E.UI, G = E.G, T = E.T, TL = E.TL, D = E.D, U = E.U, C = E.C;
-  const MW = C.MW, MH = C.MH, WS = C.WS;
+  const MW = C.MW, MH = C.MH;
   const fmt = (s) => E.Gm.fmt(s);
   // что сделает «Действие» с тем, на что смотришь
   function verbOf(f) {

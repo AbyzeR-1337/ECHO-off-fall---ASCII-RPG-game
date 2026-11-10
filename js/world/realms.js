@@ -5,7 +5,7 @@
 // Особняком стоят города суккубов: там правит Матрона, а хитрые суккубы торгуют всем — даже словом.
 // Всё выводится из зерна мира отдельным генератором: старые сохранения не ломаются.
 (function (E) {
-  const U = E.U, D = E.D, World = E.World;
+  const U = E.U, D = E.D, World = E.World, C = E.C;
   const R = E.Realms = {};
 
   // ---------- народы ----------
@@ -156,11 +156,14 @@
     const BIG = { capital: 5, town: 4, tree: 3, village: 2, hamlet: 1, farm: 0 };
     const sorted = list.slice().sort((a, b) => (BIG[b.type] || 0) - (BIG[a.type] || 0) || a.id - b.id);
     const seeds = first ? [first] : [sorted[0]];
+    // дальнее от всех уже выбранных (минимум расстояний держим и обновляем — без перебора всех пар)
+    const isSeed = new Set(seeds), minD = sorted.map((s) => Math.min(...seeds.map((q) => dist(q, s))));
     while (seeds.length < k) {
       let best = null, bd = -1;
-      for (const s of sorted) { if (seeds.includes(s)) continue; const d = Math.min(...seeds.map((q) => dist(q, s))) + (BIG[s.type] || 0) * 0.8; if (d > bd) { bd = d; best = s; } }
+      for (let i = 0; i < sorted.length; i++) { const s = sorted[i]; if (isSeed.has(s)) continue; const d = minD[i] + (BIG[s.type] || 0) * 0.8; if (d > bd) { bd = d; best = s; } }
       if (!best) break;
-      seeds.push(best);
+      seeds.push(best); isSeed.add(best);
+      for (let i = 0; i < sorted.length; i++) { const d = dist(best, sorted[i]); if (d < minD[i]) minD[i] = d; }
     }
     const groups = seeds.map((s) => ({ seat: s, list: [] }));
     for (const s of list) { let g = groups[0], bd = 1e9; for (const q of groups) { const d = dist(q.seat, s); if (d < bd) { bd = d; g = q; } } g.list.push(s); }
@@ -171,13 +174,29 @@
     for (const j of prefer) { const n = ad.find((q) => q.job === j); if (n) return n; }
     return ad.sort((a, b) => b.age - a.age)[0] || null;
   }
+  // владыка титула: в заселённом поселении — сразу; в незаселённом — когда к нему впервые обратятся
+  function lordFor(W, rng, t, s, prefer) {
+    if (!W.lazy || World.isMat(W, s.id)) { const n = lordOf(W, rng, s, prefer); t.lord = n ? n.id : -1; if (n) n.lordOf = t.id; return; }
+    t.pref = prefer;
+    (W.pendLord[s.id] = W.pendLord[s.id] || []).push(t.id);
+    Object.defineProperty(t, 'lord', { configurable: true, enumerable: true, get() { if (this._lord == null) World.materialize(W, this.seat); return this._lord == null ? -1 : this._lord; }, set(v) { this._lord = v; } });
+    t._lord = null;
+  }
+  function resolveLords(W, s) {
+    const L = W.pendLord && W.pendLord[s.id];
+    if (!L) return;
+    delete W.pendLord[s.id];
+    for (const tid of L) { const t = W.titles[tid]; const n = lordOf(W, null, s, t.pref); t._lord = n ? n.id : -1; if (n) n.lordOf = tid; }
+  }
 
   R.gen = function (W) {
     const rng = U.rng(W.seed, 'realms');
     W.titles = [];
+    W.pendLord = {};
     W.cultures = [];
     const add = (o) => { o.id = W.titles.length; W.titles.push(o); return o; };
-    const name = (rank, s) => RANK[rank][0] + ' ' + U.gen(s.nom.replace(/^(Древоград|Глубинный) /, ''));
+    // составные имена (большой мир: «Малая Мшаница») — готовый родительный падеж, а не по первому слову
+    const name = (rank, s) => RANK[rank][0] + ' ' + (W.lazy && s.gen && / /.test(s.nom) && !/^(Древоград|Глубинный) /.test(s.nom) ? s.gen : U.gen(s.nom.replace(/^(Древоград|Глубинный) /, '')));
     const real = (s) => s.type !== 'sea' && s.type !== 'vanish';
 
     // города суккубов: два-три поселения подальше от начала пути, вне королевств
@@ -208,18 +227,15 @@
         const seatR = W.regions[dg.seat.region];
         const cu = culture(rng, W, dg.seat === cap && rng.chance(0.7) ? 'human' : raceFor(rng, seatR.biome), seatR);
         cu.id = W.cultures.length; W.cultures.push(cu);
-        const duke = lordOf(W, rng, dg.seat, ['ruler', 'noble', 'elder']);
-        const du = add({ rank: 'duchy', name: name('duchy', dg.seat), seat: dg.seat.id, parent: null, realm: f.id, lord: duke ? duke.id : -1, cult: cu.id });
-        if (duke) { duke.lordOf = du.id; }
+        const du = add({ rank: 'duchy', name: name('duchy', dg.seat), seat: dg.seat.id, parent: null, realm: f.id, lord: -1, cult: cu.id });
+        lordFor(W, rng, du, dg.seat, ['ruler', 'noble', 'elder']);
         const nc = Math.max(1, Math.round(dg.list.length / 4));
         for (const cg of cluster(rng, dg.list, nc, dg.seat)) {
-          const count = lordOf(W, rng, cg.seat, ['noble', 'elder', 'veteran', 'merchant']);
-          const co = add({ rank: 'county', name: name('county', cg.seat), seat: cg.seat.id, parent: du.id, realm: f.id, lord: count ? count.id : -1, cult: cu.id });
-          if (count) count.lordOf = co.id;
+          const co = add({ rank: 'county', name: name('county', cg.seat), seat: cg.seat.id, parent: du.id, realm: f.id, lord: -1, cult: cu.id });
+          lordFor(W, rng, co, cg.seat, ['noble', 'elder', 'veteran', 'merchant']);
           for (const s of cg.list) {
-            const baron = lordOf(W, rng, s, ['noble', 'elder', 'veteran', 'innkeeper', 'smith', 'farmer']);
-            const ba = add({ rank: 'barony', name: name('barony', s), seat: s.id, parent: co.id, realm: f.id, lord: baron ? baron.id : -1, cult: cu.id });
-            if (baron) baron.lordOf = ba.id;
+            const ba = add({ rank: 'barony', name: name('barony', s), seat: s.id, parent: co.id, realm: f.id, lord: -1, cult: cu.id });
+            lordFor(W, rng, ba, s, ['noble', 'elder', 'veteran', 'innkeeper', 'smith', 'farmer']);
             s.title = ba.id; s.cult = cu.id;
           }
         }
@@ -232,13 +248,11 @@
         const seatR = W.regions[cg.seat.region];
         const cu = culture(rng, W, raceFor(rng, seatR.biome), seatR);
         cu.id = W.cultures.length; W.cultures.push(cu);
-        const count = lordOf(W, rng, cg.seat, ['noble', 'elder', 'veteran']);
-        const co = add({ rank: 'county', name: 'Вольное графство ' + U.gen(cg.seat.nom.replace(/^(Древоград|Глубинный) /, '')), seat: cg.seat.id, parent: null, realm: -1, lord: count ? count.id : -1, cult: cu.id, free: 1 });
-        if (count) count.lordOf = co.id;
+        const co = add({ rank: 'county', name: 'Вольное графство ' + (W.lazy && / /.test(cg.seat.nom) && !/^(Древоград|Глубинный) /.test(cg.seat.nom) ? cg.seat.gen : U.gen(cg.seat.nom.replace(/^(Древоград|Глубинный) /, ''))), seat: cg.seat.id, parent: null, realm: -1, lord: -1, cult: cu.id, free: 1 });
+        lordFor(W, rng, co, cg.seat, ['noble', 'elder', 'veteran']);
         for (const s of cg.list) {
-          const baron = lordOf(W, rng, s, ['elder', 'noble', 'veteran', 'innkeeper', 'smith', 'farmer']);
-          const ba = add({ rank: 'barony', name: name('barony', s), seat: s.id, parent: co.id, realm: -1, lord: baron ? baron.id : -1, cult: cu.id });
-          if (baron) baron.lordOf = ba.id;
+          const ba = add({ rank: 'barony', name: name('barony', s), seat: s.id, parent: co.id, realm: -1, lord: -1, cult: cu.id });
+          lordFor(W, rng, ba, s, ['elder', 'noble', 'veteran', 'innkeeper', 'smith', 'farmer']);
           s.title = ba.id; s.cult = cu.id;
         }
       }
@@ -251,14 +265,31 @@
     }
     for (const g of W.regions) { const s = g.settlement >= 0 ? W.settlements[g.settlement] : null; g.title = s && s.title != null ? s.title : -1; }
     // свободные земли без поселения — к ближайшему баронству
+    // (поселение в регионе одно; при равенстве — меньший номер поселения, как при переборе по порядку)
+    const sAt = new Map();
+    for (const s of W.settlements) { if (s.title == null) continue; const k = s.ry * C.WS + s.rx; const o = sAt.get(k); if (o == null || s.id < o.id) sAt.set(k, s); }
     for (const g of W.regions) {
       if (g.title >= 0 || g.biome === 'ocean') continue;
-      let best = -1, bd = 4;
-      for (const s of W.settlements) { if (s.title == null) continue; const d = Math.abs(s.rx - g.x) + Math.abs(s.ry - g.y); if (d < bd) { bd = d; best = s.title; } }
+      let best = -1, bd = 4, bid = 1e9;
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+        const d = Math.abs(dx) + Math.abs(dy);
+        if (d >= 4) continue;
+        const x = g.x + dx, y = g.y + dy;
+        if (x < 0 || y < 0 || x >= C.WS || y >= C.WS) continue;
+        const s = sAt.get(y * C.WS + x);
+        if (!s) continue;
+        if (d < bd || (d === bd && s.id < bid)) { bd = d; best = s.title; bid = s.id; }
+      }
       g.title = best;
     }
 
     // ---------- народ каждого дома ----------
+    if (W.lazy) {
+      for (const s of W.settlements) if (s.lazy && s._npcs) decorateSett(W, s);
+      for (let i = W.nres; i < W._raw.length; i++) { const n = W._raw[i]; if (n) decorateOne(W, n); }
+      W.realmsDone = true;
+      return W;
+    }
     const byHouse = new Map();
     for (const n of W.npcs) {
       const s = n.sett >= 0 ? W.settlements[n.sett] : null;
@@ -368,6 +399,50 @@
     const w = n.race === 'succubus' ? 'изящный инкуб' : n.race && n.race !== 'human' ? 'изящный ' + R.raceName(n.race, 'm') : 'изящный юноша';
     return w + ', ' + rng.pick(['с подведёнными глазами', 'с длинными ресницами', 'в юбке с вышивкой', 'с лентой в волосах', 'с серёжкой-полумесяцем', 'с мягкой улыбкой', 'в чулках и короткой тунике']);
   }
+
+  // ---------- ленивый мир: народ, приметы и сердце — при заселении поселения ----------
+  function cultFor(W, s, n) {
+    let cu = s && s.cult != null ? W.cultures[s.cult] : null;
+    if (!cu) { const g = W.regions[n.region != null ? n.region : s ? s.region : 0]; const t = g && g.title >= 0 ? W.titles[g.title] : null; cu = t ? W.cultures[t.cult] : null; }
+    return cu;
+  }
+  function finishOne(rng, n) {
+    if (n.sex === 'm' && !n.fb && n.age >= 17 && n.age <= 32 && rng.chance(0.05) && !['guard', 'veteran', 'ruler', 'smith', 'miner'].includes(n.job)) n.fb = 1;
+    if (n.fb && (n.race || 'human') === 'human' && n.age >= 17) { n.race = 'femboy'; const nm = raceName(rng, 'femboy', 'm'); if (nm) { n.first = nm.first; n.sur = nm.sur; } }
+    if (n.fb) n.look = n.race === 'femboy' ? raceLook(rng, n) : fbLook(rng, n);
+    if (n.sex === 'f' && n.look) n.look = R.femLook(n.look);
+    n.orient = rng.weighted([['any', 55], ['opp', 30], ['same', 15]]);
+  }
+  function decorateOne(W, n) {
+    const rng = U.rng(W.seed, 'realmsH', n.id), cu = cultFor(W, null, n);
+    setRace(rng, n, cu ? (rng.chance(cu.mix) ? rng.pick(cu.minor) : cu.race) : 'human', cu);
+    finishOne(rng, n);
+  }
+  function decorateSett(W, s) {
+    if (s._decor) return;
+    s._decor = 1;
+    const rng = U.rng(W.seed, 'realmsP', s.id);
+    const people = s._npcs.map((id) => W._raw[id]).filter(Boolean);
+    const byHouse = new Map();
+    for (const n of people) { if (!byHouse.has(n.house)) byHouse.set(n.house, []); byHouse.get(n.house).push(n); }
+    const cu = cultFor(W, s, people[0] || {});
+    for (const ns of byHouse.values()) {
+      let race = 'human';
+      if (s.type === 'sea' || (cu && cu.succ)) race = 'human';
+      else if (cu) race = rng.chance(cu.mix) ? rng.pick(cu.minor) : cu.race;
+      for (const n of ns) setRace(rng, n, race, cu);
+      if (ns.length >= 2 && ns[0].sex === 'm' && ns[1].sex === 'f' && ns[0].age >= 18 && ns[1].age >= 18 && Math.abs(ns[0].age - ns[1].age) <= 10) { ns[0].mate = ns[1].id; ns[1].mate = ns[0].id; }
+    }
+    if (s.succ && cu) for (const n of people) {
+      if (n.age < 18) continue;
+      if (n.sex === 'f' && rng.chance(0.85)) setRace(rng, n, 'succubus', cu);
+      else if (n.sex === 'm' && rng.chance(0.35)) setRace(rng, n, 'succubus', cu);
+      else if (n.sex === 'm' && n.age >= 17 && n.age <= 34 && rng.chance(0.6)) n.fb = 1;
+      if (n.race === 'succubus') { if (!n.traits.includes('liar') && rng.chance(0.6)) n.traits[0] = 'liar'; if (rng.chance(0.5)) n.traits[1] = 'greedy'; }
+    }
+    for (const n of people) finishOne(rng, n);
+  }
+  World.onMaterialize.push((W, s) => { resolveLords(W, s); if (W.realmsDone) decorateSett(W, s); });
 
   // ---------- что знает игра ----------
   R.titleOf = (W, sid) => { const s = W.settlements[sid]; return s && s.title != null ? W.titles[s.title] : null; };

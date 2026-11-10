@@ -3,19 +3,26 @@
 (function (E) {
   const U = E.U, D = E.D, N = E.N, C = E.C;
   const World = E.World = {};
-  const WS = C.WS;
 
   // версия генерации: 2 — больше поселений и святилищ. Старые сохранения (без версии) строятся по-старому,
   // чтобы их мир не поменялся под ногами: World.genVer задаёт загрузка сохранения.
-  World.VER = 2;
+  // версия 3 — мир в ~50 раз больше (177×177 регионов) и жители поселений «ленивые»: у каждого поселения своя
+  // вилка номеров, а сами люди появляются, когда к ним впервые обращаются (подошёл к поселению, кто-то о них
+  // спросил). Появляются всегда одни и те же — их задаёт зерно мира и номер поселения.
+  World.VER = 3;
+  World.BIG = 177;
   World.genVer = World.VER;
   World.generate = function (seed, ver) {
     const t0 = performance.now();
     World.genVer = ver || World.VER;
+    C.WS = World.genVer >= 3 ? World.BIG : 25;
+    World.K = C.WS / 25;
     const r = U.rng(seed, 'world');
-    const W = { seed, ver: World.genVer, year0: r.int(300, 900), regions: [], settlements: [], npcs: [], factions: [], placements: {}, special: {}, cyclic: [], nightRegions: [], roads: {}, storyRoles: {}, npcItem: {}, npcUq: {}, uqDun: {}, uqOver: {}, uqShop: {}, uqBoss: {}, gods: {} };
+    const W = { seed, ver: World.genVer, lazy: World.genVer >= 3, year0: r.int(300, 900), regions: [], settlements: [], npcs: [], factions: [], placements: {}, special: {}, cyclic: [], nightRegions: [], roads: {}, storyRoles: {}, npcItem: {}, npcUq: {}, uqDun: {}, uqOver: {}, uqShop: {}, uqBoss: {}, gods: {} };
+    if (W.lazy) lazyNpcs(W);
     genRegions(W, r);
     genSettlements(W, r);
+    if (W.lazy) for (const sid of eagerSet(W)) World.materialize(W, sid);
     genFactions(W, r);
     genRoads(W, r);
     W.prayers = D.genPrayers(seed, 1200);
@@ -28,22 +35,25 @@
     return W;
   };
 
-  const idx = (x, y) => y * WS + x;
+  const idx = (x, y) => y * C.WS + x;
+  const NKs = () => Math.max(1, Math.round(World.K));
   World.idx = idx;
-  World.nb4 = function (x, y) { return U.DIR4.map(([dx, dy]) => [x + dx, y + dy]).filter(([a, b]) => a >= 0 && b >= 0 && a < WS && b < WS); };
+  World.nb4 = function (x, y) { return U.DIR4.map(([dx, dy]) => [x + dx, y + dy]).filter(([a, b]) => a >= 0 && b >= 0 && a < C.WS && b < C.WS); };
 
   // ---------- регионы ----------
   function genRegions(W, r) {
     const s = W.seed;
     const cells = [];
-    for (let y = 0; y < WS; y++) for (let x = 0; x < WS; x++) {
-      const nx = x / (WS - 1) - 0.5, ny = y / (WS - 1) - 0.5;
+    // большой мир: материки и края крупнее (но не в 7 раз — иначе будет одно сплошное), особых зон — больше
+    const F = W.lazy ? Math.pow(World.K, 0.65) : 1, OCT = W.lazy ? 6 : 4;
+    for (let y = 0; y < C.WS; y++) for (let x = 0; x < C.WS; x++) {
+      const nx = x / (C.WS - 1) - 0.5, ny = y / (C.WS - 1) - 0.5;
       const d = Math.sqrt(nx * nx + ny * ny);
-      let e = U.fbm(s + 11, x / 5.5, y / 5.5, 4) * 0.85 + U.noise(s + 12, x / 2.2, y / 2.2) * 0.25;
+      let e = U.fbm(s + 11, x / (5.5 * F), y / (5.5 * F), OCT) * 0.85 + U.noise(s + 12, x / (2.2 * F), y / (2.2 * F)) * 0.25;
       e -= Math.max(0, d - 0.4) * 1.4;
       e += 0.1;
-      const t = (y / (WS - 1)) * 0.95 + (U.fbm(s + 13, x / 4, y / 4, 3) - 0.5) * 0.35;
-      const m = U.fbm(s + 14, x / 4.5, y / 4.5, 4);
+      const t = (y / (C.WS - 1)) * 0.95 + (U.fbm(s + 13, x / (4 * F), y / (4 * F), 3) - 0.5) * 0.35;
+      const m = U.fbm(s + 14, x / (4.5 * F), y / (4.5 * F), W.lazy ? 5 : 4);
       cells.push({ x, y, e, t, m });
     }
     const land = (c) => c.e > 0.45;
@@ -59,7 +69,7 @@
       else b = 'plains';
       c.b = b;
     }
-    const at = (x, y) => (x < 0 || y < 0 || x >= WS || y >= WS ? null : cells[idx(x, y)]);
+    const at = (x, y) => (x < 0 || y < 0 || x >= C.WS || y >= C.WS ? null : cells[idx(x, y)]);
     // побережье
     for (const c of cells) {
       if (c.b === 'ocean' || c.b === 'ice' || c.b === 'mountain') continue;
@@ -81,34 +91,41 @@
       return k;
     };
     const pickCell = (f) => { const l = cells.filter(f); return l.length ? r.pick(l) : null; };
-    for (let i = 0; i < 2; i++) { const c = pickCell((c) => c.b === 'forest'); if (c) grow(c, 'ancient', r.int(4, 7), ['forest']); }
-    { const c = pickCell((c) => c.b === 'mountain'); if (c) grow(c, 'living', r.int(3, 5), ['mountain']); }
-    for (let i = 0; i < 3; i++) { const c = pickCell((c) => ['plains', 'desert', 'tundra'].includes(c.b)); if (c) grow(c, 'ash', r.int(2, 4), ['plains', 'desert', 'tundra']); }
+    // в большом мире особых зон больше (их число — как растёт сторона мира), и сами они крупнее
+    const NK = W.lazy ? Math.round(World.K) : 1, SK = W.lazy ? Math.sqrt(World.K) : 1;
+    const landCells = W.lazy ? cells.filter((c) => c.b !== 'ocean') : null;
+    const pickLand = W.lazy ? (f) => { for (let t = 0; t < 400; t++) { const c = landCells[r.int(0, landCells.length - 1)]; if (f(c)) return c; } return pickCell(f); } : pickCell;
+    for (let i = 0; i < 2 * NK; i++) { const c = pickLand((c) => c.b === 'forest'); if (c) grow(c, 'ancient', Math.round(r.int(4, 7) * SK), ['forest']); }
+    for (let i = 0; i < NK; i++) { const c = pickLand((c) => c.b === 'mountain'); if (c) grow(c, 'living', Math.round(r.int(3, 5) * SK), ['mountain']); }
+    for (let i = 0; i < 3 * NK; i++) { const c = pickLand((c) => ['plains', 'desert', 'tundra'].includes(c.b)); if (c) grow(c, 'ash', Math.round(r.int(2, 4) * SK), ['plains', 'desert', 'tundra']); }
     // вулканические острова — в тёплом море
-    for (let i = 0; i < 5; i++) {
-      const c = pickCell((c) => c.b === 'ocean' && c.t > 0.55 && World.nb4(c.x, c.y).every(([a, b2]) => ['ocean', 'volcanic'].includes(at(a, b2).b)));
+    for (let i = 0; i < 5 * NK; i++) {
+      const c = W.lazy ? (() => { for (let t = 0; t < 600; t++) { const q = cells[r.int(0, cells.length - 1)]; if (q.b === 'ocean' && q.t > 0.55 && World.nb4(q.x, q.y).every(([a, b2]) => ['ocean', 'volcanic'].includes(at(a, b2).b))) return q; } return null; })()
+        : pickCell((c) => c.b === 'ocean' && c.t > 0.55 && World.nb4(c.x, c.y).every(([a, b2]) => ['ocean', 'volcanic'].includes(at(a, b2).b)));
       if (c) c.b = 'volcanic';
     }
     // небесный архипелаг
-    {
-      const c = pickCell((c) => c.x > 15 && c.y < 12 && (c.b === 'mountain' || c.b === 'ocean' || c.b === 'tundra'));
-      if (c) grow(c, 'sky', r.int(4, 6), ['mountain', 'ocean', 'tundra', 'plains', 'forest', 'coast', 'ice']);
+    for (let i = 0; i < (W.lazy ? 3 : 1); i++) {
+      const c = pickCell((c) => c.x > C.WS * 0.6 && c.y < C.WS * 0.48 && (c.b === 'mountain' || c.b === 'ocean' || c.b === 'tundra'));
+      if (c) grow(c, 'sky', Math.round(r.int(4, 6) * SK), ['mountain', 'ocean', 'tundra', 'plains', 'forest', 'coast', 'ice']);
     }
-    // стартовый регион
-    let start = null, bestD = 99;
+    // стартовый регион — у середины мира
+    const CX = Math.floor(C.WS / 2), CY = Math.floor(C.WS / 2) + 1;
+    let start = null, bestD = 1e9;
     for (const c of cells) {
       if (!['plains', 'forest'].includes(c.b)) continue;
-      const dd = Math.abs(c.x - 12) + Math.abs(c.y - 13) + r.next();
+      const dd = Math.abs(c.x - CX) + Math.abs(c.y - CY) + r.next();
       if (dd < bestD) { bestD = dd; start = c; }
     }
-    if (!start) { start = cells[idx(12, 12)]; start.b = 'plains'; }
+    if (!start) { start = cells[idx(CX, CY - 1)]; start.b = 'plains'; }
     W.start = idx(start.x, start.y);
     const used = new Set();
     for (const c of cells) {
       const id = idx(c.x, c.y);
       const bi = D.biomes[c.b];
       const dist = Math.hypot(c.x - start.x, c.y - start.y);
-      const danger = Math.max(1, Math.round(1 + dist * 0.85 + bi.dg + r.next() * 1.5 - (id === W.start ? 9 : 0)));
+      // в большом мире опасность растёт медленнее с расстоянием (иначе на краю — сотые уровни)
+      const danger = Math.max(1, Math.round(1 + dist * 0.85 * (W.lazy ? Math.pow(World.K, -0.72) : 1) + bi.dg + r.next() * 1.5 - (id === W.start ? 9 : 0)));
       const reg = { id, x: c.x, y: c.y, biome: c.b, e: c.e, t: c.t, m: c.m, danger: id === W.start ? 1 : danger, name: N.regionName(r, bi.nk || 'plains', used), features: [], settlement: -1, fac: -1, shrine: null, dun: null, exist: 'always' };
       W.regions.push(reg);
     }
@@ -139,13 +156,13 @@
     W.special.moonPeak = peak ? peak.id : W.start;
     if (peak) peak.features.push('peak');
     // Бездна — два провала
-    const abyss = r.sample(W.regions.filter((g) => ['ash', 'mountain', 'desert'].includes(g.biome) && g.danger >= 7 && g.id !== W.special.moonPeak), 2);
+    const abyss = r.sample(W.regions.filter((g) => ['ash', 'mountain', 'desert'].includes(g.biome) && g.danger >= 7 && g.id !== W.special.moonPeak), W.lazy ? 4 : 2);
     W.special.abyss = abyss.map((g) => g.id);
     for (const g of abyss) { g.dun = { type: 'abyss', depth: 25 }; if (!g.features.includes('dungeon')) g.features.push('dungeon'); }
     // циклические острова и ночные земли
-    const oc = r.sample(W.regions.filter((g) => g.biome === 'ocean' && Math.abs(g.x - 12) + Math.abs(g.y - 12) < 16), 2);
+    const oc = r.sample(W.regions.filter((g) => g.biome === 'ocean' && Math.abs(g.x - Math.floor(C.WS / 2)) + Math.abs(g.y - Math.floor(C.WS / 2)) < 16 * (W.lazy ? World.K * 0.8 : 1)), W.lazy ? 2 * NKs() : 2);
     oc.forEach((g, i) => { g.exist = 'cyclic'; g.cyc = { period: 70 + r.int(0, 40), len: 3, off: r.int(0, 60) }; W.cyclic.push(g.id); g.cycName = N.regionName(r, 'coast', used); });
-    const nl = r.sample(W.regions.filter((g) => ['plains', 'forest', 'swamp', 'tundra'].includes(g.biome) && g.id !== W.start && g.danger >= 3), 4);
+    const nl = r.sample(W.regions.filter((g) => ['plains', 'forest', 'swamp', 'tundra'].includes(g.biome) && g.id !== W.start && g.danger >= 3), W.lazy ? 4 * NKs() : 4);
     nl.forEach((g) => { g.exist = 'night'; W.nightRegions.push(g.id); g.nightName = 'Ночные ' + r.pick(['Тропы', 'Луга', 'Земли', 'Холмы', 'Поля']) + ' ' + U.gen(N.fantasy(r)); });
   }
 
@@ -164,8 +181,9 @@
     const capitals = [];
     const capPool = r.shuffle(cand.filter(([g, k]) => !k && ['plains', 'coast', 'forest'].includes(g.biome) && g.id !== W.start));
     for (const [g] of capPool) {
-      if (capitals.length >= (World.genVer >= 2 ? 8 : 7)) break;
-      if (capitals.every((c) => Math.abs(c.x - g.x) + Math.abs(c.y - g.y) >= 7)) capitals.push(g);
+      if (capitals.length >= (World.genVer >= 3 ? Math.round(8 * Math.pow(World.K, 1.3)) : World.genVer >= 2 ? 8 : 7)) break;
+      const gap = World.genVer >= 3 ? Math.round(7 * Math.pow(World.K, 0.35)) : 7;
+      if (capitals.every((c) => Math.abs(c.x - g.x) + Math.abs(c.y - g.y) >= gap)) capitals.push(g);
     }
     const used = new Set();
     for (const [g, kind] of cand) {
@@ -210,8 +228,9 @@
       if (mineNear && T !== 'sea' && T !== 'vanish' && r.chance(0.8)) b.mine = 1;
       const pop = { capital: [210, 260], town: [115, 150], village: [58, 88], tree: [70, 100], hamlet: [22, 34], farm: [6, 10], vanish: [30, 45], sea: [50, 70] }[T];
       s.pop0 = r.int(pop[0], pop[1]);
-      genPeople(W, r, s, g);
+      if (W.lazy) reserve(W, s); else genPeople(W, r, s, g);
     }
+    if (W.lazy) W._raw.length = W.nres;
     // одиночки вне поселений: отшельники, бродяги
     for (const g of W.regions) {
       if (g.settlement >= 0 || g.biome === 'ocean' || g.exist !== 'always') continue;
@@ -234,12 +253,108 @@
     return who + ', ' + r.pick(j.look);
   }
   function addNpc(W, r, o) {
-    const n = Object.assign({ id: W.npcs.length, fam: [], friends: [], enemies: [], traits: r.sample(D.traitIds, 2), fear: r.int(0, D.fears.length - 1), habit: r.int(0, D.habits.length - 1), col: r.pick(CLOTH), house: -1 }, o);
+    const id = W._cur != null ? W._cur++ : W.npcs.length;
+    const n = Object.assign({ id, fam: [], friends: [], enemies: [], traits: r.sample(D.traitIds, 2), fear: r.int(0, D.fears.length - 1), habit: r.int(0, D.habits.length - 1), col: r.pick(CLOTH), house: -1 }, o);
     n.look = n.look || makeLook(n, r);
     n.lvl = n.job === 'guard' ? 4 + Math.round((W.regions[n.region != null ? n.region : W.settlements[n.sett].region].danger) / 2) : n.job === 'veteran' ? 6 : n.job === 'ruler' ? 5 : 1 + Math.floor(n.age / 30);
-    W.npcs.push(n);
+    if (W._cur != null) W._raw[id] = n; else W.npcs.push(n);
+    if (W.lazy) W._mat.push(id);
     return n;
   }
+  // ---------- ленивые жители (мир версии 3) ----------
+  // W.npcs — «окно» в массив: по номеру отдаёт жителя (и заселяет его поселение, если ещё не заселено);
+  // перебор (for…of) идёт только по уже появившимся.
+  function lazyNpcs(W) {
+    const raw = W._raw = [];
+    W.nres = 0; W._ranges = []; W._mat = [];
+    // случайный житель — из уже появившихся (иначе каждый случайный выбор заселял бы целое поселение)
+    W.pickMat = (r) => W._raw[W._mat[r.int(0, W._mat.length - 1)]];
+    W.npcs = new Proxy(raw, {
+      get(t, k, rcv) {
+        if (typeof k === 'string') {
+          const c = k.charCodeAt(0);
+          if (c >= 48 && c <= 57) {
+            const v = t[k];
+            if (v !== undefined) return v;
+            const id = +k;
+            if (id < W.nres && World.matById(W, id)) return t[k];
+            return undefined;
+          }
+        } else if (k === Symbol.iterator) {
+          return function* () { for (let i = 0; i < t.length; i++) { const v = t[i]; if (v !== undefined) yield v; } };
+        }
+        return Reflect.get(t, k, rcv);
+      },
+    });
+  }
+  function reserve(W, s) {
+    s.lazy = 1; s.n0 = W.nres; W.nres += s.pop0; s._npcs = null;
+    W._ranges.push(s.id);
+    Object.defineProperty(s, 'npcs', { configurable: true, enumerable: true, get() { if (!this._npcs) World.materialize(W, this.id); return this._npcs; }, set(v) { this._npcs = v; } });
+  }
+  // чей это номер — поселение по вилке (двоичный поиск)
+  World.matById = function (W, id) {
+    const R = W._ranges;
+    let lo = 0, hi = R.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1, s = W.settlements[R[mid]];
+      if (id < s.n0) hi = mid - 1; else if (id >= s.n0 + s.pop0) lo = mid + 1; else { World.materialize(W, s.id); return true; }
+    }
+    return false;
+  };
+  World.isMat = (W, sid) => { const s = W.settlements[sid]; return !s || !s.lazy || !!s._npcs; };
+  // заселить поселение: всегда одни и те же люди (зерно мира + номер поселения)
+  World.materialize = function (W, sid) {
+    const s = W.settlements[sid];
+    if (!s || !s.lazy || s._npcs) return false;
+    const g = W.regions[s.region], rr = U.rng(W.seed, 'people', sid);
+    const keep = W._cur;
+    s._npcs = [];
+    W._cur = s.n0;
+    try { genPeople(W, rr, s, g); } finally { W._cur = keep; }
+    W.matCount = (W.matCount || 0) + 1;
+    if (World.onMaterialize) for (const f of World.onMaterialize) f(W, s);
+    return true;
+  };
+  World.onMaterialize = [];
+  // кого заселить сразу: столицы (правители), начало пути и всё вокруг, и сотня поселений по миру
+  // (старики-хранители молитв, владельцы редких вещей, матери из историй — нужны с первого дня)
+  function eagerSet(W) {
+    const out = new Set(), st = W.regions[W.start];
+    for (const s of W.settlements) {
+      if (s.type === 'capital') out.add(s.id);
+      if (Math.abs(s.rx - st.x) + Math.abs(s.ry - st.y) <= 4) out.add(s.id);
+    }
+    const rr = U.rng(W.seed, 'eager');
+    const pool = W.settlements.filter((s) => s.type !== 'sea' && s.type !== 'vanish');
+    for (let i = 0; i < 100 && pool.length; i++) out.add(pool[rr.int(0, pool.length - 1)].id);
+    return [...out].sort((a, b) => a - b);
+  }
+  // сколько в незаселённом поселении каких людей — по его зданиям (как раздал бы genPeople)
+  World.virtJobs = function (s) {
+    const b = s.b, P = s.pop0, J = {};
+    const add = (j, k) => { if (k > 0) J[j] = (J[j] || 0) + k; };
+    if (b.palace) { add('ruler', 1); add('noble', 4); }
+    if (b.guard) add('guard', Math.max(2, Math.round(P / 14)));
+    if (b.walls && !b.guard) add('guard', 2);
+    if (b.smith) add('smith', s.type === 'capital' ? 3 : s.type === 'town' ? 2 : 1);
+    if (b.tavern) add('innkeeper', 1);
+    if (b.temple) add('priest', 1);
+    if (b.market) add('merchant', s.type === 'capital' ? 5 : s.type === 'town' ? 3 : 1);
+    if (b.alch) add('alchemist', 1);
+    if (b.mine) add('miner', Math.max(2, Math.round(P * 0.08)));
+    if (b.dock) add('fisher', Math.max(2, Math.round(P * 0.14)));
+    add('baker', s.type === 'farm' ? 0 : Math.max(1, Math.round(P / 40)));
+    add('herbalist', s.type === 'farm' ? 0 : 1);
+    add('hunter', Math.max(1, Math.round(P * 0.05))); add('woodcutter', Math.max(1, Math.round(P * 0.05)));
+    if (b.fields) add('farmer', Math.round(P * (s.type === 'capital' ? 0.08 : 0.26)));
+    if (s.type === 'sea') add('fisher', Math.round(P * 0.3));
+    if (s.type === 'capital' || s.type === 'town') add('farmer', Math.round(P * 0.14));
+    add('child', Math.round(P * 0.22));
+    let used = 0; for (const k in J) used += J[k];
+    add('laborer', Math.max(0, P - used));
+    return J;
+  };
   World.addNpc = addNpc;
 
   function genPeople(W, r, s, g) {
@@ -343,7 +458,7 @@
       if (s.fac >= 0 || s.type === 'vanish' || s.type === 'sea') continue;
       let best = -1, bd = 99;
       for (const f of W.factions) { const c = W.settlements[f.capital]; const d = Math.abs(c.rx - s.rx) + Math.abs(c.ry - s.ry); if (d < bd) { bd = d; best = f.id; } }
-      s.fac = bd <= 10 ? best : -1;
+      s.fac = bd <= (W.lazy ? Math.round(10 * Math.sqrt(World.K)) : 10) ? best : -1;
       W.regions[s.region].fac = s.fac;
     }
     for (const g of W.regions) {
@@ -355,8 +470,53 @@
   }
 
   // ---------- дороги ----------
+  // большой мир: то же остовное дерево (дороги не длиннее 6 регионов), но по соседям — Краскал вместо Прима по всем парам
+  function genRoadsBig(W, r, ss) {
+    const at = new Map();
+    ss.forEach((s, i) => at.set(s.ry * C.WS + s.rx, i));
+    const cand = [];
+    ss.forEach((a, i) => {
+      for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) {
+        const d = Math.abs(dx) + Math.abs(dy);
+        if (!d || d > 6) continue;
+        const x = a.rx + dx, y = a.ry + dy;
+        if (x < 0 || y < 0 || x >= C.WS || y >= C.WS) continue;
+        const j = at.get(y * C.WS + x);
+        if (j != null && j > i) cand.push([d, i, j]);
+      }
+    });
+    cand.sort((p, q) => p[0] - q[0] || p[1] - q[1] || p[2] - q[2]);
+    const par = ss.map((_, i) => i), find = (x) => { while (par[x] !== x) { par[x] = par[par[x]]; x = par[x]; } return x; };
+    const edges = [];
+    for (const [d, i, j] of cand) { const a = find(i), b = find(j); if (a === b) continue; par[a] = b; edges.push([ss[i], ss[j]]); }
+    for (let i = 0; i < ss.length / 4; i++) { const a = r.pick(ss), b = r.pick(ss); const d = Math.abs(a.rx - b.rx) + Math.abs(a.ry - b.ry); if (d > 0 && d <= 3) edges.push([a, b]); }
+    // дополнительные связи соседей — чтобы в большом мире не было одного длинного «дерева»
+    for (const [d, i, j] of cand) if (d <= 2 && r.chance(0.25)) edges.push([ss[i], ss[j]]);
+    roadsAlong(W, r, edges);
+  }
+  function roadsAlong(W, r, edges) {
+    const mark = (x, y, dir) => { const id = idx(x, y); W.roads[id] = (W.roads[id] || 0) | dir; };
+    for (const [a, b] of edges) {
+      let x = a.rx, y = a.ry;
+      const hFirst = r.chance(0.5);
+      const steps = [];
+      if (hFirst) { while (x !== b.rx) { steps.push([Math.sign(b.rx - x), 0]); x += Math.sign(b.rx - x); } while (y !== b.ry) { steps.push([0, Math.sign(b.ry - y)]); y += Math.sign(b.ry - y); } }
+      else { while (y !== b.ry) { steps.push([0, Math.sign(b.ry - y)]); y += Math.sign(b.ry - y); } while (x !== b.rx) { steps.push([Math.sign(b.rx - x), 0]); x += Math.sign(b.rx - x); } }
+      x = a.rx; y = a.ry;
+      let ok = true;
+      for (const [dx, dy] of steps) { const nb = W.regions[idx(x + dx, y + dy)]; if (nb.biome === 'ocean' || nb.biome === 'sky') { ok = false; break; } x += dx; y += dy; }
+      if (!ok) continue;
+      x = a.rx; y = a.ry;
+      for (const [dx, dy] of steps) {
+        const d1 = dx === 1 ? 2 : dx === -1 ? 8 : dy === 1 ? 4 : 1;
+        const d2 = dx === 1 ? 8 : dx === -1 ? 2 : dy === 1 ? 1 : 4;
+        mark(x, y, d1); x += dx; y += dy; mark(x, y, d2);
+      }
+    }
+  }
   function genRoads(W, r) {
     const ss = W.settlements.filter((s) => !['sea', 'vanish'].includes(s.type) && !['sky'].includes(W.regions[s.region].biome));
+    if (W.lazy) return genRoadsBig(W, r, ss);
     // Прим: O(n²)
     const n = ss.length;
     const inT = new Uint8Array(n), bestD = new Array(n).fill(1e9), bestP = new Array(n).fill(-1);
@@ -530,7 +690,7 @@
   function bindStories(W, r) {
     const H = {
       r, W,
-      pick(f) { for (let k = 0; k < 4000; k++) { const n = W.npcs[r.int(0, W.npcs.length - 1)]; if (n.sett >= 0 && !n.special && !n.role && f(n)) { n.role = 1; return n; } } return null; },
+      pick(f) { for (let k = 0; k < 4000; k++) { const n = W.lazy ? W.pickMat(r) : W.npcs[r.int(0, W.npcs.length - 1)]; if (n.sett >= 0 && !n.special && !n.role && f(n)) { n.role = 1; return n; } } return null; },
       region(f) { const l = W.regions.filter((g) => g.exist === 'always' && g.id !== W.start && f(g)); return l.length ? r.pick(l) : null; },
       regions(f, k) { return r.sample(W.regions.filter((g) => g.exist === 'always' && f(g)), k); },
       place(id, o) { place(W, id, o); },

@@ -34,12 +34,22 @@
       } else o.npc[id] = st;
     }
     o.dcT = dcT;
+    // большой мир: поселений — тысячи, их запасы и беды храним столбцами и округлёнными (сжатие в разы быстрее)
+    if (Array.isArray(S.sett) && S.sett.length > 600) {
+      const SK = ['food', 'iron', 'wood', 'herbs', 'weapons'], keys = [];
+      for (const ss of S.sett) for (const k in ss) if (k !== 'stock' && !keys.includes(k)) keys.push(k);
+      o.sett = { pk: 1, sk: SK, k: keys, v: S.sett.map((ss) => SK.map((k) => Math.round((ss.stock && ss.stock[k]) || 0)).concat(keys.map((k) => (ss[k] === undefined ? null : ss[k])))) };
+    }
     return o;
   }
   function unpackS(o, base) {
     const names = E.N.male.concat(E.N.female);
     o.newNpc = (o.newNpc || []).map((a, i) => ({ id: base + i, born: a[0], sett: a[1], first: typeof a[2] === 'number' ? names[a[2]] : a[2], sur: a[3], sex: a[4] ? 'f' : 'm', house: a[5], fam: a[6], traits: (a[7] || []).map((t) => (typeof t === 'number' ? D.traitIds[t] : t)), fear: a[8], habit: a[9], age: 0, job: 'child', friends: [], enemies: [], col: '#d0c0b0', look: 'ребёнок', lvl: 1 }));
     if (o.dcT) for (const id in o.npc) { const st = o.npc[id]; if (typeof st.dc === 'number') st.dc = o.dcT[st.dc]; }
+    if (o.sett && o.sett.pk) {
+      const P = o.sett;
+      o.sett = P.v.map((a) => { const ss = { stock: {} }; P.sk.forEach((k, i) => { ss.stock[k] = a[i]; }); P.k.forEach((k, i) => { const v = a[P.sk.length + i]; if (v !== null) ss[k] = v; }); return ss; });
+    }
     delete o.dcT;
     return o;
   }

@@ -3,7 +3,7 @@
 (function (E) {
   const U = E.U, D = E.D, T = E.T, TL = E.TL, C = E.C, Time = E.Time;
   const G = E.G, Gm = E.Gm, Ent = E.Ent, MG = E.MapGen;
-  const MW = C.MW, MH = C.MH, WS = C.WS;
+  const MW = C.MW, MH = C.MH;
   G.cache = new Map();
 
   // ---------- новая игра ----------

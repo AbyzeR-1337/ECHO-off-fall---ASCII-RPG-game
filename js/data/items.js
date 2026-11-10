@@ -314,7 +314,7 @@
     const mat = r.pick(mats.length ? mats : D.materials);
     const g = base.g;
     const npcs = W.npcs;
-    const owner = () => npcs[r.int(0, npcs.length - 1)];
+    const owner = () => (W.lazy ? W.pickMat(r) : npcs[r.int(0, npcs.length - 1)]);
     let name = '';
     for (let k = 0; k < 30; k++) {
       const p = r.next();

@@ -3,7 +3,6 @@
 (function (E) {
   const U = E.U, D = E.D, C = E.C, N = E.N;
   const Sim = E.Sim = {};
-  const WS = C.WS;
   const DAY = 1440, YEAR = 1440 * 360;
   const W = () => E.G.W, S = () => E.G.S;
 
@@ -39,7 +38,7 @@
       infect: {}, cults: [], dragon: null, temps: [], springStorm: {}, deadList: [], lastDay: 0, lastHour: 8, nid: 0,
     };
     for (const st of Wd.settlements) {
-      const pop = st.npcs.length;
+      const pop = st.lazy ? st.pop0 : st.npcs.length;
       s.sett.push({ stock: { food: pop * 25 + 40, iron: st.b.mine ? 20 : 4, wood: 30, herbs: 10, weapons: Math.ceil(pop * 0.2) + 2 }, famine: 0, destroyed: 0, fac: st.fac, plague: 0, unrest: 0, rep: 0, mineDead: 0, raided: 0 });
     }
     const rr = U.rng(Wd.seed, 'rel');
@@ -72,10 +71,34 @@
     };
     for (const n of Wd.npcs) add(n);
     for (const n of Sd.newNpc) add(n);
-    // соседи для торговли
-    Sim.nb = Wd.settlements.map((a) => Wd.settlements.filter((b) => b !== a && !['sea', 'vanish'].includes(b.type) && !['sea', 'vanish'].includes(a.type) && Math.abs(a.rx - b.rx) + Math.abs(a.ry - b.ry) <= 4).map((b) => b.id));
+    Sim.addLive = add;
+    // незаселённые поселения (большой мир): число людей и ремёсел — ожидаемое, пока туда не придёшь
+    Sim.virt = {};
+    for (const st of Wd.settlements) if (st.lazy && !st._npcs) { Sim.virt[st.id] = st.pop0; Sim.jobs[st.id] = E.World.virtJobs(st); }
+    // соседи для торговли: по соседним регионам (порядок — как у перебора всех поселений)
+    const at = new Map();
+    for (const b of Wd.settlements) { if (['sea', 'vanish'].includes(b.type)) continue; const k = b.ry * C.WS + b.rx; if (!at.has(k)) at.set(k, []); at.get(k).push(b.id); }
+    Sim.nb = Wd.settlements.map((a) => {
+      if (['sea', 'vanish'].includes(a.type)) return [];
+      const out = [];
+      for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+        if (Math.abs(dx) + Math.abs(dy) > 4) continue;
+        const l = at.get((a.ry + dy) * C.WS + a.rx + dx);
+        if (l && a.rx + dx >= 0 && a.rx + dx < C.WS) for (const id of l) if (id !== a.id) out.push(id);
+      }
+      return out.sort((p, q) => p - q);
+    });
   };
 
+  // поселение заселили (подошёл, или кто-то о его людях спросил): живые — в списки, ожидаемое — прочь
+  E.World.onMaterialize.push((Wd, st) => {
+    if (!Sim.alive || !Sim.settAlive || E.G.W !== Wd) return;
+    if (Sim.virt) delete Sim.virt[st.id];
+    for (const id of st._npcs) { const n = Wd._raw[id]; if (n) Sim.addLive(n); }
+    // ремёсла — по живым (вместе с родившимися здесь, пока поселение было «вдали»)
+    const J = Sim.jobs[st.id] = {};
+    for (const id of Sim.settAlive[st.id] || []) { const j = Sim.job(id); J[j] = (J[j] || 0) + 1; }
+  });
   // ---------- NPC ----------
   Sim.npc = (id) => (id < Sim.base ? W().npcs[id] : S().newNpc[id - Sim.base]);
   Sim.st = (id) => { const s = S().npc; return s[id] || (s[id] = {}); };
@@ -88,7 +111,7 @@
   };
   Sim.job = (id) => { const st = S().npc[id]; return (st && st.j) || Sim.npc(id).job; };
   Sim.settOf = (id) => { const st = S().npc[id]; return st && st.s != null ? st.s : Sim.npc(id).sett; };
-  Sim.pop = (sid) => Sim.settAlive[sid] ? Sim.settAlive[sid].length : 0;
+  Sim.pop = (sid) => (Sim.virt && Sim.virt[sid] != null ? Sim.virt[sid] : Sim.settAlive[sid] ? Sim.settAlive[sid].length : 0);
   Sim.jobCount = (sid, j) => (Sim.jobs[sid] && Sim.jobs[sid][j]) || 0;
   Sim.setJob = function (id, j) {
     const sid = Sim.settOf(id), old = Sim.job(id);
@@ -698,7 +721,7 @@
         if (Object.keys(s.infect).length >= 10) break;
         const g = Wd.regions[k];
         for (const [x, y] of E.World.nb4(g.x, g.y)) {
-          const nb = Wd.regions[y * WS + x];
+          const nb = Wd.regions[y * C.WS + x];
           if (nb.biome !== 'ocean' && !s.infect[nb.id] && r.chance(0.08)) s.infect[nb.id] = s.time;
         }
       }
