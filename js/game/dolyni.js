@@ -237,21 +237,79 @@
     if (!s || (ss && ss.destroyed) || ['sea', 'vanish', 'tree'].includes(s.type)) return;
     const c = m.settCenter || { x: m.w >> 1, y: m.h >> 1 };
     const breed = DY.breedFor(m.biome || (m.region && m.region.biome));
+    // загон: у полей или за околицей — не на улицах
+    const pen = DY.penOf(m, c);
+    const night = Gm.night();
     // деревенское стадо
     const n = { farm: 5, hamlet: 3, village: 3, town: 2, capital: 1 }[s.type] || 0;
     for (let i = 0; i < n; i++) {
-      const p = spotNear(m, c.x, c.y, 7, 16);
-      if (p) addDolyn(m, breed, p.x, p.y, { own: m.sett, hk: 's' + m.sett + '_' + i, n: BR[breed].n });
+      const p = spotNear(m, pen.x, pen.y, 0, pen.r) || spotNear(m, c.x, c.y, 7, 16);
+      if (p) { const e = addDolyn(m, breed, p.x, p.y, { own: m.sett, hk: 's' + m.sett + '_' + i, n: BR[breed].n, pen }); if (e && night) e.asleep = true; }
     }
-    // твоя ферма
+    // твоя ферма — загон пастуха
     const F = P.farm;
     if (F && F.sett === m.sett) {
+      const myPen = { x: pen.x + 3, y: pen.y + 2, r: 3 };
       F.herd.forEach((h, i) => {
-        const p = spotNear(m, c.x + 4, c.y + 3, 3, 9);
-        if (p) addDolyn(m, h.breed, p.x, p.y, { own: 'P', hi: i, n: (h.name ? h.name + ', ' : '') + BR[h.breed].n.toLowerCase(), c: BR[h.breed].c });
+        const p = spotNear(m, myPen.x, myPen.y, 0, myPen.r) || spotNear(m, c.x + 4, c.y + 3, 3, 9);
+        if (p) { const e = addDolyn(m, h.breed, p.x, p.y, { own: 'P', hi: i, n: (h.name ? h.name + ', ' : '') + BR[h.breed].n.toLowerCase(), c: BR[h.breed].c, pen: myPen }); if (e && night) e.asleep = true; }
       });
     }
   };
+  // где пастись: у поля, у мельницы, у края поселения; там — кормушка и сено
+  DY.penOf = function (m, c) {
+    if (m.dolPen) return m.dolPen;
+    const T = E.T, sr = m.settRect;
+    const free = (x, y) => { if (x < 2 || y < 2 || x >= m.w - 2 || y >= m.h - 2) return false; const t = TL[m.tiles[y * m.w + x]]; return t.walk && !t.indoor && !t.water && !t.link && !m.feat[y * m.w + x] && ![T.ROAD, T.COBBLE, T.DOOR, T.GATE, T.BRIDGE, T.FIELD].includes(m.tiles[y * m.w + x]); };
+    const room = (x, y) => { let k = 0; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (free(x + dx, y + dy)) k++; return k; };
+    let best = null, bk = -1;
+    const fields = (m.spots && m.spots.field) || [];
+    const cand = [];
+    for (const f of fields.slice(0, 6)) { const fx = f.x != null ? f.x : f.rect ? f.rect.x : null, fy = f.y != null ? f.y : f.rect ? f.rect.y : null; if (fx != null) for (const [dx, dy] of [[-4, 0], [4, 0], [0, -3], [0, 3]]) cand.push([fx + dx, fy + dy]); }
+    if (sr) for (const [x, y] of [[sr.x - 5, sr.y + (sr.h >> 1)], [sr.x + sr.w + 4, sr.y + (sr.h >> 1)], [sr.x + (sr.w >> 1), sr.y - 4], [sr.x + (sr.w >> 1), sr.y + sr.h + 4]]) cand.push([x, y]);
+    cand.push([c.x + 12, c.y + 6], [c.x - 12, c.y - 6]);
+    for (const [x, y] of cand) { const k = room(x, y); if (free(x, y) && k > bk) { bk = k; best = { x, y }; } }
+    if (!best) best = { x: c.x, y: c.y };
+    const pen = m.dolPen = { x: best.x, y: best.y, r: 4 };
+    // кормушка и копна сена — видно, что это загон
+    if (T.TROUGH != null && free(best.x, best.y)) { m.tiles[best.y * m.w + best.x] = T.TROUGH; m.occ && m.occ.delete && m.occ.delete(best.y * m.w + best.x); }
+    if (T.HAY != null) for (const [dx, dy] of [[1, -1], [-1, 1]]) if (free(best.x + dx, best.y + dy)) m.tiles[(best.y + dy) * m.w + best.x + dx] = T.HAY;
+    return pen;
+  };
+  // долынь — не житель: днём пасётся в загоне, ночью спит у кормушки; людей сторонится, но по улицам не бродит
+  const act0 = Ent.act;
+  Ent.act = function (e) {
+    if (!e || e.dead || !e.pen || !DY.isDolyn(e) || e.hostileToP || e.led) return act0.apply(this, arguments);
+    const P = G.P, pen = e.pen;
+    const d = Math.max(Math.abs(e.x - pen.x), Math.abs(e.y - pen.y));
+    if (Gm.night()) {
+      if (d > 2) { e.asleep = false; const b = bedOf(e); if (b) stepTo(e, b.x, b.y); else Ent.wander(e, 0.1); return; }
+      e.asleep = true; return;
+    }
+    e.asleep = false; e.bed = null;
+    // испугалась — отбежит, но в пределах загона
+    if (Ent.sees(e) && U.dist(e.x, e.y, P.x, P.y) < 3 && !(e.tame >= 2) && e.own !== 'P') { if (d < pen.r + 2) Ent.stepToward(e, true); return; }
+    if (d > pen.r) { const b = bedOf(e); if (b) stepTo(e, b.x, b.y); else Ent.wander(e, 0.1); return; }
+    // щиплет траву: стоит подолгу, иногда переходит
+    if (Math.random() < 0.18) { const [dx, dy] = U.DIR8[(Math.random() * 8) | 0]; const x = e.x + dx, y = e.y + dy; if (Math.max(Math.abs(x - pen.x), Math.abs(y - pen.y)) <= pen.r && Ent.passable(x, y, e)) Ent.move(e, x, y); }
+  };
+  // место ночлега: свободная клетка у кормушки (сама кормушка непроходима)
+  function bedOf(e) {
+    if (e.bed && Ent.passable(e.bed.x, e.bed.y, e)) return e.bed;
+    if (e.bedFail && G.turn - e.bedFail < 40) return null;
+    const pen = e.pen, m = G.map;
+    for (let r = 1; r <= 2; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+      const x = pen.x + dx, y = pen.y + dy;
+      if (x < 1 || y < 1 || x >= m.w - 1 || y >= m.h - 1 || !Ent.passable(x, y, e)) continue;
+      if (Ent.pathTo(e, x, y, 900)) { e.bed = { x, y }; return e.bed; }
+    }
+    e.bedFail = G.turn; return null;
+  }
+  function stepTo(e, tx, ty) {
+    if (!e.tgt || e.tgt.x !== tx || e.tgt.y !== ty) { e.tgt = { x: tx, y: ty }; e.path = null; }
+    Ent.followPath(e);
+  }
   // пастух копит надоенное, пока тебя нет: по кринке с долыни в день
   DY.collect = function () {
     const F = G.P.farm;
