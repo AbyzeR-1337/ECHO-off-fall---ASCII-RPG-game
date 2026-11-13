@@ -402,9 +402,15 @@
     ctx.save();
     ctx.globalAlpha = Math.max(0, a);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const y = v.vy0 + v.vh * 0.2;
-    ctx.font = '600 ' + Math.round(fpx * 1.5) + 'px ' + t.family;
-    stroked(ctx, placeA.split('').join(' '), v.vx0 + v.vw / 2, y, '#e8c878', 4);
+    // на телефоне сверху — кнопки: название встаёт ниже и не шире свободного места
+    const phone = !!(UI.phone && UI.phone.on);
+    const y = v.vy0 + v.vh * (phone ? 0.4 : 0.2);
+    const txt = placeA.split('').join(' ');
+    let fs = Math.round(fpx * 1.5);
+    ctx.font = '600 ' + fs + 'px ' + t.family;
+    const tw = ctx.measureText(txt).width, maxW = v.vw * (phone ? 0.6 : 0.88);
+    if (tw > maxW) { fs = Math.max(10, Math.floor(fs * maxW / tw)); ctx.font = '600 ' + fs + 'px ' + t.family; }
+    stroked(ctx, txt, v.vx0 + v.vw / 2, y, '#e8c878', 4);
     if (placeB) { ctx.font = Math.round(fpx * 0.8) + 'px ' + t.family; stroked(ctx, placeB, v.vx0 + v.vw / 2, y + fpx * 1.7, '#a89c80', 3); }
     ctx.restore();
   }

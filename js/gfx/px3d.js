@@ -33,13 +33,19 @@ varying vec2 vLoc; varying vec2 vTile; varying vec3 vN; varying vec3 vW; varying
 void main(){
   vec3 p = aPos + uOff;
   // дальняя земля уходит вниз там, где лежат подробные куски
-  if (aKind > 19.5 && p.x > uNear.x && p.x < uNear.z && p.z > uNear.y && p.z < uNear.w) p.y -= aKind > 21.5 ? 200.0 : 8.0;
+  // а горы дальней земли вырастают постепенно, с расстоянием от подробных кусков: у дальней земли в aSky —
+  // высота гор над долиной (иначе рядом с тобой в небе повисли бы склоны, которых на подробной карте нет)
+  if (aKind > 19.5) {
+    float dn = max(max(max(uNear.x - p.x, p.x - uNear.z), max(uNear.y - p.z, p.z - uNear.w)), 0.0);
+    if (aKind < 20.5) p.y -= aSky * (1.0 - smoothstep(0.0, 170.0, dn));
+    if (dn <= 0.0) p.y -= aKind > 21.5 ? 200.0 : 8.0;
+  }
   // дом, где ты: крыши нет, потолок есть; в других домах — наоборот
   bool inH = p.x > uHide.x && p.x < uHide.z && p.z > uHide.y && p.z < uHide.w;
   if ((aKind > 9.5 && aKind < 10.5 && inH) || (aKind > 10.5 && aKind < 11.5 && (!inH || uThird > 0.5)) || (aKind > 11.5 && aKind < 12.5 && uThird > 0.5)) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
   // травинки качает ветер (верх сильнее низа)
   if (aKind > 13.5 && aKind < 14.5) { float k = aLoc.y*aLoc.y; p.x += sin(uWT*1.7 + p.x*0.9 + p.z*0.6)*0.07*k; p.z += cos(uWT*1.3 + p.x*0.5 - p.z*0.8)*0.05*k; }
-  vLoc=aLoc; vTile=aTile; vN=aN; vW=p; vSky=aSky; vKind=aKind; vTint=aTint;
+  vLoc=aLoc; vTile=aTile; vN=aN; vW=p; vSky=(aKind > 19.5 && aKind < 20.5) ? 1.0 : aSky; vKind=aKind; vTint=aTint;
   vLS = uSM * vec4(p + aN*0.05, 1.0);
   gl_Position = uVP*vec4(p,1.0);
 }`;
@@ -72,7 +78,7 @@ float shadowAt(vec4 ls, float bias){
 }
 vec3 lightAt(vec3 w, vec3 n, float sky, float fl, float sh){
   float sunL = mix(max(dot(n, uSunDir), 0.0), 0.5 + 0.5*max(uSunDir.y,0.0), fl) * sh;
-  vec3 L = uAmb*(0.6 + 0.4*mix(n.y,1.0,fl))*sky + uSun*sunL*sky + vec3(0.03,0.028,0.04);
+  vec3 L = uAmb*(0.74 + 0.26*mix(n.y,1.0,fl))*sky + uSun*sunL*sky + vec3(0.03,0.028,0.04);
   for (int i=0;i<__NL__;i++){
     if (i>=uNL) break;
     vec3 d = uLP[i].xyz - w; float dist = length(d);

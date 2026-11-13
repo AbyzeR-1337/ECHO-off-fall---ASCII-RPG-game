@@ -64,12 +64,12 @@
     const at = (x, y) => arr[U.clamp(y, 0, C.WS - 1) * C.WS + U.clamp(x, 0, C.WS - 1)];
     return (at(ix, iy) * (1 - tx) + at(ix + 1, iy) * tx) * (1 - ty) + (at(ix, iy + 1) * (1 - tx) + at(ix + 1, iy + 1) * tx) * ty;
   }
-  let FE = null, FM = null, FF = null, FSKY = null, fieldsFor = null;
+  let FE = null, FM = null, FF = null, FSKY = null, FSET = null, fieldsFor = null;
   function fields() {
     if (fieldsFor === G.W) return;
     fieldsFor = G.W; seed = (G.W.seed | 0) || 1;
-    FE = new Float32Array(C.WS * C.WS); FM = new Float32Array(C.WS * C.WS); FF = new Float32Array(C.WS * C.WS); FSKY = new Float32Array(C.WS * C.WS);
-    for (const g of G.W.regions) { const i = g.y * C.WS + g.x; FE[i] = g.e; FM[i] = MTN[g.biome] || 0; FF[i] = FOREST[g.biome] || 0; FSKY[i] = g.biome === 'sky' ? 1 : 0; }
+    FE = new Float32Array(C.WS * C.WS); FM = new Float32Array(C.WS * C.WS); FF = new Float32Array(C.WS * C.WS); FSKY = new Float32Array(C.WS * C.WS); FSET = new Float32Array(C.WS * C.WS);
+    for (const g of G.W.regions) { const i = g.y * C.WS + g.x; FE[i] = g.e; FM[i] = MTN[g.biome] || 0; FF[i] = FOREST[g.biome] || 0; FSKY[i] = g.biome === 'sky' ? 1 : 0; FSET[i] = g.settlement >= 0 ? 1 : 0; }
   }
   HGT.base = (gx, gz) => (field(gx, gz, FE) - 0.45) * 26;
   HGT.hills = (gx, gz) => (fbm(gx / 24, gz / 24, seed + 3, 4) - 0.5) * 3.4 + (fbm(gx / 7, gz / 7, seed + 7, 2) - 0.5) * 0.6;
@@ -78,13 +78,20 @@
   HGT.land = (gx, gz, hk) => Math.max(0.3, HGT.base(gx, gz) + HGT.hills(gx, gz) * (hk == null ? 1 : hk));
   HGT.rock = (gx, gz, mt) => 2.6 + HGT.ridge(gx, gz) * (6 + 52 * mt);
   // высота дальней земли (без подробностей карты)
+  // насколько горы поднимаются над долиной; у поселений — долина: издали видно и село в горах, а не один хребет
+  HGT.farEx = function (gx, gz) {
+    const b = HGT.base(gx, gz) + HGT.hills(gx, gz);
+    if (b < 0.2 || field(gx, gz, FSKY) > 0.5) return 0;
+    const mt = HGT.mtn(gx, gz);
+    if (mt <= 0) return 0;
+    const st = field(gx, gz, FSET);
+    return Math.pow(mt, 1.4) * HGT.rock(gx, gz, 1) * 0.95 * (1 - 0.8 * st * st);
+  };
   HGT.far = function (gx, gz) {
     const b = HGT.base(gx, gz) + HGT.hills(gx, gz);
     if (field(gx, gz, FSKY) > 0.5) return SEA - 30;
     if (b < 0.2) return b - 0.6;
-    const mt = HGT.mtn(gx, gz);
-    let h = Math.max(0.3, b) + Math.pow(mt, 1.4) * HGT.rock(gx, gz, 1) * 0.95;
-    return h;
+    return Math.max(0.3, b) + HGT.farEx(gx, gz);
   };
 
   // ============================================================
@@ -725,9 +732,11 @@
     for (let ry = ry0; ry <= ry1; ry++) for (let rx = rx0; rx <= rx1; rx++) {
       const st = stepAt(rx, ry), nx = MW / st, nz = MH / st, X0 = rx * MW, Z0 = ry * MH;
       const GW = nx + 3;
-      const hg = new Float32Array(GW * (nz + 3));
-      for (let j = -1; j <= nz + 1; j++) for (let i = -1; i <= nx + 1; i++) hg[(j + 1) * GW + i + 1] = HGT.far(X0 + i * st, Z0 + j * st);
-      const H = (i, j) => hg[(j + 1) * GW + i + 1];
+      const hg = new Float32Array(GW * (nz + 3)), eg = new Float32Array(GW * (nz + 3));
+      for (let j = -1; j <= nz + 1; j++) for (let i = -1; i <= nx + 1; i++) { hg[(j + 1) * GW + i + 1] = HGT.far(X0 + i * st, Z0 + j * st); eg[(j + 1) * GW + i + 1] = HGT.farEx(X0 + i * st, Z0 + j * st); }
+      const H = (i, j) => hg[(j + 1) * GW + i + 1], EX = (i, j) => eg[(j + 1) * GW + i + 1];
+      // высота гор над долиной — в поле «небо» вершины (шейдер опускает горы рядом с подробными кусками)
+      const setEx = (ex) => { const a = M.a, b0 = a.length - 6 * 15; [0, 1, 2, 0, 2, 3].forEach((q, k) => { a[b0 + k * 15 + 10] = ex[q]; }); };
       const N = (i, j) => { const ax = H(i - 1, j) - H(i + 1, j), az = H(i, j - 1) - H(i, j + 1), l = Math.hypot(ax, 2 * st, az); return [ax / l, 2 * st / l, az / l]; };
       for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
         const xs = [i, i + 1, i + 1, i], zs = [j + 1, j + 1, j, j];
@@ -738,6 +747,7 @@
         const ns = xs.map((xx, q) => N(xx, zs[q]));
         const cs = xs.map((xx, q) => colAt(X0 + xx * st, Z0 + zs[q] * st, hs[q], X0 / st + xx, Z0 / st + zs[q]));
         P3.quadN(M, p, l, 'farnoise', ns, 1, K.FAR, cs);
+        setEx(xs.map((xx, q) => EX(xx, zs[q])));
       }
       // юбка там, где у соседа другой шаг: прячет щели
       for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
@@ -751,6 +761,7 @@
           const pa = [X0 + a[0] * st, ha, Z0 + a[1] * st], pb = [X0 + b[0] * st, hb, Z0 + b[1] * st];
           const c = colAt(pa[0], pa[2], ha, 0, 0);
           P3.quad(M, [pa[0], ha - 5, pa[2]], [pb[0], hb - 5, pb[2]], [pb[0], hb, pb[2]], pa, [pa[0] / 8, 0], [pb[0] / 8, 0.6], 'farnoise', [dx, 0.3, dy], 1, K.FAR, c);
+          { const ea = EX(a[0], a[1]), eb = EX(b[0], b[1]); setEx([ea, eb, eb, ea]); }
         }
       }
     }
@@ -868,7 +879,8 @@
     if (m.dimName && DIMC[m.dimName]) { zen = DIMC[m.dimName][0]; hor = DIMC[m.dimName][1]; fogD = 0.02; glow = [0.2, 0.2, 0.2]; }
     const sunK = s.sun.map((v, i) => v * [0.92, 0.9, 0.86][i]);
     // в золотой час небо подсвечивает всё тёплым — тени не проваливаются в черноту
-    s.amb = s.amb.map((v, i) => v + gold * [0.2, 0.12, 0.13][i] * (1 - over * 0.5) + (1 - day) * [0.015, 0.02, 0.045][i]);
+    // днём небо светит и в тень: стена в тени — тёмная, но не чёрная
+    s.amb = s.amb.map((v, i) => v + gold * [0.2, 0.12, 0.13][i] * (1 - over * 0.5) + (1 - day) * [0.015, 0.02, 0.045][i] + day * [0.085, 0.09, 0.11][i] * (1 - over * 0.35));
     const out = {
       zen, hor, fog: hor, fogSun: mix3(hor, glow.map((v) => Math.min(1.1, v)), 0.55), fogD, glow,
       sunDir: [s.S[0], s.S[2], s.S[1]], sunSky: sunReal, sun: sunK, amb: s.amb.map((v) => v * 1.0),
@@ -1446,16 +1458,26 @@
     const X = UI.mvTiles, n = 25, half = 12;
     if (!MM) { MM = document.createElement('canvas'); MM.width = n; MM.height = n; }
     const c = MM.getContext('2d'), img = c.createImageData(n, n), d = img.data;
+    // под открытым небом видно и то, где ещё не был[а], и край соседней земли — карта у границы не пустеет
+    const over = m.kind === 'over' && m.region;
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
       const x = P.x - half + i, y = P.y - half + j, k = (j * n + i) * 4;
       d[k + 3] = 200;
-      if (x < 0 || y < 0 || x >= m.w || y >= m.h) continue;
-      const mi = y * m.w + x;
-      if (!m.ex[mi] && !G.vis[mi]) continue;
-      const tid = m.tiles[mi];
+      let tid, dim;
+      if (x < 0 || y < 0 || x >= m.w || y >= m.h) {
+        if (!over) continue;
+        const rx = m.region.x + Math.floor(x / m.w), ry = m.region.y + Math.floor(y / m.h);
+        const cd = V3.cd.get(rx + ',' + ry);
+        if (!cd || !cd.m) continue;
+        tid = cd.m.tiles[(((y % m.h) + m.h) % m.h) * m.w + (((x % m.w) + m.w) % m.w)]; dim = 0.36;
+      } else {
+        const mi = y * m.w + x;
+        if (!m.ex[mi] && !G.vis[mi]) { if (!over) continue; dim = 0.36; } else dim = G.vis[mi] ? 1 : 0.55;
+        tid = m.tiles[mi];
+      }
       let col = TL[tid].fg || '#666666';
       if (X.BK[tid]) col = '#b8b0a0';
-      const v = parseInt(col.slice(1), 16), dim = G.vis[mi] ? 1 : 0.55;
+      const v = parseInt(col.slice(1), 16);
       d[k] = ((v >> 16) & 255) * dim * 0.75; d[k + 1] = ((v >> 8) & 255) * dim * 0.75; d[k + 2] = (v & 255) * dim * 0.75;
     }
     for (const e of m.ents) { if (e.dead || !G.vis[e.y * m.w + e.x]) continue; const i = e.x - P.x + half, j = e.y - P.y + half; if (i < 0 || j < 0 || i >= n || j >= n) continue; const k = (j * n + i) * 4; const hc = e.hostile || e.hostileToP; d[k] = hc ? 255 : 240; d[k + 1] = hc ? 60 : 220; d[k + 2] = hc ? 50 : 120; }
