@@ -156,9 +156,9 @@
     return null;
   })();
   // готовая сборка для Windows (её выкладывает .github/workflows/windows-exe.yml)
-  UI.EXE_URL = 'https://github.com/AbyzeR-1337/ECHO-off-fall---ASCII-RPG-game/releases/tag/windows-build';
+  UI.EXE_URL = 'https://github.com/AbyzeR-1337/ECHOS/releases/tag/windows-build';
   // приложение для Android (.github/workflows/android-apk.yml)
-  UI.APK_URL = 'https://github.com/AbyzeR-1337/ECHO-off-fall---ASCII-RPG-game/releases/tag/android-build';
+  UI.APK_URL = 'https://github.com/AbyzeR-1337/ECHOS/releases/tag/android-build';
   // старый рисованный вид (уровни 1–4) больше не включается
   Object.defineProperty(UI, 'view3d', { get: () => false });
   // без WebGL ни ASCII, ни 3D нет — остаются плоские символы

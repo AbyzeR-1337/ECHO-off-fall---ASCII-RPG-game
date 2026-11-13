@@ -15,23 +15,23 @@ RPG с огромным открытым миром, который живёт �
 
 ## Скачать для Windows
 
-**[⬇ Скачать установщик (EchoesOfTheFall-Setup.exe)](https://github.com/AbyzeR-1337/ECHO-off-fall---ASCII-RPG-game/releases/download/windows-build/EchoesOfTheFall-Setup.exe)** — ярлыки на рабочем столе и в «Пуске».
+**[⬇ Скачать установщик (EchoesOfTheFall-Setup.exe)](https://github.com/AbyzeR-1337/ECHOS/releases/download/windows-build/EchoesOfTheFall-Setup.exe)** — ярлыки на рабочем столе и в «Пуске».
 
-**[⬇ Скачать без установки (EchoesOfTheFall-portable.exe)](https://github.com/AbyzeR-1337/ECHO-off-fall---ASCII-RPG-game/releases/download/windows-build/EchoesOfTheFall-portable.exe)** — один файл: скачал и играй.
+**[⬇ Скачать без установки (EchoesOfTheFall-portable.exe)](https://github.com/AbyzeR-1337/ECHOS/releases/download/windows-build/EchoesOfTheFall-portable.exe)** — один файл: скачал и играй.
 
-Все сборки: [страница релиза](https://github.com/AbyzeR-1337/ECHO-off-fall---ASCII-RPG-game/releases/tag/windows-build). Игра работает без интернета. Windows может предупредить «неизвестный издатель»: у сборки нет платной подписи. Нажмите «Подробнее» → «Выполнить в любом случае». Сохранения лежат в `%APPDATA%\Echoes of the Fall`, **F11** — во весь экран.
+Все сборки: [страница релиза](https://github.com/AbyzeR-1337/ECHOS/releases/tag/windows-build). Игра работает без интернета. Windows может предупредить «неизвестный издатель»: у сборки нет платной подписи. Нажмите «Подробнее» → «Выполнить в любом случае». Сохранения лежат в `%APPDATA%\Echoes of the Fall`, **F11** — во весь экран.
 
 Сборку делает GitHub Actions (`.github/workflows/windows-exe.yml`) при каждом изменении игры, поэтому по ссылкам всегда самая свежая версия. Собрать самому: `npm ci`, затем `npm run dist:win` (готовые файлы появятся в `dist/`), а `npm start` запускает игру в окне без сборки.
 
 ## Скачать для Android (телефон)
 
-**[⬇ Скачать приложение (EchoesOfTheFall.apk)](https://github.com/AbyzeR-1337/ECHO-off-fall---ASCII-RPG-game/releases/download/android-build/EchoesOfTheFall.apk)** — открой файл на телефоне; Android попросит разрешить установку из этого источника (браузера или «Файлов») — разреши. Все сборки: [страница релиза](https://github.com/AbyzeR-1337/ECHO-off-fall---ASCII-RPG-game/releases/tag/android-build).
+**[⬇ Скачать приложение (EchoesOfTheFall.apk)](https://github.com/AbyzeR-1337/ECHOS/releases/download/android-build/EchoesOfTheFall.apk)** — открой файл на телефоне; Android попросит разрешить установку из этого источника (браузера или «Файлов») — разреши. Все сборки: [страница релиза](https://github.com/AbyzeR-1337/ECHOS/releases/tag/android-build).
 
 Приложение идёт **горизонтально и во весь экран** (строка состояния и кнопки Android прячутся, вернуть — смахнуть с края), экран не гаснет, пока играешь, игра работает без интернета. Новая версия ставится поверх старой — сохранения остаются (все сборки подписаны одним ключом; это открытый ключ сборки, не магазинный).
 
 ## Играть на iPhone и iPad
 
-**[▶ Открыть игру: abyzer-1337.github.io/ECHO-off-fall---ASCII-RPG-game](https://abyzer-1337.github.io/ECHO-off-fall---ASCII-RPG-game/)** — в Safari, ничего ставить не нужно; страница обновляется сама с каждой новой версией.
+**[▶ Открыть игру: abyzer-1337.github.io/ECHOS](https://abyzer-1337.github.io/ECHOS/)** — в Safari, ничего ставить не нужно; страница обновляется сама с каждой новой версией.
 
 Чтобы играть во весь экран, как в приложении: в Safari «Поделиться» (квадрат со стрелкой вверх) → **«На экран „Домой“»** → «Добавить» — и открывай игру со значка Echoes. Телефон — горизонтально. Сохранения хранятся на телефоне (удалить значок или данные сайта — значит стереть и их). Ту же ссылку можно открыть и на Android, и на компьютере.
 
